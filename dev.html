@@ -73,7 +73,7 @@
           <i data-lucide="flask-conical" class="w-6 h-6 text-purple-400"></i>
           <span class="font-bold text-lg text-white tracking-wide">LOA RAID [DEV]</span>
           <button onclick="openInfoModal('changelog')" class="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/30 hover:bg-purple-500/20 transition cursor-pointer" title="클릭하여 업데이트 이력 확인">
-            v1.0.3-dev
+            v1.0.4-dev
           </button>
         </div>
 
@@ -127,7 +127,7 @@
         <span class="font-semibold text-gray-300">골드 획득 범례:</span>
         <div class="flex items-center space-x-1.5">
           <span class="inline-block w-4 h-4 rounded-full bg-amber-500 text-[10px] text-amber-950 font-bold text-center leading-4">G</span>
-          <span>골드 획득 (원정대 상위 6캐릭)</span>
+          <span>골드 획득 (계정별 상위 6캐릭)</span>
         </div>
         <div class="flex items-center space-x-1.5">
           <span class="inline-block w-4 h-4 rounded-full bg-cyan-600 text-[10px] text-white font-bold text-center leading-4">?</span>
@@ -191,7 +191,7 @@
           </div>
           <div class="flex items-center space-x-1.5">
             <span class="px-1.5 py-0.5 bg-gray-800 border border-gray-600 text-gray-200 rounded text-[10px] ring-1 ring-amber-500/50">벨가 🟡G</span>
-            <span>골드 획득 추천 숙제 (원정대 상위 6캐릭)</span>
+            <span>골드 획득 추천 숙제 (계정별 상위 6캐릭)</span>
           </div>
         </div>
       </div>
@@ -284,7 +284,7 @@
           <div class="bg-[#0d1117] p-3.5 rounded-xl border border-gray-800">
             <h4 class="font-bold text-white text-xs mb-1 text-yellow-400">Q. 골드 획득 캐릭터(6캐릭 제한)는 어떻게 계산되나요?</h4>
             <p class="text-xs text-gray-300 leading-relaxed">
-              로스트아크 시스템에 맞춰 <strong>유저별 아이템 레벨 상위 6개 캐릭터만 골드 획득 대상</strong>으로 자동 지정됩니다. 7번째 이후 캐릭터는 숙제 체크는 가능하나 골드 추천 뱃지가 비활성화됩니다.
+              시트에 입력된 <strong>유저명 단위(예: 안녕(본), 안녕(부1) 등 각각 독립된 계정)</strong>별로 아이템 레벨 상위 6개 캐릭터만 골드 획득 대상으로 자동 지정됩니다. 7번째 이후 캐릭터는 배럭으로 처리되어 골드 추천 뱃지가 제외됩니다.
             </p>
           </div>
 
@@ -299,12 +299,11 @@
         <div id="infoContentChangelog" class="space-y-3 hidden">
           <div class="border-l-2 border-purple-500 pl-3 py-1">
             <div class="flex items-center justify-between">
-              <span class="font-bold text-white text-xs">v1.0.3-dev - 원정대 상위 6캐릭 골드 획득 제한 로직 적용</span>
+              <span class="font-bold text-white text-xs">v1.0.4-dev - 유저명(계정)별 독립 상위 6캐릭 골드 제한 적용</span>
               <span class="text-[11px] text-gray-500">2026.08.30</span>
             </div>
             <ul class="text-xs text-gray-400 mt-1 space-y-0.5 list-disc pl-3">
-              <li>유저별 레벨 상위 6캐릭터만 골드 획득 가능 캐릭터로 판별</li>
-              <li>7번째 이후 배럭 캐릭터는 골드 추천 뱃지 제외</li>
+              <li>유저명(A열) 단위로 원정대를 분리하여 부계정마다 각각 상위 6캐릭 골드 획득 제한 판별</li>
             </ul>
           </div>
         </div>
@@ -346,7 +345,7 @@
     let characterPoolData = [];
     let raidInfoData = [];
     let activeSwapTarget = null;
-    let goldEligibleCharNames = new Set(); // ★ 유저별 상위 6캐릭 목록
+    let goldEligibleCharNames = new Set();
 
     document.addEventListener('DOMContentLoaded', () => {
       document.getElementById('filterMySubToggle').checked = filterMySubOnly;
@@ -524,7 +523,7 @@
 
       for (let r = 1; r < rows.length; r++) {
         const row = rows[r] || [];
-        const user = (row[0] || '').toString().trim();
+        const user = (row[0] || '').toString().trim(); // A열 유저명 전체(예: 안녕(본), 안녕(부1))
         const server = (row[1] || '').toString().trim();
         const name = (row[2] || '').toString().trim();
         const job = (row[3] || '').toString().trim();
@@ -556,15 +555,15 @@
           };
           characterPoolData.push(charObj);
 
-          const baseUser = user.split('(')[0].trim();
-          if (!userGroupMap[baseUser]) userGroupMap[baseUser] = [];
-          userGroupMap[baseUser].push(charObj);
+          // ★ 유저명(A열) 전체를 독립된 계정 키로 사용
+          if (!userGroupMap[user]) userGroupMap[user] = [];
+          userGroupMap[user].push(charObj);
         }
       }
 
-      // ★ 유저별 레벨 상위 6개 캐릭터만 골드 획득 대상 집합에 등록
-      Object.keys(userGroupMap).forEach(baseUser => {
-        const list = userGroupMap[baseUser];
+      // ★ 계정(유저명)별로 레벨 상위 6개 캐릭터만 골드 획득 대상에 등록
+      Object.keys(userGroupMap).forEach(accountUser => {
+        const list = userGroupMap[accountUser];
         list.sort((a, b) => b.level - a.level);
         list.slice(0, 6).forEach(c => goldEligibleCharNames.add(c.name));
       });
@@ -602,7 +601,6 @@
         const list = groupedByChar[charName];
         list.sort((a, b) => b.weight - a.weight);
 
-        // 6캐릭 제한에 걸리는 캐릭터는 골드 획득 불가 처리
         const isGoldChar = goldEligibleCharNames.has(charName);
 
         const hasAct4Hard = list.some(i => i.raidTitle.includes('4막') && i.raidTitle.includes('하드'));
@@ -890,7 +888,7 @@
     function renderGoldBadge(status) {
       if (status === 'EARN') {
         return `
-          <div class="relative flex items-center justify-center w-5 h-5 cursor-help" title="골드 획득 (원정대 상위 6캐릭 & 주간 상위 3회)">
+          <div class="relative flex items-center justify-center w-5 h-5 cursor-help" title="골드 획득 (계정별 상위 6캐릭 & 주간 상위 3회)">
             <svg class="w-5 h-5" viewBox="0 0 24 24">
               <circle cx="12" cy="12" r="9.5" fill="#D97706" stroke="#B45309" stroke-width="1" />
               <circle cx="12" cy="12" r="7.5" fill="#FBBF24" stroke="#FDE68A" stroke-width="0.8" />
@@ -913,7 +911,7 @@
         `;
       } else {
         return `
-          <div class="relative flex items-center justify-center w-5 h-5 cursor-help opacity-75 hover:opacity-100 transition" title="골드 미획득 (주간 3회 초과 또는 6캐릭 외 배럭)">
+          <div class="relative flex items-center justify-center w-5 h-5 cursor-help opacity-75 hover:opacity-100 transition" title="골드 미획득 (주간 3회 초과 또는 계정 내 6캐릭 외 배럭)">
             <svg class="w-5 h-5" viewBox="0 0 24 24">
               <circle cx="12" cy="12" r="9.5" fill="#78716C" stroke="#57534E" stroke-width="1" />
               <circle cx="12" cy="12" r="7.5" fill="#A8A29E" stroke="#D6D3D1" stroke-width="0.8" />
@@ -1166,9 +1164,8 @@
         const isMe = selectedUser && c.user.startsWith(selectedUser);
         let posBadge = `<span class="badge-dealer text-[11px] font-semibold px-2 py-0.5 rounded">딜러</span>`;
         if (c.pos === '서포터') posBadge = `<span class="badge-supporter text-[11px] font-semibold px-2 py-0.5 rounded">서포터</span>`;
-        else if (c.pos === '스왑가능') posBadge = `<span class="badge-swap text-[11px] font-semibold px-2 py-0.5 rounded">스왑가능</span>`;
+        else if (c.pos === '스왑가능') posBadge = `<span class="badge-swap text-[11px] font-semibold px-2 py-0.5 rounded">스왑</span>`;
 
-        // ★ 유저 원정대 내 상위 6캐릭 여부 판별
         const isGoldEligibleChar = goldEligibleCharNames.has(c.name);
 
         const raidGoldList = RAID_DEFINITIONS.map(d => ({
