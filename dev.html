@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>[DEV] 로스트아크 공대 대시보드 & 주간 숙제 체크</title>
+  <title>[DEV] 로스트아크 공대 대시보드 & 시트 연동 숙제 체크</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
   <script src="https://unpkg.com/lucide@latest"></script>
@@ -74,7 +74,7 @@
           <i data-lucide="flask-conical" class="w-6 h-6 text-purple-400"></i>
           <span class="font-bold text-lg text-white tracking-wide">LOA RAID [DEV]</span>
           <button onclick="openInfoModal('changelog')" class="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/30 hover:bg-purple-500/20 transition cursor-pointer" title="클릭하여 업데이트 이력 확인">
-            v1.0.0
+            v1.0.1-dev
           </button>
         </div>
 
@@ -174,34 +174,27 @@
           </div>
         </div>
 
-        <div class="flex items-center space-x-3 text-xs text-gray-400">
-          <button onclick="resetCustomClears()" class="text-gray-400 hover:text-red-400 flex items-center space-x-1 border border-gray-700 px-2 py-1 rounded bg-[#0d1117] transition" title="수동 체크한 숙제를 초기화합니다">
-            <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i>
-            <span>수동 체크 초기화</span>
-          </button>
-          <span>조회된 캐릭터: <strong id="poolCount" class="text-yellow-400">0</strong>개</span>
+        <div class="text-xs text-gray-400">
+          조회된 캐릭터: <strong id="poolCount" class="text-yellow-400">0</strong>개
         </div>
       </div>
 
+      <!-- 숙제 상태 범례 안내 바 -->
       <div class="mb-6 px-3 py-2.5 bg-[#161b22] border border-gray-800 rounded-lg flex flex-wrap items-center justify-between gap-4 text-xs text-gray-400">
         <div class="flex flex-wrap items-center gap-4">
-          <span class="font-semibold text-gray-300">숙제 체크 가이드:</span>
+          <span class="font-semibold text-gray-300">숙제 체크 안내 (구글 시트 실시간 연동):</span>
           <div class="flex items-center space-x-1.5">
             <span class="px-1.5 py-0.5 bg-emerald-950 border border-emerald-600 text-emerald-400 font-bold rounded text-[10px]">종막 ✓</span>
-            <span>공대 일정 완료</span>
+            <span>공대 일정 완료 ('V')</span>
           </div>
           <div class="flex items-center space-x-1.5">
             <span class="px-1.5 py-0.5 bg-purple-950 border border-purple-500 text-purple-300 font-bold rounded text-[10px]">성당 ✓</span>
-            <span>야생/공방 수동 완료 (클릭 토글)</span>
+            <span>야생/수동 완료 ('W')</span>
           </div>
           <div class="flex items-center space-x-1.5">
             <span class="px-1.5 py-0.5 bg-gray-800 border border-gray-600 text-gray-200 rounded text-[10px] ring-1 ring-amber-500/50">벨가 🟡G</span>
-            <span>골드 획득 추천 숙제 (클릭 시 완료)</span>
+            <span>골드 획득 추천 숙제</span>
           </div>
-        </div>
-        <div class="text-[11px] text-gray-500 flex items-center space-x-1">
-          <i data-lucide="info" class="w-3.5 h-3.5 text-yellow-500"></i>
-          <span>수요일 오전 6시 자동 초기화</span>
         </div>
       </div>
 
@@ -291,9 +284,9 @@
       <div class="overflow-y-auto modal-scroll pr-2 space-y-4 text-sm text-gray-300 flex-1">
         <div id="infoContentGuide" class="space-y-3">
           <div class="bg-[#0d1117] p-3.5 rounded-xl border border-gray-800">
-            <h4 class="font-bold text-white text-xs mb-1 text-yellow-400">Q. 주간 골드 숙제 체크는 어떻게 하나요?</h4>
+            <h4 class="font-bold text-white text-xs mb-1 text-yellow-400">Q. 주간 골드 숙제 체크는 어떻게 작동하나요?</h4>
             <p class="text-xs text-gray-300 leading-relaxed">
-              <strong>[캐릭터 현황 & 숙제 체크]</strong> 탭에서 캐릭터별 레이드 뱃지를 클릭하면 클리어 상태로 토글됩니다. 공대 일정에 포함된 레이드는 <span class="text-emerald-400 font-bold">초록색(공대)</span>으로 자동 고정되며, 야생으로 돈 레이드는 <span class="text-purple-400 font-bold">보라색(야생)</span>으로 수동 체크하여 주간 3회 골드 숙제 완료 현황을 관리할 수 있습니다.
+              <strong>[캐릭터 현황 & 숙제 체크]</strong> 탭에서 레이드 뱃지를 클릭하면 <strong>구글 시트(Character_Pool)에 실시간으로 'W'가 기록</strong>됩니다. 공대 일정은 <span class="text-emerald-400 font-bold">초록색(공대)</span>으로, 야생 완료는 <span class="text-purple-400 font-bold">보라색(야생)</span>으로 모든 사용자에게 동일하게 실시간 공유됩니다.
             </p>
           </div>
 
@@ -303,28 +296,17 @@
               일정표에서 <strong>내 캐릭터 슬롯을 클릭</strong>하면 본인 원정대의 캐릭터 목록이 뜹니다. 바꾸고 싶은 캐릭터를 누르면 구글 시트에 즉시 반영되며, 디스코드 공지 채널로 변경 알림이 자동 전송됩니다.
             </p>
           </div>
-
-          <div class="bg-[#0d1117] p-3.5 rounded-xl border border-gray-800">
-            <h4 class="font-bold text-white text-xs mb-1 text-yellow-400">Q. 캐릭터 옆에 붙은 골드 아이콘은 무엇인가요?</h4>
-            <ul class="text-xs text-gray-300 space-y-1.5 list-disc pl-4 mt-1">
-              <li><span class="inline-block px-1.5 py-0.2 rounded bg-amber-500 text-amber-950 font-bold text-[10px]">G</span> : 주간 상위 3회 레이드로 <strong>골드를 정상 획득</strong>하는 일정입니다.</li>
-              <li><span class="inline-block px-1.5 py-0.2 rounded bg-cyan-600 text-white font-bold text-[10px]">?</span> : <strong>선택 구간</strong>입니다. (4막 하드의 일반골드 3.8만 vs 성당 2단계의 귀속골드 4.0만 중 본인 필요에 맞게 선택)</li>
-              <li><span class="inline-block px-1.5 py-0.2 rounded bg-gray-700 text-red-500 font-bold text-[10px]">✕</span> : 주간 3회를 초과 출전하여 <strong>골드가 나오지 않는 일정</strong>입니다.</li>
-            </ul>
-          </div>
         </div>
 
         <div id="infoContentChangelog" class="space-y-3 hidden">
           <div class="border-l-2 border-purple-500 pl-3 py-1">
             <div class="flex items-center justify-between">
-              <span class="font-bold text-white text-xs">v1.0.0 - RLOA 스타일 주간 골드 숙제 체크 기능 [DEV]</span>
+              <span class="font-bold text-white text-xs">v1.0.1-dev - 시트 연동형 골드 숙제 실시간 체크 기능</span>
               <span class="text-[11px] text-gray-500">2026.08.30</span>
             </div>
             <ul class="text-xs text-gray-400 mt-1 space-y-0.5 list-disc pl-3">
-              <li>Raid_Info 시트의 실시간 골드 데이터 기반으로 레벨별 상위 3개 골드 레이드 자동 타겟팅</li>
-              <li>캐릭터 현황 탭에서 골드 레이드 원클릭 수동 체크 기능 탑재</li>
-              <li>공대 출전 자동 체크(초록) vs 야생/공방 수동 체크(보라) 분리 표기</li>
-              <li>수요일 오전 6시 기준 자동 리셋 타이머 연동</li>
+              <li>브라우저 로컬 저장 대신 구글 시트(Character_Pool I~M열) 직접 저장으로 개편</li>
+              <li>공대 완료('V')와 야생 수동 완료('W')를 시트에서 실시간 양방향 연동</li>
             </ul>
           </div>
         </div>
@@ -348,7 +330,6 @@
       { id: 'Sub_Group4', is8Man: false },
     ];
 
-    // 시트(Raid_Info)의 실제 총 획득 골드 기반 레이드 정의
     const RAID_DEFINITIONS = [
       { key: 'final', label: '종막', minLevel: 1710 },
       { key: 'act4', label: '4막', minLevel: 1700 },
@@ -367,43 +348,6 @@
     let characterPoolData = [];
     let raidInfoData = [];
     let activeSwapTarget = null;
-
-    function getCurrentWeekKey() {
-      const now = new Date();
-      const day = now.getDay();
-      const diffToWednesday = (day >= 3 ? day - 3 : day + 4);
-      const lastWed = new Date(now);
-      lastWed.setDate(now.getDate() - diffToWednesday);
-      lastWed.setHours(6, 0, 0, 0);
-      if (now < lastWed) {
-        lastWed.setDate(lastWed.getDate() - 7);
-      }
-      return `loa_clears_${lastWed.toISOString().slice(0, 10)}`;
-    }
-
-    function getCustomClears() {
-      const key = getCurrentWeekKey();
-      try {
-        return JSON.parse(localStorage.getItem(key) || '{}');
-      } catch (e) {
-        return {};
-      }
-    }
-
-    function saveCustomClear(charName, raidKey, isCleared) {
-      const key = getCurrentWeekKey();
-      const clears = getCustomClears();
-      if (!clears[charName]) clears[charName] = {};
-      clears[charName][raidKey] = isCleared;
-      localStorage.setItem(key, JSON.stringify(clears));
-    }
-
-    function resetCustomClears() {
-      if (confirm('수동으로 체크한 야생/공방 클리어 현황을 모두 초기화하시겠습니까?')) {
-        localStorage.removeItem(getCurrentWeekKey());
-        renderPoolView();
-      }
-    }
 
     document.addEventListener('DOMContentLoaded', () => {
       document.getElementById('filterMySubToggle').checked = filterMySubOnly;
@@ -461,7 +405,6 @@
       return 50;
     }
 
-    // 캐릭터의 최고 입장 가능 레벨 기준 각 레이드의 기대 최고 골드 반환
     function getExpectedMaxGold(charLevel, raidKey) {
       if (raidKey === 'belga') {
         if (charLevel >= 1780) return 75000;
@@ -596,18 +539,19 @@
 
         const pos = (row[7] || '딜러').toString().trim();
 
-        const vFinal = (row[8] || '').toString().trim().toUpperCase() === 'V';
-        const vAct4 = (row[9] || '').toString().trim().toUpperCase() === 'V';
-        const vCathedral = (row[10] || '').toString().trim().toUpperCase() === 'V';
-        const vSerka = (row[11] || '').toString().trim().toUpperCase() === 'V';
-        const vBelga = (row[12] || '').toString().trim().toUpperCase() === 'V';
+        // 시트의 I~M열 상태 값 ('V' or 'W')
+        const stFinal = (row[8] || '').toString().trim().toUpperCase();
+        const stAct4 = (row[9] || '').toString().trim().toUpperCase();
+        const stCathedral = (row[10] || '').toString().trim().toUpperCase();
+        const stSerka = (row[11] || '').toString().trim().toUpperCase();
+        const stBelga = (row[12] || '').toString().trim().toUpperCase();
 
         if (name && !isHeaderWord(name)) {
           characterPoolData.push({
             user, server, name, job,
             level: finalLevel,
             pos,
-            raids: { final: vFinal, act4: vAct4, cathedral: vCathedral, serka: vSerka, belga: vBelga }
+            raids: { final: stFinal, act4: stAct4, cathedral: stCathedral, serka: stSerka, belga: stBelga }
           });
         }
       }
@@ -1097,27 +1041,53 @@
       }
     }
 
-    function toggleCustomClear(charName, raidKey) {
-      const clears = getCustomClears();
-      const currentVal = clears[charName] && clears[charName][raidKey];
-      saveCustomClear(charName, raidKey, !currentVal);
+    // ★ 구글 시트에 직접 'W'(야생 클리어)를 토글하는 함수
+    async function toggleSheetWildClear(charName, raidKey) {
+      const targetChar = characterPoolData.find(c => c.name === charName);
+      if (!targetChar) return;
+
+      const curVal = targetChar.raids[raidKey];
+      if (curVal === 'V') return; // 공대 일정은 수정 불가
+
+      // UI 즉시 반응 (낙관적 갱신)
+      const nextVal = (curVal === 'W') ? '' : 'W';
+      targetChar.raids[raidKey] = nextVal;
       renderPoolView();
+
+      // 백엔드 Apps Script 호출 (시트 갱신)
+      const payload = {
+        action: 'toggleWildClear',
+        charName: charName,
+        raidKey: raidKey
+      };
+
+      try {
+        await fetch(APPS_SCRIPT_WEB_APP_URL, {
+          method: 'POST',
+          mode: 'no-cors',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+      } catch (err) {
+        console.error('시트 야생 체크 동기화 오류:', err);
+      }
     }
 
-    function renderRaidTagWithToggle(c, def, isTopGoldRaid, customClears) {
-      const sheetDone = c.raids[def.key];
-      const userDone = customClears[c.name] && customClears[c.name][def.key];
+    function renderRaidTagWithToggle(c, def, isTopGoldRaid) {
+      const status = c.raids[def.key]; // 'V' or 'W' or ''
       const isEnterable = c.level >= def.minLevel;
 
-      if (sheetDone) {
+      // 1. 공대 일정으로 완료된 경우 ('V')
+      if (status === 'V') {
         return `
-          <span class="px-2 py-1 bg-emerald-950 border border-emerald-600 text-emerald-400 font-bold rounded text-[11px] flex items-center space-x-1 cursor-default select-none shadow-sm" title="공대 일정표 출전 완료">
+          <span class="px-2 py-1 bg-emerald-950 border border-emerald-600 text-emerald-400 font-bold rounded text-[11px] flex items-center space-x-1 cursor-default select-none shadow-sm" title="공대 일정표 출전 완료 ('V')">
             <span>${def.label}</span>
             <span>✓</span>
           </span>
         `;
       }
 
+      // 2. 레벨 미달 (입장 불가)
       if (!isEnterable) {
         return `
           <span class="px-2 py-1 bg-[#0d1117] border border-gray-900 text-gray-600 line-through rounded text-[11px] opacity-50 cursor-not-allowed select-none" title="입장 불가 (최소 레벨 ${def.minLevel} 미달)">
@@ -1126,26 +1096,29 @@
         `;
       }
 
-      if (userDone) {
+      // 3. 야생/수동으로 체크하여 시트에 저장된 경우 ('W')
+      if (status === 'W') {
         return `
-          <button onclick="toggleCustomClear('${c.name}', '${def.key}')" class="px-2 py-1 bg-purple-950 border border-purple-500 text-purple-300 font-bold rounded text-[11px] flex items-center space-x-1 hover:bg-purple-900 transition shadow-sm" title="야생/공방 수동 완료 (클릭 시 취소)">
+          <button onclick="toggleSheetWildClear('${c.name}', '${def.key}')" class="px-2 py-1 bg-purple-950 border border-purple-500 text-purple-300 font-bold rounded text-[11px] flex items-center space-x-1 hover:bg-purple-900 transition shadow-sm" title="야생/공방 수동 완료 ('W' 저장됨 / 클릭 시 취소)">
             <span>${def.label}</span>
             <span>✓</span>
           </button>
         `;
       }
 
+      // 4. 골드 획득 추천 상위 3개 숙제 (강조 버튼)
       if (isTopGoldRaid) {
         return `
-          <button onclick="toggleCustomClear('${c.name}', '${def.key}')" class="px-2 py-1 bg-gray-800 border border-gray-600 text-gray-200 font-medium rounded text-[11px] ring-1 ring-amber-500/40 hover:border-amber-400 hover:text-white transition flex items-center space-x-1 shadow-sm" title="골드 획득 추천 레이드 (클릭하여 완료 체크)">
+          <button onclick="toggleSheetWildClear('${c.name}', '${def.key}')" class="px-2 py-1 bg-gray-800 border border-gray-600 text-gray-200 font-medium rounded text-[11px] ring-1 ring-amber-500/40 hover:border-amber-400 hover:text-white transition flex items-center space-x-1 shadow-sm" title="골드 획득 추천 레이드 (클릭하여 시트에 'W' 기록)">
             <span>${def.label}</span>
             <span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
           </button>
         `;
       }
 
+      // 5. 일반 숙제 (3회 초과/더보기 구간)
       return `
-        <button onclick="toggleCustomClear('${c.name}', '${def.key}')" class="px-2 py-1 bg-gray-900 border border-gray-800 text-gray-400 hover:text-gray-200 hover:border-gray-600 rounded text-[11px] transition" title="클릭하여 완료 체크">
+        <button onclick="toggleSheetWildClear('${c.name}', '${def.key}')" class="px-2 py-1 bg-gray-900 border border-gray-800 text-gray-400 hover:text-gray-200 hover:border-gray-600 rounded text-[11px] transition" title="클릭하여 시트에 'W' 기록">
           ${def.label}
         </button>
       `;
@@ -1156,7 +1129,6 @@
       const uFilter = document.getElementById('poolUserFilter').value;
       const pFilter = document.getElementById('poolPosFilter').value;
       const lFilter = parseFloat(document.getElementById('poolLevelFilter').value) || 0;
-      const customClears = getCustomClears();
 
       const filtered = characterPoolData.filter(c => {
         if (uFilter && !c.user.startsWith(uFilter)) return false;
@@ -1183,7 +1155,6 @@
         if (c.pos === '서포터') posBadge = `<span class="badge-supporter text-[11px] font-semibold px-2 py-0.5 rounded">서포터</span>`;
         else if (c.pos === '스왑가능') posBadge = `<span class="badge-swap text-[11px] font-semibold px-2 py-0.5 rounded">스왑가능</span>`;
 
-        // 캐릭터 레벨 기준 5대 레이드의 최고 기대 골드 산출 후 상위 3개 키 추출
         const raidGoldList = RAID_DEFINITIONS.map(d => ({
           key: d.key,
           gold: getExpectedMaxGold(c.level, d.key)
@@ -1191,11 +1162,10 @@
 
         const top3Keys = raidGoldList.slice(0, 3).map(item => item.key);
 
-        // 총 완료 개수 계산
         let completedCount = 0;
         RAID_DEFINITIONS.forEach(def => {
-          const isDone = c.raids[def.key] || (customClears[c.name] && customClears[c.name][def.key]);
-          if (isDone && top3Keys.includes(def.key)) completedCount++;
+          const st = c.raids[def.key];
+          if ((st === 'V' || st === 'W') && top3Keys.includes(def.key)) completedCount++;
         });
 
         const progressColor = completedCount === 3 ? 'bg-emerald-500' : (completedCount > 0 ? 'bg-yellow-500' : 'bg-gray-700');
@@ -1223,7 +1193,7 @@
             <div class="flex items-center justify-between border-t border-gray-800/60 pt-3 flex-wrap gap-2">
               <span class="text-sm font-mono font-bold text-yellow-500/90">${c.level.toLocaleString('ko-KR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
               <div class="flex items-center space-x-1.5 flex-wrap gap-y-1">
-                ${RAID_DEFINITIONS.map(def => renderRaidTagWithToggle(c, def, top3Keys.includes(def.key), customClears)).join('')}
+                ${RAID_DEFINITIONS.map(def => renderRaidTagWithToggle(c, def, top3Keys.includes(def.key))).join('')}
               </div>
             </div>
           </div>
