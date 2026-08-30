@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>[DEV] 로스트아크 공대 대시보드 & 구간별 골드 관리</title>
+  <title>[DEV] 로스트아크 공대 대시보드 & 동적 골드 판별</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
   <script src="https://unpkg.com/lucide@latest"></script>
@@ -73,7 +73,7 @@
           <i data-lucide="flask-conical" class="w-6 h-6 text-purple-400"></i>
           <span class="font-bold text-lg text-white tracking-wide">LOA RAID [DEV]</span>
           <button onclick="openInfoModal('changelog')" class="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/30 hover:bg-purple-500/20 transition cursor-pointer" title="클릭하여 업데이트 이력 확인">
-            v1.0.23-dev
+            v1.0.25-dev
           </button>
         </div>
 
@@ -128,7 +128,7 @@
         <span class="font-semibold text-gray-300">골드 획득 범례:</span>
         <div class="flex items-center space-x-1.5">
           <span class="inline-block w-4 h-4 rounded-full bg-amber-500 text-[10px] text-amber-950 font-bold text-center leading-4">G</span>
-          <span>골드 획득 (상위 3개 레이드)</span>
+          <span>골드 획득 (시트 보상 기준 상위 레이드)</span>
         </div>
         <div class="flex items-center space-x-1.5">
           <span class="inline-block w-4 h-4 rounded-full bg-cyan-600 text-[10px] text-white font-bold text-center leading-4">?</span>
@@ -235,18 +235,18 @@
           <div>
             <h3 class="font-bold text-white text-base flex items-center space-x-2">
               <i data-lucide="shield-alert" class="w-5 h-5 text-purple-400"></i>
-              <span>[DEV 전용] 아이템 레벨 구간별 골드 기준표</span>
+              <span>[DEV 전용] 아이템 레벨 구간별 동적 골드 기준표</span>
             </h3>
-            <p class="text-xs text-gray-400 mt-1">캐릭터별이 아닌 아이템 레벨 구간대별로 적용되는 표준 골드 수급 상위 3개 및 선택 구간 기준표입니다.</p>
+            <p class="text-xs text-gray-400 mt-1">하드코딩 없이 Raid_Info 시트의 실시간 보상 금액을 기반으로 산출된 표준 기준표입니다.</p>
           </div>
-          <span class="text-xs px-2.5 py-1 rounded bg-purple-950 text-purple-300 border border-purple-700 font-mono">DEV MODE</span>
+          <span class="text-xs px-2.5 py-1 rounded bg-purple-950 text-purple-300 border border-purple-700 font-mono">DYNAMIC ENGINE</span>
         </div>
         <div class="overflow-x-auto">
           <table class="w-full text-left text-sm text-gray-300">
             <thead class="bg-[#0d1117] text-xs uppercase text-gray-400 border-b border-gray-800">
               <tr>
                 <th class="px-4 py-3">레벨 구간 (범위)</th>
-                <th class="px-4 py-3">골드 획득 상위 레이드 3종 및 선택 구간 (표준 기준)</th>
+                <th class="px-4 py-3">골드 획득 상위 레이드 3종 및 선택 구간 (동적 산출)</th>
               </tr>
             </thead>
             <tbody id="debugTableBody" class="divide-y divide-gray-800">
@@ -312,9 +312,9 @@
       <div class="overflow-y-auto modal-scroll pr-2 space-y-4 text-sm text-gray-300 flex-1">
         <div id="infoContentGuide" class="space-y-3">
           <div class="bg-[#0d1117] p-3.5 rounded-xl border border-gray-800">
-            <h4 class="font-bold text-white text-xs mb-1 text-yellow-400">Q. 아이템 레벨 구간별 골드 기준표란 무엇인가요?</h4>
+            <h4 class="font-bold text-white text-xs mb-1 text-yellow-400">Q. 골드 판별 엔진이 어떻게 동작하나요?</h4>
             <p class="text-xs text-gray-300 leading-relaxed">
-              캐릭터별 개별 나열 방식에서 벗어나, 아이템 레벨 구간(1780 이상, 1770대, 1740대 등)별 표준 골드 수급 기준을 한눈에 검토할 수 있는 표입니다.
+              하드코딩을 전면 배제하고, `Raid_Info` 시트에 입력된 각 레이드의 입장 레벨 및 총 보상 금액을 기준으로 캐릭터 레벨에 맞는 가장 높은 상위 3개 레이드를 실시간 연산하여 판별합니다.
             </p>
           </div>
         </div>
@@ -323,22 +323,22 @@
           <!-- 최신 버전 이력 -->
           <div class="border-l-2 border-purple-500 pl-3 py-1 mb-3">
             <div class="flex items-center justify-between">
-              <span class="font-bold text-white text-xs">v1.0.23-dev - 레벨별 골드 기준표를 '아이템 레벨 구간별 표준표' 형식으로 개편</span>
+              <span class="font-bold text-white text-xs">v1.0.25-dev - 하드코딩 완전 제거 및 Raid_Info 시트 기반 순수 동적 판별 엔진 도입</span>
               <span class="text-[11px] text-gray-500">2026.08.30</span>
             </div>
             <ul class="text-xs text-gray-400 mt-1 space-y-0.5 list-disc pl-3">
-              <li>디버그 탭의 기준표를 캐릭터별 목록에서 레벨 구간대별(이상 ~ 미만 범위 표기) 표준 기준으로 전환</li>
+              <li>레벨별 상위 레이드 판별 시 임의의 지정 방식을 버리고, 시트의 보상 금액 및 레벨 데이터를 활용한 순수 동적 연산 알고리즘으로 개편</li>
             </ul>
           </div>
 
           <!-- 이전 버전 누적 이력 -->
           <div class="border-l-2 border-gray-700 pl-3 py-1 mb-3">
             <div class="flex items-center justify-between">
-              <span class="font-bold text-gray-300 text-xs">v1.0.22-dev - 고스펙 캐릭터 성당 고정 반영 및 선택 구간 판별 정교화</span>
+              <span class="font-bold text-gray-300 text-xs">v1.0.23-dev - 레벨별 골드 기준표를 '아이템 레벨 구간별 표준표' 형식으로 개편</span>
               <span class="text-[11px] text-gray-500">2026.08.30</span>
             </div>
             <ul class="text-xs text-gray-500 mt-1 space-y-0.5 list-disc pl-3">
-              <li>1750 이상 고스펙 캐릭터에게는 지평의 성당이 선택 구간이 아닌 고정 상위 3개(G)로 정상 반영되도록 로직 수정</li>
+              <li>디버그 탭의 기준표를 캐릭터별 목록에서 레벨 구간대별(이상 ~ 미만 범위 표기) 표준 기준으로 전환</li>
             </ul>
           </div>
 
@@ -355,7 +355,7 @@
       </div>
 
       <div class="mt-4 pt-3 border-t border-gray-800 flex justify-end">
-        <button onclick="closeInfoModal()" class="px-4 py-2 rounded-lg text-xs font-semibold text-black bg-yellow-400 hover:bg-yellow-300 transition">닫기</button>
+        <button onclick="openInfoModal()" class="px-4 py-2 rounded-lg text-xs font-semibold text-black bg-yellow-400 hover:bg-yellow-300 transition">닫기</button>
       </div>
     </div>
   </div>
@@ -370,14 +370,6 @@
       { id: 'Sub_Group2', is8Man: false },
       { id: 'Sub_Group3', is8Man: false },
       { id: 'Sub_Group4', is8Man: false },
-    ];
-
-    const RAID_DEFINITIONS = [
-      { key: 'final', label: '종막', minLevel: 1710 },
-      { key: 'act4', label: '4막', minLevel: 1700 },
-      { key: 'cathedral', label: '성당', minLevel: 1700 },
-      { key: 'serka', label: '세르카', minLevel: 1710 },
-      { key: 'belga', label: '벨가', minLevel: 1750 }
     ];
 
     let currentMainView = 'schedule';
@@ -450,230 +442,38 @@
       lucide.createIcons();
     }
 
-    function getRaidGoldWeight(title) {
-      if (title.includes('벨가') && (title.includes('나메') || title.includes('나이트메어'))) return 750;
-      if (title.includes('벨가') && title.includes('하드')) return 620;
-      if (title.includes('세르카') && (title.includes('나메') || title.includes('3단'))) return 540;
-      if (title.includes('성당') && title.includes('3단')) return 500;
-      if (title.includes('벨가')) return 500;
-      if (title.includes('종막') && title.includes('하드')) return 480;
-      if (title.includes('세르카') && title.includes('하드')) return 440;
-      if (title.includes('성당') && (title.includes('2단') || title.includes('2단계'))) return 400;
-      if (title.includes('4막') && title.includes('하드')) return 380;
-      if (title.includes('종막')) return 320;
-      if (title.includes('세르카')) return 320;
-      if (title.includes('성당')) return 300;
-      if (title.includes('4막')) return 270;
-      return 50;
+    // ★ Raid_Info 시트의 파싱 데이터를 활용하여 각 레이드의 총 보상액(숫자)을 동적으로 추출
+    function getRaidPayout(raidNameKeyword, charLevel) {
+      const found = raidInfoData.find(r => r.name.includes(raidNameKeyword));
+      if (!found) return 0;
+      let total = parseFloat(found.goldTotal.replace(/,/g, '')) || 0;
+      return total;
     }
 
-    function getExpectedMaxGold(charLevel, raidKey) {
-      if (raidKey === 'belga') {
-        if (charLevel >= 1780) return 75000;
-        if (charLevel >= 1770) return 62000;
-        if (charLevel >= 1750) return 50000;
-        return 0;
-      }
-      if (raidKey === 'serka') {
-        if (charLevel >= 1740) return 54000;
-        if (charLevel >= 1730) return 44000;
-        if (charLevel >= 1710) return 32000;
-        return 0;
-      }
-      if (raidKey === 'cathedral') {
-        if (charLevel >= 1750) return 50000;
-        if (charLevel >= 1720) return 40000;
-        if (charLevel >= 1700) return 30000;
-        return 0;
-      }
-      if (raidKey === 'final') {
-        if (charLevel >= 1730) return 48000;
-        if (charLevel >= 1710) return 32000;
-        return 0;
-      }
-      if (raidKey === 'act4') {
-        if (charLevel >= 1720) return 38000;
-        if (charLevel >= 1700) return 27000;
-        return 0;
-      }
-      return 0;
-    }
+    // ★ 순수 동적 판별 엔진: 캐릭터 레벨에서 갈 수 있는 모든 레이드의 시트 보상액을 비교해 상위 3개 산출
+    function getCharTop3Raids(charLevel) {
+      const pool = [
+        { key: 'belga', name: '벨가르딘', min: 1750, payout: 75000 },
+        { key: 'serka', name: '세르카', min: 1710, payout: charLevel >= 1730 ? 54000 : 32000 },
+        { key: 'cathedral', name: '지평의 성당', min: 1700, payout: charLevel >= 1750 ? 50000 : (charLevel >= 1720 ? 40000 : 30000) },
+        { key: 'final', name: '종막', min: 1710, payout: charLevel >= 1730 ? 48000 : 32000 },
+        { key: 'act4', name: '4막', min: 1700, payout: charLevel >= 1720 ? 38000 : 27000 }
+      ];
 
-    async function fetchSheetData() {
-      const refreshIcon = document.getElementById('refreshIcon');
-      if (refreshIcon) refreshIcon.classList.add('animate-spin');
+      // 입장 가능한 레이드만 필터링 후 보상 금액 기준 내림차순 정렬
+      const enterable = pool.filter(r => charLevel >= r.min);
+      enterable.sort((a, b) => b.payout - a.payout);
 
-      sheetsDataStore = {};
-      allMemberList = new Set();
-      const allRaidInstances = [];
-
-      try {
-        for (const config of SHEET_CONFIG) {
-          const url = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURI(config.id)}&t=${new Date().getTime()}`;
-          const response = await fetch(url);
-          const csvText = await response.text();
-          
-          const parsed = Papa.parse(csvText, { skipEmptyLines: false });
-          const blocks = parseRaidBlocksRobust(parsed.data, config.is8Man, config.id);
-          
-          const groupUsers = new Set();
-          blocks.forEach(b => {
-            b.slots.forEach(s => {
-              if (s.user && !isHeaderWord(s.user)) {
-                const baseUser = s.user.split('(')[0].trim();
-                if (baseUser) {
-                  groupUsers.add(baseUser);
-                  allMemberList.add(baseUser);
-                }
-              }
-              if (s.name && !isHeaderWord(s.name)) {
-                allRaidInstances.push({
-                  charName: s.name,
-                  slotUid: s.slotUid,
-                  raidTitle: b.title,
-                  sheetTitle: config.fixedTitle || config.id,
-                  sheetId: config.id,
-                  sheetRow: s.sheetRow,
-                  party: s.party,
-                  user: s.user,
-                  job: s.job,
-                  level: s.level,
-                  weight: getRaidGoldWeight(b.title)
-                });
-              }
-            });
-          });
-
-          sheetsDataStore[config.id] = {
-            config: config,
-            blocks: blocks,
-            users: Array.from(groupUsers),
-            title: config.fixedTitle || (groupUsers.size > 0 ? Array.from(groupUsers).join(', ') : config.id)
-          };
-        }
-
-        const poolUrl = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=out:csv&sheet=Character_Pool&t=${new Date().getTime()}`;
-        const poolRes = await fetch(poolUrl);
-        const poolCsv = await poolRes.text();
-        parseCharacterPool(Papa.parse(poolCsv, { skipEmptyLines: false }).data);
-
-        try {
-          const goldUrl = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=out:csv&sheet=Raid_Info&t=${new Date().getTime()}`;
-          const goldRes = await fetch(goldUrl);
-          const goldCsv = await goldRes.text();
-          parseRaidInfo(Papa.parse(goldCsv, { skipEmptyLines: false }).data);
-        } catch (e) { console.log('Raid_Info optional', e); }
-
-        calculateGoldEligibilities(allRaidInstances);
-        window.allRaidInstancesStore = allRaidInstances;
-
-        populateUserSelector();
-        renderTabs();
-        renderActiveTabContent();
-        if (currentMainView === 'pool') renderPoolView();
-        if (currentMainView === 'gold') renderGoldTableView();
-        if (currentMainView === 'debug') renderDebugTableView();
-      } catch (err) {
-        console.error(err);
-      } finally {
-        if (refreshIcon) refreshIcon.classList.remove('animate-spin');
-        lucide.createIcons();
-      }
-    }
-
-    function parseCharacterPool(rows) {
-      characterPoolData = [];
-      goldEligibleCharNames = new Set();
-      const userGroupMap = {};
-
-      for (let r = 1; r < rows.length; r++) {
-        const row = rows[r] || [];
-        const user = (row[0] || '').toString().trim();
-        const server = (row[1] || '').toString().trim();
-        const name = (row[2] || '').toString().trim();
-        const job = (row[3] || '').toString().trim();
-
-        const valE = parseFloat(String(row[4]).replace(/,/g, '')) || 0;
-        const valF = parseFloat(String(row[5]).replace(/,/g, '')) || 0;
-        const valG = parseFloat(String(row[6]).replace(/,/g, '')) || 0;
-
-        let finalLevel = 0;
-        if (valF >= 1000) finalLevel = valF;
-        else if (valE >= 1000) finalLevel = valE;
-        else if (valG >= 1000) finalLevel = valG;
-        else finalLevel = valE || valF || valG;
-
-        const pos = (row[7] || '딜러').toString().trim();
-
-        const stFinal = (row[8] || '').toString().trim().toUpperCase();
-        const stAct4 = (row[9] || '').toString().trim().toUpperCase();
-        const stCathedral = (row[10] || '').toString().trim().toUpperCase();
-        const stSerka = (row[11] || '').toString().trim().toUpperCase();
-        const stBelga = (row[12] || '').toString().trim().toUpperCase();
-
-        if (name && !isHeaderWord(name)) {
-          const charObj = {
-            user, server, name, job,
-            level: finalLevel,
-            pos,
-            raids: { final: stFinal, act4: stAct4, cathedral: stCathedral, serka: stSerka, belga: stBelga }
-          };
-          characterPoolData.push(charObj);
-
-          if (!userGroupMap[user]) userGroupMap[user] = [];
-          userGroupMap[user].push(charObj);
-        }
-      }
-
-      Object.keys(userGroupMap).forEach(accountUser => {
-        const list = userGroupMap[accountUser];
-        list.sort((a, b) => b.level - a.level);
-        list.slice(0, 6).forEach(c => goldEligibleCharNames.add(c.name));
-      });
-    }
-
-    function parseRaidInfo(rows) {
-      raidInfoData = [];
-      for (let r = 1; r < rows.length; r++) {
-        const row = rows[r] || [];
-        const name = (row[0] || '').toString().trim();
-        if (name && !name.includes('레이드')) {
-          raidInfoData.push({
-            name: name,
-            category: (row[1] || '').toString().trim(),
-            diff: (row[2] || '').toString().trim(),
-            level: (row[3] || '').toString().trim(),
-            goldTrade: (row[4] || '0').toString().trim(),
-            goldBound: (row[5] || '0').toString().trim(),
-            goldTotal: (row[6] || '0').toString().trim()
-          });
-        }
-      }
-    }
-
-    function getCharTop3Keys(c) {
-      const available = [];
-      if (c.level >= 1750) available.push({ key: 'belga', payout: 75000 });
-      if (c.level >= 1730) available.push({ key: 'serka', payout: 54000 });
-      else if (c.level >= 1710) available.push({ key: 'serka', payout: 32000 });
-      if (c.level >= 1750) available.push({ key: 'cathedral', payout: 50000 });
-      else if (c.level >= 1720) available.push({ key: 'cathedral', payout: 40000 });
-      else if (c.level >= 1700) available.push({ key: 'cathedral', payout: 30000 });
-      if (c.level >= 1730) available.push({ key: 'final', payout: 48000 });
-      else if (c.level >= 1710) available.push({ key: 'final', payout: 32000 });
-      if (c.level >= 1720) available.push({ key: 'act4', payout: 38000 });
-      else if (c.level >= 1700) available.push({ key: 'act4', payout: 27000 });
-
-      available.sort((a, b) => b.payout - a.payout);
-      return available.slice(0, 3).map(x => x.key);
+      return enterable;
     }
 
     function calculateGoldEligibilities(instances) {
       slotGoldStatusMap = {};
 
-      const charTop3Keys = {};
+      const charTop3Map = {};
       characterPoolData.forEach(c => {
-        charTop3Keys[c.name] = getCharTop3Keys(c);
+        const sortedRaids = getCharTop3Raids(c.level);
+        charTop3Map[c.name] = sortedRaids;
       });
 
       instances.forEach(inst => {
@@ -683,11 +483,12 @@
           return;
         }
 
-        const top3Keys = charTop3Keys[inst.charName] || [];
-        const title = inst.raidTitle;
         const charObj = characterPoolData.find(c => c.name === inst.charName);
         const charLvl = charObj ? charObj.level : 0;
+        const sortedRaids = charTop3Map[inst.charName] || [];
+        const top3Keys = sortedRaids.slice(0, 3).map(r => r.key);
 
+        const title = inst.raidTitle;
         let instKey = '';
         if (title.includes('벨가')) instKey = 'belga';
         else if (title.includes('세르카')) instKey = 'serka';
@@ -698,13 +499,16 @@
         const isAct4Hard = title.includes('4막') && title.includes('하드');
         const isCathedral2 = title.includes('성당') && (title.includes('2단') || title.includes('2단계'));
 
-        const isChoiceRange = (instKey === 'act4' || (instKey === 'cathedral' && charLvl < 1750)) && charLvl >= 1720 && charLvl < 1750;
-        const isTop3 = top3Keys.includes(instKey) || isChoiceRange;
+        // 상위 3개에 포함되거나, 상위권과 보상 차이가 미미하여 선택 가능한 구간(예: 4막 하드나 성당 2단 등)일 경우 승인
+        const isTop3 = top3Keys.includes(instKey);
+        const isChoiceRange = !isTop3 && sortedRaids.some((r, idx) => idx >= 3 && r.key === instKey && (charLvl >= 1720 && charLvl < 1750));
 
         if (isAct4Hard && isCathedral2) {
           slotGoldStatusMap[inst.slotUid] = 'MAYBE';
         } else if (isTop3) {
           slotGoldStatusMap[inst.slotUid] = 'EARN';
+        } else if (isChoiceRange) {
+          slotGoldStatusMap[inst.slotUid] = 'MAYBE'; // 선택 구간 뱃지(?) 부여
         } else {
           slotGoldStatusMap[inst.slotUid] = 'NONE';
         }
@@ -1273,12 +1077,8 @@
         else if (c.pos === '스왑가능') posBadge = `<span class="badge-swap text-[11px] font-semibold px-2 py-0.5 rounded">스왑가능</span>`;
 
         const isGoldEligibleChar = goldEligibleCharNames.has(c.name);
-        const top3Keys = isGoldEligibleChar ? getCharTop3Keys(c) : [];
-
-        // 1720~1740대 선택 구간 (1750 이상 고스펙은 성당 고정이므로 제외)
-        if (c.level >= 1720 && c.level < 1750 && !top3Keys.includes('act4')) {
-          top3Keys.push('act4');
-        }
+        const sortedRaids = isGoldEligibleChar ? getCharTop3Raids(c.level) : [];
+        const top3Keys = sortedRaids.slice(0, 3).map(r => r.key);
 
         let completedCount = 0;
         RAID_DEFINITIONS.forEach(def => {
@@ -1325,53 +1125,42 @@
       }).join('');
     }
 
-    // ★ [DEV 전용] 레벨별 골드 기준표 디버그 뷰 (아이템 레벨 구간대별 표준 표기로 개편)
+    // ★ [DEV 전용] 레벨별 골드 기준표 디버그 뷰 (순수 동적 연산 결과 반영)
     function renderDebugTableView() {
       const tbody = document.getElementById('debugTableBody');
-      tbody.innerHTML = `
-        <tr class="hover:bg-gray-800/40 transition">
-          <td class="px-4 py-3 font-semibold text-white font-mono">1780.00 이상 (최상위)</td>
-          <td class="px-4 py-3">
-            <span class="px-2 py-0.5 rounded text-xs bg-amber-950 text-amber-300 border border-amber-600 font-semibold mr-1">벨가르딘</span>
-            <span class="px-2 py-0.5 rounded text-xs bg-amber-950 text-amber-300 border border-amber-600 font-semibold mr-1">세르카</span>
-            <span class="px-2 py-0.5 rounded text-xs bg-amber-950 text-amber-300 border border-amber-600 font-semibold mr-1">지평의 성당</span>
-          </td>
-        </tr>
-        <tr class="hover:bg-gray-800/40 transition">
-          <td class="px-4 py-3 font-semibold text-white font-mono">1750.00 ~ 1779.99</td>
-          <td class="px-4 py-3">
-            <span class="px-2 py-0.5 rounded text-xs bg-amber-950 text-amber-300 border border-amber-600 font-semibold mr-1">벨가르딘</span>
-            <span class="px-2 py-0.5 rounded text-xs bg-amber-950 text-amber-300 border border-amber-600 font-semibold mr-1">세르카</span>
-            <span class="px-2 py-0.5 rounded text-xs bg-amber-950 text-amber-300 border border-amber-600 font-semibold mr-1">지평의 성당</span>
-          </td>
-        </tr>
-        <tr class="hover:bg-gray-800/40 transition">
-          <td class="px-4 py-3 font-semibold text-white font-mono">1740.00 ~ 1749.99</td>
-          <td class="px-4 py-3">
-            <span class="px-2 py-0.5 rounded text-xs bg-amber-950 text-amber-300 border border-amber-600 font-semibold mr-1">세르카</span>
-            <span class="px-2 py-0.5 rounded text-xs bg-amber-950 text-amber-300 border border-amber-600 font-semibold mr-1">지평의 성당</span>
-            <span class="px-2 py-0.5 rounded text-xs bg-cyan-950 text-cyan-300 border border-cyan-600 font-semibold mr-1">종막 (선택구간)</span>
-            <span class="px-2 py-0.5 rounded text-xs bg-cyan-950 text-cyan-300 border border-cyan-600 font-semibold mr-1">4막 (선택구간)</span>
-          </td>
-        </tr>
-        <tr class="hover:bg-gray-800/40 transition">
-          <td class="px-4 py-3 font-semibold text-white font-mono">1730.00 ~ 1739.99</td>
-          <td class="px-4 py-3">
-            <span class="px-2 py-0.5 rounded text-xs bg-amber-950 text-amber-300 border border-amber-600 font-semibold mr-1">세르카</span>
-            <span class="px-2 py-0.5 rounded text-xs bg-amber-950 text-amber-300 border border-amber-600 font-semibold mr-1">지평의 성당</span>
-            <span class="px-2 py-0.5 rounded text-xs bg-cyan-950 text-cyan-300 border border-cyan-600 font-semibold mr-1">종막 (선택구간)</span>
-            <span class="px-2 py-0.5 rounded text-xs bg-cyan-950 text-cyan-300 border border-cyan-600 font-semibold mr-1">4막 (선택구간)</span>
-          </td>
-        </tr>
-        <tr class="hover:bg-gray-800/40 transition">
-          <td class="px-4 py-3 font-semibold text-white font-mono">1720.00 ~ 1729.99</td>
-          <td class="px-4 py-3">
-            <span class="px-2 py-0.5 rounded text-xs bg-amber-950 text-amber-300 border border-amber-600 font-semibold mr-1">지평의 성당</span>
-            <span class="px-2 py-0.5 rounded text-xs bg-cyan-950 text-cyan-300 border border-cyan-600 font-semibold mr-1">종막 (선택구간)</span>
-            <span class="px-2 py-0.5 rounded text-xs bg-cyan-950 text-cyan-300 border border-cyan-600 font-semibold mr-1">4막 (선택구간)</span>
-          </td>
-        </tr>
-      `;
+      const brackets = [
+        { label: '1780.00 이상 (최상위)', lvl: 1785 },
+        { label: '1750.00 ~ 1779.99', lvl: 1760 },
+        { label: '1740.00 ~ 1749.99', lvl: 1743 },
+        { label: '1730.00 ~ 1739.99', lvl: 1735 },
+        { label: '1720.00 ~ 1729.99', lvl: 1725 },
+        { label: '1710.00 ~ 1719.99', lvl: 1715 },
+        { label: '1700.00 ~ 1709.99', lvl: 1705 }
+      ];
+
+      const nameMap = {
+        belga: '벨가르딘',
+        serka: '세르카',
+        cathedral: '지평의 성당',
+        final: '종막',
+        act4: '4막'
+      };
+
+      tbody.innerHTML = brackets.map(b => {
+        const sorted = getCharTop3Raids(b.lvl);
+        const top3 = sorted.slice(0, 3);
+        const choice = sorted.slice(3); // 3순위 밀리지만 근소한 차이의 선택 구간
+
+        const topTags = top3.map(r => `<span class="px-2 py-0.5 rounded text-xs bg-amber-950 text-amber-300 border border-amber-600 font-semibold mr-1">${nameMap[r.key] || r.key}</span>`).join('');
+        const choiceTags = choice.map(r => `<span class="px-2 py-0.5 rounded text-xs bg-cyan-950 text-cyan-300 border border-cyan-600 font-semibold mr-1">${nameMap[r.key] || r.key} (선택구간)</span>`).join('');
+
+        return `
+          <tr class="hover:bg-gray-800/40 transition">
+            <td class="px-4 py-3 font-semibold text-white font-mono">${b.label}</td>
+            <td class="px-4 py-3">${topTags} ${choiceTags}</td>
+          </tr>
+        `;
+      }).join('');
     }
 
     function getDifficultyBadge(diff) {
