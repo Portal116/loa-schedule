@@ -73,7 +73,7 @@
           <i data-lucide="flask-conical" class="w-6 h-6 text-purple-400"></i>
           <span class="font-bold text-lg text-white tracking-wide">LOA RAID [DEV]</span>
           <button onclick="openInfoModal('changelog')" class="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/30 hover:bg-purple-500/20 transition cursor-pointer" title="클릭하여 업데이트 이력 확인">
-            v1.0.27-dev
+            v1.0.28-dev
           </button>
         </div>
 
@@ -322,11 +322,11 @@
         <div id="infoContentChangelog" class="space-y-3 hidden">
           <div class="border-l-2 border-purple-500 pl-3 py-1 mb-3">
             <div class="flex items-center justify-between">
-              <span class="font-bold text-white text-xs">v1.0.27-dev - 누락된 parseRaidBlocksRobust 파싱 함수 복구</span>
+              <span class="font-bold text-white text-xs">v1.0.28-dev - 누락된 sanitizeTitle 및 보조 파싱 함수 전체 복구</span>
               <span class="text-[11px] text-gray-500">2026.08.30</span>
             </div>
             <ul class="text-xs text-gray-400 mt-1 space-y-0.5 list-disc pl-3">
-              <li>시트 일정 블록을 안전하게 파싱하는 핵심 함수(parseRaidBlocksRobust) 누락 오류 수정</li>
+              <li>일정 블록 타이틀 정제 함수(sanitizeTitle) 누락 오류 해결</li>
             </ul>
           </div>
         </div>
@@ -629,7 +629,17 @@
       }
     }
 
-    // ★ 누락되었던 시트 블록 파싱 함수 복구
+    function isHeaderWord(word) {
+      if (!word) return true;
+      const w = word.trim();
+      return w === '유저명' || w === '캐릭터명' || w === '직업' || w === '레벨' || w === '포지션';
+    }
+
+    function sanitizeTitle(rawTitle) {
+      if (!rawTitle) return '';
+      return rawTitle.replace(/(유저명|캐릭터명|직업|레벨|포지션)/g, '').trim();
+    }
+
     function parseRaidBlocksRobust(rows, is8Man, sheetId) {
       const blocks = [];
       let r = 0;
