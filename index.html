@@ -49,8 +49,6 @@
       cursor: pointer;
       transform: translateY(-1px);
     }
-
-    /* 모달 스크롤 간섭 방지 및 깔끔한 스크롤바 */
     .modal-scroll {
       overscroll-behavior: contain;
     }
@@ -324,14 +322,12 @@
         <div id="infoContentChangelog" class="space-y-3 hidden">
           <div class="border-l-2 border-yellow-500 pl-3 py-1">
             <div class="flex items-center justify-between">
-              <span class="font-bold text-white text-xs">v1.3.0 - 원클릭 즉시 변경 및 슬롯 버그 픽스</span>
+              <span class="font-bold text-white text-xs">v1.3.1 - 시트 타겟팅 매칭 알고리즘 고도화</span>
               <span class="text-[11px] text-gray-500">2026.08.30</span>
             </div>
             <ul class="text-xs text-gray-400 mt-1 space-y-0.5 list-disc pl-3">
-              <li>1파티 공란 시 2파티 캐릭터(나리)가 누락되던 파서 로직 완전 개편</li>
-              <li>슬롯 클릭 시 원클릭 인플레이스 캐릭터 즉시 변경 시스템 탑재</li>
-              <li>시트 실시간 셀 수정(덮어쓰기) 및 Change_Logs 자동 기록</li>
-              <li>모달 스크롤 체이닝 간섭 방지 및 스크롤바 UI 개선</li>
+              <li>행 번호 오차를 제거하고 레이드 타이틀 + 기존 캐릭터명을 기반으로 정확한 셀 덮어쓰기</li>
+              <li>Change_Logs 시트의 열 너비 및 가운데 정렬 자동 서식 적용</li>
             </ul>
           </div>
         </div>
@@ -461,7 +457,6 @@
                   raidTitle: b.title,
                   sheetTitle: config.fixedTitle || config.id,
                   sheetId: config.id,
-                  rowIndex: s.rowIndex,
                   party: s.party,
                   user: s.user,
                   job: s.job,
@@ -626,13 +621,13 @@
         
         if (rawCellA.startsWith('[') && rawCellA.includes(']')) {
           const cleanTitle = sanitizeTitle(rawCellA);
+          const rawTitle = rawCellA;
           const slots = [];
           i++;
 
           let collectedSlots = 0;
           while (i < rows.length && collectedSlots < 4) {
             const row = rows[i] || [];
-            const actualSheetRow = i + 1;
 
             const user1 = (row[0] || '').toString().trim();
             const char1 = (row[1] || '').toString().trim();
@@ -650,14 +645,14 @@
               slots.push({
                 slotUid: `${sheetId}_b${blockIdx}_p1_s${collectedSlots}_${char1}`,
                 sheetId: sheetId,
-                rowIndex: actualSheetRow,
                 party: 1,
                 user: user1,
                 name: char1,
                 job: (row[2] || '').toString().trim(),
                 level: (row[3] || '').toString().trim(),
                 pos: (row[4] || '').toString().trim() || (collectedSlots === 3 ? '서포터' : '딜러'),
-                raidTitle: cleanTitle
+                raidTitle: cleanTitle,
+                rawRaidTitle: rawTitle
               });
             }
 
@@ -665,14 +660,14 @@
               slots.push({
                 slotUid: `${sheetId}_b${blockIdx}_p2_s${collectedSlots}_${char2}`,
                 sheetId: sheetId,
-                rowIndex: actualSheetRow,
                 party: 2,
                 user: user2,
                 name: char2,
                 job: (row[7] || '').toString().trim(),
                 level: (row[8] || '').toString().trim(),
                 pos: (row[9] || '').toString().trim() || (collectedSlots === 3 ? '서포터' : '딜러'),
-                raidTitle: cleanTitle
+                raidTitle: cleanTitle,
+                rawRaidTitle: rawTitle
               });
             }
 
@@ -681,7 +676,7 @@
           }
 
           if (slots.length > 0) {
-            blocks.push({ title: cleanTitle, slots, is8Man, sheetId: sheetId });
+            blocks.push({ title: cleanTitle, rawTitle, slots, is8Man, sheetId: sheetId });
             blockIdx++;
           }
         } else {
@@ -888,7 +883,6 @@
       }).join('');
     }
 
-    // ★ 모달 열 때 배경 스크롤 잠금 (overflow: hidden)
     function openQuickSwapModal(slotJsonEncoded) {
       const slot = JSON.parse(decodeURIComponent(slotJsonEncoded));
       activeSwapTarget = slot;
@@ -928,7 +922,6 @@
       lucide.createIcons();
     }
 
-    // ★ 모달 닫을 때 배경 스크롤 해제
     function closeQuickSwapModal() {
       document.body.style.overflow = '';
       document.getElementById('quickSwapModal').classList.add('hidden');
@@ -942,6 +935,7 @@
       const target = activeSwapTarget;
       closeQuickSwapModal();
 
+      // 1) 화면 UI 즉시 갱신
       const curSheet = sheetsDataStore[target.sheetId];
       if (curSheet) {
         curSheet.blocks.forEach(b => {
@@ -957,12 +951,14 @@
         renderActiveTabContent();
       }
 
+      // 2) 백엔드 Apps Script 호출 (정확한 레이드 블록 + 기존 캐릭터 매칭으로 덮어쓰기)
       const payload = {
         sheetId: target.sheetId,
-        rowIndex: target.rowIndex,
         party: target.party,
         user: target.user,
         targetRaid: `[${target.sheetId}] ${target.raidTitle}`,
+        rawRaidTitle: target.rawRaidTitle || target.raidTitle,
+        oldCharName: target.name,
         oldChar: `${target.name} (${target.job} / ${target.level} / ${target.pos})`,
         newCharName: newChar.name,
         newJob: newChar.job,
