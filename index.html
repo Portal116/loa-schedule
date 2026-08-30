@@ -84,6 +84,23 @@
       <!-- 탭 목록 -->
     </nav>
 
+    <!-- 범례 안내 바 -->
+    <div class="mt-4 px-3 py-2 bg-[#161b22] border border-gray-800 rounded-lg flex flex-wrap items-center gap-4 text-xs text-gray-400">
+      <span class="font-semibold text-gray-300">골드 획득 범례:</span>
+      <div class="flex items-center space-x-1.5">
+        <span class="inline-block w-4 h-4 rounded-full bg-amber-500 text-[10px] text-amber-950 font-bold text-center leading-4">G</span>
+        <span>골드 획득</span>
+      </div>
+      <div class="flex items-center space-x-1.5">
+        <span class="inline-block w-4 h-4 rounded-full bg-cyan-600 text-[10px] text-white font-bold text-center leading-4">?</span>
+        <span>선택 구간 (4막하드 3.8만 일반골 vs 성당2단 4만 귀속골)</span>
+      </div>
+      <div class="flex items-center space-x-1.5">
+        <span class="inline-block w-4 h-4 rounded-full bg-gray-700 text-[10px] text-red-500 font-bold text-center leading-4">✕</span>
+        <span>골드 미획득 (3회 초과)</span>
+      </div>
+    </div>
+
     <!-- 레이드 카드 컨테이너 -->
     <section id="raidContainer" class="mt-6 grid grid-cols-1 gap-6">
       <div class="text-center py-20 text-gray-500">
@@ -109,6 +126,7 @@
     let filterMySubOnly = localStorage.getItem('loa_filter_sub') === 'true';
     let sheetsDataStore = {};
     let allMemberList = new Set();
+    let slotGoldStatusMap = {}; // { [slotUid]: 'EARN' | 'MAYBE' | 'NONE' }
 
     document.addEventListener('DOMContentLoaded', () => {
       document.getElementById('filterMySubToggle').checked = filterMySubOnly;
@@ -129,12 +147,31 @@
       fetchSheetData();
     });
 
+    // 레이드별 골드 보상 기본 가중치
+    function getRaidGoldWeight(title) {
+      if (title.includes('종막')) return 500;
+      if (title.includes('세르카') && (title.includes('나메') || title.includes('3단'))) return 450;
+      if (title.includes('성당') && title.includes('3단')) return 430;
+      
+      // 4막하드(38,000 일반) vs 성당2단(40,000 귀속) 경합 구간
+      if (title.includes('성당') && (title.includes('2단') || title.includes('2단계'))) return 360;
+      if (title.includes('4막') && title.includes('하드')) return 359;
+      
+      if (title.includes('세르카') && title.includes('하드')) return 320;
+      if (title.includes('4막')) return 300;
+      if (title.includes('성당') && (title.includes('1단') || title.includes('1단계'))) return 250;
+      if (title.includes('세르카')) return 200;
+      if (title.includes('벨가')) return 100;
+      return 50;
+    }
+
     async function fetchSheetData() {
       const refreshIcon = document.getElementById('refreshIcon');
       if (refreshIcon) refreshIcon.classList.add('animate-spin');
 
       sheetsDataStore = {};
       allMemberList = new Set();
+      const allRaidInstances = [];
 
       try {
         for (const config of SHEET_CONFIG) {
@@ -143,7 +180,7 @@
           const csvText = await response.text();
           
           const parsed = Papa.parse(csvText, { skipEmptyLines: false });
-          const blocks = parseRaidBlocksRobust(parsed.data, config.is8Man);
+          const blocks = parseRaidBlocksRobust(parsed.data, config.is8Man, config.id);
           
           const groupUsers = new Set();
           blocks.forEach(b => {
@@ -155,6 +192,14 @@
                   allMemberList.add(baseUser);
                 }
               }
+              if (s.name && !isHeaderWord(s.name)) {
+                allRaidInstances.push({
+                  charName: s.name,
+                  slotUid: s.slotUid,
+                  raidTitle: b.title,
+                  weight: getRaidGoldWeight(b.title)
+                });
+              }
             });
           });
 
@@ -165,6 +210,9 @@
             title: config.fixedTitle || (groupUsers.size > 0 ? Array.from(groupUsers).join(', ') : config.id)
           };
         }
+
+        // 골드 상태 판별 (EARN / MAYBE / NONE)
+        calculateGoldEligibilities(allRaidInstances);
 
         populateUserSelector();
         renderTabs();
@@ -183,30 +231,61 @@
       }
     }
 
+    // 캐릭터별 골드 상태 계산
+    function calculateGoldEligibilities(instances) {
+      slotGoldStatusMap = {};
+      const groupedByChar = {};
+
+      instances.forEach(inst => {
+        if (!groupedByChar[inst.charName]) groupedByChar[inst.charName] = [];
+        groupedByChar[inst.charName].push(inst);
+      });
+
+      Object.keys(groupedByChar).forEach(charName => {
+        const list = groupedByChar[charName];
+        list.sort((a, b) => b.weight - a.weight);
+
+        // 4막하드와 성당2단계 동시 출전 여부 확인
+        const hasAct4Hard = list.some(i => i.raidTitle.includes('4막') && i.raidTitle.includes('하드'));
+        const hasCathedral2 = list.some(i => i.raidTitle.includes('성당') && (i.raidTitle.includes('2단') || i.raidTitle.includes('2단계')));
+        const isAmbiguousCase = (hasAct4Hard && hasCathedral2);
+
+        list.forEach((item, rank) => {
+          const isAct4Hard = item.raidTitle.includes('4막') && item.raidTitle.includes('하드');
+          const isCathedral2 = item.raidTitle.includes('성당') && (item.raidTitle.includes('2단') || item.raidTitle.includes('2단계'));
+
+          if (isAmbiguousCase && (isAct4Hard || isCathedral2) && (rank === 2 || rank === 3)) {
+            slotGoldStatusMap[item.slotUid] = 'MAYBE';
+          } else if (rank < 3) {
+            slotGoldStatusMap[item.slotUid] = 'EARN';
+          } else {
+            slotGoldStatusMap[item.slotUid] = 'NONE';
+          }
+        });
+      });
+    }
+
     function isHeaderWord(word) {
       if (!word) return true;
       const w = word.trim();
       return w === '유저명' || w === '캐릭터명' || w === '직업' || w === '레벨' || w === '포지션';
     }
 
-    // 타이틀 정제 (불필요한 '유저명', '캐릭터명' 등 완벽 제거)
     function sanitizeTitle(rawTitle) {
       if (!rawTitle) return '';
       let title = rawTitle.trim();
-      // 뒷부분에 붙은 헤더 단어들 제거
       title = title.replace(/(유저명|캐릭터명|직업|레벨|포지션)/g, '').trim();
       return title;
     }
 
-    // 병합 셀 및 헤더 완벽 처리 파서
-    function parseRaidBlocksRobust(rows, is8Man) {
+    function parseRaidBlocksRobust(rows, is8Man, sheetId) {
       const blocks = [];
       let i = 0;
+      let blockIdx = 0;
 
       while (i < rows.length) {
         const rawCellA = (rows[i][0] || '').toString().trim();
         
-        // 타이틀 행 탐지 (예: [1회차] 종막하드, [성당 3단] 1세트)
         if (rawCellA.startsWith('[') && rawCellA.includes(']')) {
           const cleanTitle = sanitizeTitle(rawCellA);
           const slots = [];
@@ -218,18 +297,16 @@
             const user1 = (row[0] || '').toString().trim();
             const char1 = (row[1] || '').toString().trim();
 
-            // 다음 타이틀을 만나면 중단
             if (user1.startsWith('[') && user1.includes(']')) break;
 
-            // 헤더 행 건너뛰기
             if (isHeaderWord(user1) || isHeaderWord(char1)) {
               i++;
               continue;
             }
 
-            // 1파티 슬롯 파싱
             if (char1 && !isHeaderWord(char1)) {
               slots.push({
+                slotUid: `${sheetId}_b${blockIdx}_p1_s${collectedCount}_${char1}`,
                 party: 1,
                 user: user1,
                 name: char1,
@@ -239,12 +316,12 @@
               });
             }
 
-            // 8인 시트 2파티 슬롯 파싱 (F~J열)
             if (is8Man) {
               const user2 = (row[5] || '').toString().trim();
               const char2 = (row[6] || '').toString().trim();
               if (char2 && !isHeaderWord(char2)) {
                 slots.push({
+                  slotUid: `${sheetId}_b${blockIdx}_p2_s${collectedCount}_${char2}`,
                   party: 2,
                   user: user2,
                   name: char2,
@@ -261,6 +338,7 @@
 
           if (slots.length > 0) {
             blocks.push({ title: cleanTitle, slots, is8Man });
+            blockIdx++;
           }
         } else {
           i++;
@@ -339,14 +417,9 @@
         card.className = 'card-bg rounded-xl p-5 shadow-lg';
 
         let innerHTML = `
-          <div class="flex items-center justify-between border-b border-gray-800 pb-3 mb-4">
-            <div class="flex items-center space-x-2">
-              <span class="w-2.5 h-2.5 rounded-full ${block.is8Man ? 'bg-orange-400' : 'bg-blue-400'}"></span>
-              <h2 class="text-lg font-bold text-white tracking-wide">${block.title}</h2>
-            </div>
-            <span class="text-xs px-2 py-0.5 rounded ${block.is8Man ? 'bg-orange-950 text-orange-400 border border-orange-800' : 'bg-blue-950 text-blue-400 border border-blue-800'} font-medium">
-              ${block.is8Man ? '8인 공격대' : '4인 파티'}
-            </span>
+          <div class="flex items-center space-x-2 border-b border-gray-800 pb-3 mb-4">
+            <span class="w-2.5 h-2.5 rounded-full ${block.is8Man ? 'bg-orange-400' : 'bg-blue-400'}"></span>
+            <h2 class="text-lg font-bold text-white tracking-wide">${block.title}</h2>
           </div>
         `;
 
@@ -381,11 +454,57 @@
       lucide.createIcons();
     }
 
+    // ★ 골드 아이콘 3단계 렌더링 (EARN, MAYBE, NONE)
+    function renderGoldBadge(status) {
+      if (status === 'EARN') {
+        // 1. 골드 획득 (노란 코인)
+        return `
+          <div class="relative flex items-center justify-center w-5 h-5 cursor-help group" title="골드 획득 (주간 상위 3회)">
+            <svg class="w-5 h-5" viewBox="0 0 24 24">
+              <circle cx="12" cy="12" r="9.5" fill="#D97706" stroke="#B45309" stroke-width="1" />
+              <circle cx="12" cy="12" r="7.5" fill="#FBBF24" stroke="#FDE68A" stroke-width="0.8" />
+              <text x="12" y="15.2" font-size="9" font-weight="900" font-family="Arial, sans-serif" fill="#78350F" text-anchor="middle">G</text>
+            </svg>
+          </div>
+        `;
+      } else if (status === 'MAYBE') {
+        // 2. 선택 구간 (노란 코인 + 물음표 ? 뱃지)
+        return `
+          <div class="relative flex items-center justify-center w-5 h-5 cursor-help" title="선택 구간: 4막하드(38,000 일반골드) vs 성당2단(40,000 귀속골드)">
+            <svg class="w-5 h-5" viewBox="0 0 24 24">
+              <circle cx="12" cy="12" r="9.5" fill="#D97706" stroke="#B45309" stroke-width="1" />
+              <circle cx="12" cy="12" r="7.5" fill="#FBBF24" stroke="#FDE68A" stroke-width="0.8" />
+              <text x="12" y="15.2" font-size="9" font-weight="900" font-family="Arial, sans-serif" fill="#78350F" text-anchor="middle">G</text>
+            </svg>
+            <div class="absolute -top-1 -right-1 w-3.5 h-3.5 bg-cyan-600 border border-[#161b22] rounded-full flex items-center justify-center">
+              <span class="text-[9px] font-black text-white leading-none">?</span>
+            </div>
+          </div>
+        `;
+      } else {
+        // 3. 골드 미획득 (회색 코인 + 빨간색 X 빗금)
+        return `
+          <div class="relative flex items-center justify-center w-5 h-5 cursor-help opacity-75 hover:opacity-100 transition" title="골드 미획득 (주간 3회 초과/더보기)">
+            <svg class="w-5 h-5" viewBox="0 0 24 24">
+              <circle cx="12" cy="12" r="9.5" fill="#78716C" stroke="#57534E" stroke-width="1" />
+              <circle cx="12" cy="12" r="7.5" fill="#A8A29E" stroke="#D6D3D1" stroke-width="0.8" />
+              <text x="12" y="15.2" font-size="9" font-weight="900" font-family="Arial, sans-serif" fill="#44403C" text-anchor="middle">G</text>
+            </svg>
+            <svg class="absolute inset-0 w-5 h-5" viewBox="0 0 24 24">
+              <line x1="5.5" y1="5.5" x2="18.5" y2="18.5" stroke="#DC2626" stroke-width="2.5" stroke-linecap="round" />
+              <line x1="18.5" y1="5.5" x2="5.5" y2="18.5" stroke="#DC2626" stroke-width="2.5" stroke-linecap="round" />
+            </svg>
+          </div>
+        `;
+      }
+    }
+
     function renderPartySlots(slots) {
       return slots.map(slot => {
         const isMe = selectedUser && slot.user.startsWith(selectedUser);
         const isSupporter = slot.pos === '서포터';
         const isSwap = slot.pos === '스왑가능';
+        const goldStatus = slotGoldStatusMap[slot.slotUid] || 'NONE';
 
         let posBadge = `<span class="badge-dealer text-[11px] font-semibold px-2 py-0.5 rounded">딜러</span>`;
         if (isSupporter) {
@@ -400,6 +519,7 @@
 
         return `
           <div class="flex items-center justify-between p-2.5 rounded-lg border border-gray-800/80 ${rowStyle} transition">
+            <!-- 좌측: 포지션 뱃지 + 유저명 + 캐릭터명 -->
             <div class="flex items-center space-x-3">
               ${posBadge}
               <div class="flex flex-col sm:flex-row sm:items-center sm:space-x-2">
@@ -407,8 +527,11 @@
                 <span class="text-sm font-semibold text-gray-200">${slot.name}</span>
               </div>
             </div>
-            <div class="flex items-center space-x-3 text-right">
-              <span class="text-xs text-gray-400">${slot.job}</span>
+
+            <!-- 우측: 3단계 골드 상태 코인 + 직업 + 아이템 레벨 -->
+            <div class="flex items-center space-x-2.5 sm:space-x-3 text-right">
+              ${renderGoldBadge(goldStatus)}
+              <span class="text-xs text-gray-400 hidden sm:inline">${slot.job}</span>
               <span class="text-sm font-mono font-medium text-yellow-500/90">${slot.level}</span>
             </div>
           </div>
