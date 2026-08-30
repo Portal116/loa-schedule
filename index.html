@@ -117,16 +117,13 @@
         </div>
       </div>
 
-      <!-- 레이드 카드 컨테이너 -->
       <section id="raidContainer" class="mt-6 grid grid-cols-1 gap-6"></section>
     </div>
 
     <!-- 2. 캐릭터 현황 뷰 (Character Pool View) -->
     <div id="sectionPool" class="hidden">
-      <!-- 필터 바 -->
       <div class="card-bg p-4 rounded-xl mb-6 flex flex-wrap items-center justify-between gap-4">
         <div class="flex flex-wrap items-center gap-3">
-          <!-- 유저 필터 -->
           <div class="flex items-center space-x-2 bg-[#0d1117] px-3 py-1.5 rounded-lg border border-gray-700">
             <span class="text-xs text-gray-400">유저:</span>
             <select id="poolUserFilter" onchange="renderPoolView()" class="bg-transparent text-xs text-white focus:outline-none cursor-pointer">
@@ -134,7 +131,6 @@
             </select>
           </div>
 
-          <!-- 포지션 필터 (스왑은 딜/서폿 양쪽 모두 포함) -->
           <div class="flex items-center space-x-2 bg-[#0d1117] px-3 py-1.5 rounded-lg border border-gray-700">
             <span class="text-xs text-gray-400">포지션:</span>
             <select id="poolPosFilter" onchange="renderPoolView()" class="bg-transparent text-xs text-white focus:outline-none cursor-pointer">
@@ -144,7 +140,6 @@
             </select>
           </div>
 
-          <!-- 레벨 필터 -->
           <div class="flex items-center space-x-2 bg-[#0d1117] px-3 py-1.5 rounded-lg border border-gray-700">
             <span class="text-xs text-gray-400">최소 레벨:</span>
             <select id="poolLevelFilter" onchange="renderPoolView()" class="bg-transparent text-xs text-white focus:outline-none cursor-pointer">
@@ -161,7 +156,6 @@
         </div>
       </div>
 
-      <!-- 캐릭터 풀 카드 그리드 -->
       <div id="poolGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
     </div>
 
@@ -177,6 +171,7 @@
             <thead class="bg-[#0d1117] text-xs uppercase text-gray-400 border-b border-gray-800">
               <tr>
                 <th class="px-4 py-3">레이드명</th>
+                <th class="px-4 py-3">구분</th>
                 <th class="px-4 py-3">난이도</th>
                 <th class="px-4 py-3 text-right">입장 레벨</th>
                 <th class="px-4 py-3 text-right text-amber-400">일반 골드</th>
@@ -186,7 +181,7 @@
               </tr>
             </thead>
             <tbody id="goldTableBody" class="divide-y divide-gray-800">
-              <tr><td colspan="7" class="text-center py-8 text-gray-500">데이터를 불러오는 중입니다...</td></tr>
+              <tr><td colspan="8" class="text-center py-8 text-gray-500">데이터를 불러오는 중입니다...</td></tr>
             </tbody>
           </table>
         </div>
@@ -367,13 +362,13 @@
           };
         }
 
-        // 2) Character_Pool 시트 Fetch
+        // 2) Character_Pool 시트 Fetch (수정: 실제 레벨 파싱 보정)
         const poolUrl = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=out:csv&sheet=Character_Pool&t=${new Date().getTime()}`;
         const poolRes = await fetch(poolUrl);
         const poolCsv = await poolRes.text();
         parseCharacterPool(Papa.parse(poolCsv, { skipEmptyLines: false }).data);
 
-        // 3) Raid_Info 시트 Fetch
+        // 3) Raid_Info 시트 Fetch (수정: 8개 열 구조 1:1 매핑)
         try {
           const goldUrl = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=out:csv&sheet=Raid_Info&t=${new Date().getTime()}`;
           const goldRes = await fetch(goldUrl);
@@ -403,7 +398,7 @@
       }
     }
 
-    // 캐릭터 풀 데이터 파싱
+    // 캐릭터 풀 데이터 파싱 (1.00 오류 수정: E/F/G열의 실제 1700대 레벨 추출)
     function parseCharacterPool(rows) {
       characterPoolData = [];
       for (let r = 1; r < rows.length; r++) {
@@ -412,11 +407,20 @@
         const server = (row[1] || '').toString().trim();
         const name = (row[2] || '').toString().trim();
         const job = (row[3] || '').toString().trim();
-        const curLevel = parseFloat(row[4]) || 0;
-        const finalLevel = parseFloat(row[6]) || curLevel;
+
+        // 레벨 추출 보정: F열(목표), E열(현재), G열(최종) 순으로 1000 이상의 정상 레벨값 탐색
+        const valE = parseFloat(String(row[4]).replace(/,/g, '')) || 0;
+        const valF = parseFloat(String(row[5]).replace(/,/g, '')) || 0;
+        const valG = parseFloat(String(row[6]).replace(/,/g, '')) || 0;
+
+        let finalLevel = 0;
+        if (valF >= 1000) finalLevel = valF;
+        else if (valE >= 1000) finalLevel = valE;
+        else if (valG >= 1000) finalLevel = valG;
+        else finalLevel = valE || valF || valG;
+
         const pos = (row[7] || '딜러').toString().trim();
 
-        // 5대 레이드 출전 체크 여부 (V)
         const vFinal = (row[8] || '').toString().trim().toUpperCase() === 'V';
         const vAct4 = (row[9] || '').toString().trim().toUpperCase() === 'V';
         const vCathedral = (row[10] || '').toString().trim().toUpperCase() === 'V';
@@ -434,7 +438,8 @@
       }
     }
 
-    // Raid_Info 데이터 파싱
+    // Raid_Info 데이터 파싱 (열 밀림 완전 해결: 8개 컬럼 정확 매핑)
+    // 열 구조: [0:레이드명, 1:구분뱃지, 2:난이도, 3:입장레벨, 4:일반골드, 5:귀속골드, 6:총획득골드, 7:더보기비용]
     function parseRaidInfo(rows) {
       raidInfoData = [];
       for (let r = 1; r < rows.length; r++) {
@@ -443,12 +448,13 @@
         if (name && !name.includes('레이드')) {
           raidInfoData.push({
             name: name,
-            diff: (row[1] || '').toString().trim(),
-            level: (row[2] || '').toString().trim(),
-            goldTrade: (row[3] || '0').toString().trim(),
-            goldBound: (row[4] || '0').toString().trim(),
-            goldTotal: (row[5] || '0').toString().trim(),
-            moreCost: (row[6] || '0').toString().trim(),
+            category: (row[1] || '').toString().trim(),
+            diff: (row[2] || '').toString().trim(),
+            level: (row[3] || '').toString().trim(),
+            goldTrade: (row[4] || '0').toString().trim(),
+            goldBound: (row[5] || '0').toString().trim(),
+            goldTotal: (row[6] || '0').toString().trim(),
+            moreCost: (row[7] || '0').toString().trim(),
           });
         }
       }
@@ -763,7 +769,7 @@
       }).join('');
     }
 
-    // ★ 2. 캐릭터 풀 렌더링 (스왑가능 포지션 양쪽 검색 지원)
+    // 캐릭터 풀 렌더링
     function renderPoolView() {
       const grid = document.getElementById('poolGrid');
       const uFilter = document.getElementById('poolUserFilter').value;
@@ -774,7 +780,6 @@
         if (uFilter && !c.user.startsWith(uFilter)) return false;
         if (lFilter > 0 && c.level < lFilter) return false;
 
-        // ★ 스왑가능은 딜러/서포터 양쪽 필터 모두에 걸리도록 처리
         if (pFilter === 'DEALER') {
           if (c.pos !== '딜러' && c.pos !== '스왑가능') return false;
         } else if (pFilter === 'SUPPORTER') {
@@ -796,7 +801,6 @@
         if (c.pos === '서포터') posBadge = `<span class="badge-supporter text-[11px] font-semibold px-2 py-0.5 rounded">서포터</span>`;
         else if (c.pos === '스왑가능') posBadge = `<span class="badge-swap text-[11px] font-semibold px-2 py-0.5 rounded">스왑가능</span>`;
 
-        // 레이드별 V체크 뱃지 (출전 완료 여부)
         const renderRaidTag = (label, isDone) => {
           return isDone
             ? `<span class="px-1.5 py-0.5 bg-emerald-950/80 border border-emerald-700/60 text-emerald-400 font-bold rounded text-[10px] flex items-center space-x-0.5"><span>${label}</span><span>✓</span></span>`
@@ -817,7 +821,7 @@
             </div>
 
             <div class="flex items-center justify-between border-t border-gray-800/60 pt-2.5">
-              <span class="text-sm font-mono font-bold text-yellow-500/90">${c.level.toFixed(2)}</span>
+              <span class="text-sm font-mono font-bold text-yellow-500/90">${c.level.toLocaleString('ko-KR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
               <div class="flex items-center space-x-1">
                 ${renderRaidTag('종막', c.raids.final)}
                 ${renderRaidTag('4막', c.raids.act4)}
@@ -831,18 +835,19 @@
       }).join('');
     }
 
-    // ★ 3. 레이드 골드 표 렌더링
+    // 레이드 골드 표 렌더링 (8개 열 매핑 보정)
     function renderGoldTableView() {
       const tbody = document.getElementById('goldTableBody');
       if (raidInfoData.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="7" class="text-center py-8 text-gray-500">Raid_Info 시트 데이터를 가져오지 못했습니다.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="8" class="text-center py-8 text-gray-500">Raid_Info 시트 데이터를 가져오지 못했습니다.</td></tr>`;
         return;
       }
 
       tbody.innerHTML = raidInfoData.map(r => `
         <tr class="hover:bg-gray-800/40 transition">
           <td class="px-4 py-3 font-semibold text-white">${r.name}</td>
-          <td class="px-4 py-3"><span class="px-2 py-0.5 rounded text-xs ${r.diff.includes('하드') || r.diff.includes('3단') || r.diff.includes('나메') ? 'bg-red-950 text-red-400 border border-red-800' : 'bg-blue-950 text-blue-400 border border-blue-800'}">${r.diff}</span></td>
+          <td class="px-4 py-3"><span class="px-2 py-0.5 rounded text-xs bg-blue-950 text-blue-400 border border-blue-800">${r.category}</span></td>
+          <td class="px-4 py-3"><span class="px-2 py-0.5 rounded text-xs ${r.diff.includes('하드') || r.diff.includes('3단') || r.diff.includes('나메') ? 'bg-red-950 text-red-400 border border-red-800' : 'bg-gray-800 text-gray-300'}">${r.diff}</span></td>
           <td class="px-4 py-3 text-right font-mono">${r.level}</td>
           <td class="px-4 py-3 text-right font-mono text-amber-400">${r.goldTrade} G</td>
           <td class="px-4 py-3 text-right font-mono text-emerald-400">${r.goldBound} G</td>
@@ -852,7 +857,7 @@
       `).join('');
     }
 
-    // ★ 4. 캐릭터 변경 요청 모달 컨트롤 & 디스코드 복사 연동
+    // 캐릭터 변경 요청 모달 컨트롤
     function openChangeRequestModal() {
       const modal = document.getElementById('changeModal');
       const userSelect = document.getElementById('modalUserSelect');
@@ -866,7 +871,6 @@
         userSelect.appendChild(opt);
       });
 
-      // 내 캐릭터 강조가 미선택 상태라면 안내
       if (!selectedUser) {
         userSelect.value = '';
       }
@@ -894,7 +898,6 @@
         return;
       }
 
-      // 1) 해당 유저가 출전 중인 일정 목록 추출
       const userRaidSlots = (window.allRaidInstancesStore || []).filter(inst => inst.user && inst.user.startsWith(u));
       if (userRaidSlots.length === 0) {
         targetSelect.innerHTML = '<option value="">현재 편성된 레이드 일정이 없습니다.</option>';
@@ -907,7 +910,6 @@
         });
       }
 
-      // 2) 해당 유저의 원정대 전체 캐릭터 풀 목록 추출
       const userPoolChars = characterPoolData.filter(c => c.user && c.user.startsWith(u));
       if (userPoolChars.length === 0) {
         newCharSelect.innerHTML = '<option value="">등록된 캐릭터가 없습니다.</option>';
