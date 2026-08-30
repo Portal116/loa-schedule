@@ -73,7 +73,7 @@
           <i data-lucide="flask-conical" class="w-6 h-6 text-purple-400"></i>
           <span class="font-bold text-lg text-white tracking-wide">LOA RAID [DEV]</span>
           <button onclick="openInfoModal('changelog')" class="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/30 hover:bg-purple-500/20 transition cursor-pointer" title="클릭하여 업데이트 이력 확인">
-            v1.0.21-dev
+            v1.0.22-dev
           </button>
         </div>
 
@@ -237,7 +237,7 @@
               <i data-lucide="shield-alert" class="w-5 h-5 text-purple-400"></i>
               <span>[DEV 전용] 캐릭터 레벨 구간별 상위 골드 레이드 기준표</span>
             </h3>
-            <p class="text-xs text-gray-400 mt-1">1740대 구간 및 선택 구간(지평의 성당, 4막 하드 등) 판별 기준이 정밀 반영된 상태입니다.</p>
+            <p class="text-xs text-gray-400 mt-1">1750/1780 이상 고스펙 캐릭터는 지평의 성당이 고정 상위 3개(G)로 반영되도록 정비되었습니다.</p>
           </div>
           <span class="text-xs px-2.5 py-1 rounded bg-purple-950 text-purple-300 border border-purple-700 font-mono">DEV MODE</span>
         </div>
@@ -314,9 +314,9 @@
       <div class="overflow-y-auto modal-scroll pr-2 space-y-4 text-sm text-gray-300 flex-1">
         <div id="infoContentGuide" class="space-y-3">
           <div class="bg-[#0d1117] p-3.5 rounded-xl border border-gray-800">
-            <h4 class="font-bold text-white text-xs mb-1 text-yellow-400">Q. 선택 골드 뱃지(?)는 어떤 경우에 표시되나요?</h4>
+            <h4 class="font-bold text-white text-xs mb-1 text-yellow-400">Q. 고스펙 캐릭터의 상위 레이드 판별은 어떻게 되나요?</h4>
             <p class="text-xs text-gray-300 leading-relaxed">
-              1720대, 1730대, 1740대 등 레벨 구간별로 지평의 성당이나 4막 하드처럼 유저가 선택해서 골드를 수급할 수 있는 구간(선택 구간)에 속하는 레이드 일정일 경우 선택 골드 뱃지와 함께 정상 인정됩니다.
+              1750/1780 이상 최상위 캐릭터는 지평의 성당이 선택 구간이 아닌 고정 상위 3개(G)로 반영되며, 1720~1740대 구간 캐릭터들만 선택 골드 영역으로 유연하게 판별됩니다.
             </p>
           </div>
         </div>
@@ -325,53 +325,22 @@
           <!-- 최신 버전 이력 -->
           <div class="border-l-2 border-purple-500 pl-3 py-1 mb-3">
             <div class="flex items-center justify-between">
-              <span class="font-bold text-white text-xs">v1.0.21-dev - 1740대 레벨 구간 분기 및 선택 구간(선택구간) 표기 고도화</span>
+              <span class="font-bold text-white text-xs">v1.0.22-dev - 고스펙 캐릭터 성당 고정 반영 및 선택 구간 판별 정교화</span>
               <span class="text-[11px] text-gray-500">2026.08.30</span>
             </div>
             <ul class="text-xs text-gray-400 mt-1 space-y-0.5 list-disc pl-3">
-              <li>세르카 나이트메어 등급(1740) 기준에 맞춰 1740대 레벨 구간 분류 정확히 반영</li>
-              <li>지평의 성당 및 4막 하드 등의 선택 골드 영역을 디버그 표 및 일정표에서 '(선택구간)' 태그와 선택 골드 뱃지(?)로 명확히 표시</li>
+              <li>1750 이상 고스펙 캐릭터에게는 지평의 성당이 선택 구간이 아닌 고정 상위 3개(G)로 정상 반영되도록 로직 수정</li>
             </ul>
           </div>
 
           <!-- 이전 버전 누적 이력 -->
           <div class="border-l-2 border-gray-700 pl-3 py-1 mb-3">
             <div class="flex items-center justify-between">
-              <span class="font-bold text-gray-300 text-xs">v1.0.20-dev - 성당 보상 우선순위 상향 (종막보다 골드 많은 성당 반영)</span>
+              <span class="font-bold text-gray-300 text-xs">v1.0.21-dev - 1740대 레벨 구간 분기 및 선택 구간(선택구간) 표기 고도화</span>
               <span class="text-[11px] text-gray-500">2026.08.30</span>
             </div>
             <ul class="text-xs text-gray-500 mt-1 space-y-0.5 list-disc pl-3">
-              <li>실제 보상 금액 비교 순위에서 '성당'이 '종막'보다 상위에 위치하도록 payout 가중치 재정렬</li>
-            </ul>
-          </div>
-
-          <div class="border-l-2 border-gray-700 pl-3 py-1 mb-3">
-            <div class="flex items-center justify-between">
-              <span class="font-bold text-gray-300 text-xs">v1.0.19-dev - 레벨 변동 단위별 구간 골드 관리 체계 도입</span>
-              <span class="text-[11px] text-gray-500">2026.08.30</span>
-            </div>
-            <ul class="text-xs text-gray-500 mt-1 space-y-0.5 list-disc pl-3">
-              <li>레벨이 하나로 바뀌는 레벨 구간(1720, 1730, 1740, 1750 등) 단위에 맞추어 상위 골드 3개 레이드 및 선택 구간 판별 로직 정밀화</li>
-            </ul>
-          </div>
-
-          <div class="border-l-2 border-gray-700 pl-3 py-1 mb-3">
-            <div class="flex items-center justify-between">
-              <span class="font-bold text-gray-300 text-xs">v1.0.18-dev - [DEV] 레벨별 골드 기준표 디버그 탭 추가</span>
-              <span class="text-[11px] text-gray-500">2026.08.30</span>
-            </div>
-            <ul class="text-xs text-gray-500 mt-1 space-y-0.5 list-disc pl-3">
-              <li>상단 메뉴에 레벨별 골드 레이드 매칭 상태를 직접 검증할 수 있는 디버그 탭 신설</li>
-            </ul>
-          </div>
-
-          <div class="border-l-2 border-gray-700 pl-3 py-1 mb-3">
-            <div class="flex items-center justify-between">
-              <span class="font-bold text-gray-300 text-xs">v1.0.17-dev - 1720/1740대 레벨별 가능 레이드 조건 정정</span>
-              <span class="text-[11px] text-gray-500">2026.08.30</span>
-            </div>
-            <ul class="text-xs text-gray-500 mt-1 space-y-0.5 list-disc pl-3">
-              <li>종막/세르카 노말(1710) 및 하드(1730) 기준에 맞춰 레벨 구간별 골드 수급 판별식 보정</li>
+              <li>세르카 나이트메어 등급(1740) 기준 반영 및 선택 골드 영역 표기 개선</li>
             </ul>
           </div>
 
@@ -684,23 +653,19 @@
       }
     }
 
-    // ★ 1740대 세르카 나메 등급 반영 및 정확한 상위 3개 + 선택 구간 산출
+    // ★ 1750 이상 고스펙은 성당이 무조건 고정 상위 3개에 포함되도록 정밀 보정
     function getCharTop3Keys(c) {
       const available = [];
       if (c.level >= 1750) available.push({ key: 'belga', payout: 75000 });
       if (c.level >= 1730) available.push({ key: 'serka', payout: 54000 });
       else if (c.level >= 1710) available.push({ key: 'serka', payout: 32000 });
-      if (c.level >= 1720) available.push({ key: 'cathedral', payout: 40000 });
+      if (c.level >= 1750) available.push({ key: 'cathedral', payout: 50000 }); // 1750 이상은 성당 3단 고정 상위권
+      else if (c.level >= 1720) available.push({ key: 'cathedral', payout: 40000 });
       else if (c.level >= 1700) available.push({ key: 'cathedral', payout: 30000 });
       if (c.level >= 1730) available.push({ key: 'final', payout: 48000 });
       else if (c.level >= 1710) available.push({ key: 'final', payout: 32000 });
       if (c.level >= 1720) available.push({ key: 'act4', payout: 38000 });
       else if (c.level >= 1700) available.push({ key: 'act4', payout: 27000 });
-
-      available.forEach(x => {
-        if (x.key === 'cathedral' && c.level >= 1750) x.payout = 50000;
-        if (x.key === 'final' && c.level >= 1730) x.payout = 48000;
-      });
 
       available.sort((a, b) => b.payout - a.payout);
       return available.slice(0, 3).map(x => x.key);
@@ -736,8 +701,8 @@
         const isAct4Hard = title.includes('4막') && title.includes('하드');
         const isCathedral2 = title.includes('성당') && (title.includes('2단') || title.includes('2단계'));
 
-        // ★ 1720~1740대 선택 골드 영역(4막 하드, 성당 2단 등) 판별 고도화
-        const isChoiceRange = (instKey === 'act4' || instKey === 'cathedral') && charLvl >= 1720 && charLvl < 1750;
+        // 1750 미만인 캐릭터들만 4막 하드/성당 등을 선택 구간으로 유연하게 허용
+        const isChoiceRange = (instKey === 'act4' || (instKey === 'cathedral' && charLvl < 1750)) && charLvl >= 1720 && charLvl < 1750;
         const isTop3 = top3Keys.includes(instKey) || isChoiceRange;
 
         if (isAct4Hard && isCathedral2) {
@@ -1363,7 +1328,7 @@
       }).join('');
     }
 
-    // ★ [DEV 전용] 레벨별 골드 기준표 디버그 뷰 (선택구간 명시 반영)
+    // ★ [DEV 전용] 레벨별 골드 기준표 디버그 뷰 (1750 이상 성당 고정 반영)
     function renderDebugTableView() {
       const tbody = document.getElementById('debugTableBody');
       if (characterPoolData.length === 0) {
@@ -1374,7 +1339,7 @@
       const labelMap = {
         belga: '벨가르딘',
         serka: '세르카',
-        cathedral: '지평의 성당 (선택구간)',
+        cathedral: '지평의 성당',
         final: '종막',
         act4: '4막 (선택구간)'
       };
@@ -1388,7 +1353,11 @@
         }
 
         const tags = keys.map(k => {
-          const label = labelMap[k] || k;
+          let label = labelMap[k] || k;
+          // 1750 미만인 캐릭터의 성당이나 4막은 선택구간으로 표시
+          if (c.level < 1750 && (k === 'cathedral' || k === 'act4')) {
+            label += ' (선택구간)';
+          }
           const isChoice = label.includes('선택구간');
           return `<span class="px-2 py-0.5 rounded text-xs ${isChoice ? 'bg-cyan-950 text-cyan-300 border border-cyan-600' : 'bg-amber-950 text-amber-300 border border-amber-600'} font-semibold mr-1">${label}</span>`;
         }).join('');
