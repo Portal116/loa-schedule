@@ -596,33 +596,62 @@
       let blockIdx = 0;
 
       while (r < rows.length) {
-        const rawCellA = (rows[r][0] || '').toString().trim();
+        const row = rows[r] || [];
         
-        if (rawCellA.startsWith('[') && rawCellA.includes(']')) {
-          const cleanTitle = sanitizeTitle(rawCellA);
-          const rawTitle = rawCellA;
+        // A열부터 J열까지 중 레이드 타이틀([...])이 있는지 전체 검사 (셀 병합 대응)
+        let foundTitle = '';
+        for (let col = 0; col < (is8Man ? 10 : 5); col++) {
+          const val = (row[col] || '').toString().trim();
+          if (val.startsWith('[') && val.includes(']')) {
+            foundTitle = val;
+            break;
+          }
+        }
+
+        if (foundTitle) {
+          const cleanTitle = sanitizeTitle(foundTitle);
+          const rawTitle = foundTitle;
           const slots = [];
           
-          r++;
-          if (r < rows.length && isHeaderWord((rows[r][0] || '').toString())) {
-            r++;
+          r++; // 타이틀 다음 행으로 이동
+
+          // 헤더 행(유저명, 캐릭터명 등)이 있으면 1행 건너뛰기
+          if (r < rows.length) {
+            const checkRow = rows[r] || [];
+            const isHeader = isHeaderWord((checkRow[0] || '').toString()) || isHeaderWord((checkRow[1] || '').toString());
+            if (isHeader) r++;
           }
 
+          // 정확히 4개의 슬롯 데이터 행 수집
           for (let slotIdx = 0; slotIdx < 4 && r < rows.length; slotIdx++, r++) {
-            const row = rows[r] || [];
+            const curRow = rows[r] || [];
             const actualSheetRow = r + 1;
 
-            const user1 = (row[0] || '').toString().trim();
-            const char1 = (row[1] || '').toString().trim();
-            const job1  = (row[2] || '').toString().trim();
-            const lvl1  = (row[3] || '').toString().trim();
-            const pos1  = (row[4] || '').toString().trim();
+            // 만약 도중에 다음 레이드 타이틀을 만나면 조기 종료
+            let nextTitleCheck = '';
+            for (let col = 0; col < (is8Man ? 10 : 5); col++) {
+              const val = (curRow[col] || '').toString().trim();
+              if (val.startsWith('[') && val.includes(']')) {
+                nextTitleCheck = val;
+                break;
+              }
+            }
+            if (nextTitleCheck) {
+              r--; // 다음 루프에서 처리할 수 있도록 인덱스 되돌림
+              break;
+            }
 
-            const user2 = (row[5] || '').toString().trim();
-            const char2 = (row[6] || '').toString().trim();
-            const job2  = (row[7] || '').toString().trim();
-            const lvl2  = (row[8] || '').toString().trim();
-            const pos2  = (row[9] || '').toString().trim();
+            const user1 = (curRow[0] || '').toString().trim();
+            const char1 = (curRow[1] || '').toString().trim();
+            const job1  = (curRow[2] || '').toString().trim();
+            const lvl1  = (curRow[3] || '').toString().trim();
+            const pos1  = (curRow[4] || '').toString().trim();
+
+            const user2 = (curRow[5] || '').toString().trim();
+            const char2 = (curRow[6] || '').toString().trim();
+            const job2  = (curRow[7] || '').toString().trim();
+            const lvl2  = (curRow[8] || '').toString().trim();
+            const pos2  = (curRow[9] || '').toString().trim();
 
             if (char1 && !isHeaderWord(char1)) {
               slots.push({
