@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>로스트아크 공대 레이드 대시보드</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- PapaParse for CSV Parsing -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    body {
+      background-color: #0d1117;
+      color: #c9d1d9;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    }
+    .card-bg {
+      background-color: #161b22;
+      border: 1px solid #30363d;
+    }
+    .supporter-row {
+      background-color: rgba(46, 160, 67, 0.15) !important;
+      border-left: 3px solid #3fb950;
+    }
+    .my-highlight {
+      background-color: rgba(210, 153, 34, 0.25) !important;
+      border-left: 3px solid #f2cc60 !important;
+      font-weight: bold;
+    }
+    .badge-dealer {
+      background-color: rgba(248, 81, 73, 0.2);
+      color: #ff7b72;
+      border: 1px solid rgba(248, 81, 73, 0.4);
+    }
+    .badge-supporter {
+      background-color: rgba(56, 139, 253, 0.2);
+      color: #79c0ff;
+      border: 1px solid rgba(56, 139, 253, 0.4);
+    }
+    .badge-swap {
+      background-color: rgba(163, 113, 247, 0.2);
+      color: #d2a8ff;
+      border: 1px solid rgba(163, 113, 247, 0.4);
+    }
+  </style>
+</head>
+<body class="min-h-screen pb-16">
+  <!-- 상단 내비게이션 바 -->
+  <header class="border-b border-gray-800 bg-[#161b22]/90 sticky top-0 z-50 backdrop-blur">
+    <div class="max-w-7xl mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-4">
+      <div class="flex items-center space-x-2">
+        <i data-lucide="shield" class="w-6 h-6 text-yellow-500"></i>
+        <span class="font-bold text-lg text-white tracking-wide">LOA RAID SCHEDULE</span>
+      </div>
+
+      <!-- 공대원 선택 및 필터 설정 -->
+      <div class="flex items-center flex-wrap gap-3">
+        <div class="flex items-center space-x-2 bg-[#0d1117] px-3 py-1.5 rounded-lg border border-gray-700">
+          <i data-lucide="user" class="w-4 h-4 text-gray-400"></i>
+          <span class="text-xs text-gray-400">내 캐릭터 강조:</span>
+          <select id="userSelector" class="bg-transparent text-sm text-yellow-400 font-semibold focus:outline-none cursor-pointer">
+            <option value="" class="bg-[#161b22] text-gray-300">선택 안 함 (전체)</option>
+          </select>
+        </div>
+
+        <label class="flex items-center space-x-1.5 text-xs text-gray-300 cursor-pointer bg-[#0d1117] px-3 py-2 rounded-lg border border-gray-700 hover:border-gray-500 transition">
+          <input type="checkbox" id="filterMySubToggle" class="rounded bg-gray-800 border-gray-600 text-yellow-500 focus:ring-0 cursor-pointer" />
+          <span>내 서브 조만 보기</span>
+        </label>
+
+        <button onclick="fetchSheetData()" class="flex items-center space-x-1 bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold px-3 py-2 rounded-lg transition">
+          <i data-lucide="refresh-cw" class="w-3.5 h-3.5" id="refreshIcon"></i>
+          <span>새로고침</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- 메인 탭 메뉴 -->
+  <main class="max-w-7xl mx-auto px-4 mt-6">
+    <nav class="flex space-x-2 border-b border-gray-800 pb-2 overflow-x-auto" id="tabNav">
+      <!-- 탭이 동적으로 렌더링됩니다 -->
+    </nav>
+
+    <!-- 레이드 카드 컨테이너 -->
+    <section id="raidContainer" class="mt-6 grid grid-cols-1 gap-6">
+      <div class="text-center py-20 text-gray-500">
+        <i data-lucide="loader" class="w-8 h-8 animate-spin mx-auto mb-2 text-yellow-500"></i>
+        데이터를 불러오는 중입니다...
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const SPREADSHEET_ID = '1dDM5LoLM75hhojd8p1vA-095J-HcOgFQPTQiaErXHi0';
+    
+    // 시트 탭 목록
+    const SHEET_CONFIG = [
+      { id: 'Main_8Man', fixedTitle: '[토요일 고정]', is8Man: true },
+      { id: 'Sub_Group1', is8Man: false },
+      { id: 'Sub_Group2', is8Man: false },
+      { id: 'Sub_Group3', is8Man: false },
+      { id: 'Sub_Group4', is8Man: false },
+    ];
+
+    let currentActiveTab = 'Main_8Man';
+    let selectedUser = localStorage.getItem('loa_selected_user') || '';
+    let filterMySubOnly = localStorage.getItem('loa_filter_sub') === 'true';
+    let sheetsDataStore = {};
+    let allMemberList = new Set();
+
+    // 초기 실행
+    document.addEventListener('DOMContentLoaded', () => {
+      document.getElementById('filterMySubToggle').checked = filterMySubOnly;
+      document.getElementById('filterMySubToggle').addEventListener('change', (e) => {
+        filterMySubOnly = e.target.checked;
+        localStorage.setItem('loa_filter_sub', filterMySubOnly);
+        renderTabs();
+        renderActiveTabContent();
+      });
+
+      document.getElementById('userSelector').addEventListener('change', (e) => {
+        selectedUser = e.target.value;
+        localStorage.setItem('loa_selected_user', selectedUser);
+        renderTabs();
+        renderActiveTabContent();
+      });
+
+      fetchSheetData();
+    });
+
+    // 구글 시트 CSV Fetch
+    async function fetchSheetData() {
+      const refreshIcon = document.getElementById('refreshIcon');
+      if (refreshIcon) refreshIcon.classList.add('animate-spin');
+
+      sheetsDataStore = {};
+      allMemberList = new Set();
+
+      try {
+        for (const config of SHEET_CONFIG) {
+          const url = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURI(config.id)}`;
+          const response = await fetch(url);
+          const csvText = await response.text();
+          
+          const parsed = Papa.parse(csvText, { skipEmptyLines: false });
+          const blocks = parseRaidBlocks(parsed.data, config.is8Man);
+          
+          // 조에 포함된 고유 유저 추출
+          const groupUsers = new Set();
+          blocks.forEach(b => {
+            b.slots.forEach(s => {
+              if (s.user) {
+                const baseUser = s.user.split('(')[0].trim();
+                groupUsers.add(baseUser);
+                allMemberList.add(baseUser);
+              }
+            });
+          });
+
+          sheetsDataStore[config.id] = {
+            config: config,
+            blocks: blocks,
+            users: Array.from(groupUsers),
+            title: config.fixedTitle || (groupUsers.size > 0 ? Array.from(groupUsers).join(', ') : config.id)
+          };
+        }
+
+        populateUserSelector();
+        renderTabs();
+        renderActiveTabContent();
+      } catch (err) {
+        console.error(err);
+        document.getElementById('raidContainer').innerHTML = `
+          <div class="text-center py-20 text-red-400">
+            <i data-lucide="alert-circle" class="w-8 h-8 mx-auto mb-2"></i>
+            데이터를 불러오는 데 실패했습니다. 시트 공유 권한을 확인해주세요.
+          </div>
+        `;
+      } finally {
+        if (refreshIcon) refreshIcon.classList.remove('animate-spin');
+        lucide.createIcons();
+      }
+    }
+
+    // 시트 행 파싱 (타이틀 행 및 4인/8인 슬롯 분리)
+    function parseRaidBlocks(rows, is8Man) {
+      const blocks = [];
+      for (let r = 0; r < rows.length; r++) {
+        const cellA = (rows[r][0] || '').toString().trim();
+        if (cellA.startsWith('[') && cellA.includes(']')) {
+          const title = cellA;
+          const slots = [];
+          const startR = r + 2; // 데이터 시작 행 (타이틀 다음다음 행)
+
+          for (let i = 0; i < 4; i++) {
+            const rowData = rows[startR + i] || [];
+            if (is8Man) {
+              // 1파티: [유저, 캐릭터, 직업, 레벨, 포지션]
+              if (rowData[1]) {
+                slots.push({
+                  party: 1,
+                  user: (rowData[0] || '').trim(),
+                  name: (rowData[1] || '').trim(),
+                  job: (rowData[2] || '').trim(),
+                  level: (rowData[3] || '').trim(),
+                  pos: (rowData[4] || '').trim() || (i === 3 ? '서포터' : '딜러')
+                });
+              }
+              // 2파티: [유저, 캐릭터, 직업, 레벨, 포지션]
+              if (rowData[6]) {
+                slots.push({
+                  party: 2,
+                  user: (rowData[5] || '').trim(),
+                  name: (rowData[6] || '').trim(),
+                  job: (rowData[7] || '').trim(),
+                  level: (rowData[8] || '').trim(),
+                  pos: (rowData[9] || '').trim() || (i === 3 ? '서포터' : '딜러')
+                });
+              }
+            } else {
+              // 4인 파티: [유저, 캐릭터, 직업, 레벨, 포지션]
+              if (rowData[1]) {
+                slots.push({
+                  party: 1,
+                  user: (rowData[0] || '').trim(),
+                  name: (rowData[1] || '').trim(),
+                  job: (rowData[2] || '').trim(),
+                  level: (rowData[3] || '').trim(),
+                  pos: (rowData[4] || '').trim() || (i === 3 ? '서포터' : '딜러')
+                });
+              }
+            }
+          }
+
+          if (slots.length > 0) {
+            blocks.push({ title, slots, is8Man });
+          }
+          r += 5;
+        }
+      }
+      return blocks;
+    }
+
+    // 유저 선택 드롭다운 채우기
+    function populateUserSelector() {
+      const select = document.getElementById('userSelector');
+      select.innerHTML = '<option value="" class="bg-[#161b22] text-gray-300">선택 안 함 (전체)</option>';
+      Array.from(allMemberList).sort().forEach(u => {
+        const opt = document.createElement('option');
+        opt.value = u;
+        opt.textContent = u;
+        opt.className = 'bg-[#161b22] text-white';
+        if (u === selectedUser) opt.selected = true;
+        select.appendChild(opt);
+      });
+    }
+
+    // 탭 목록 렌더링
+    function renderTabs() {
+      const nav = document.getElementById('tabNav');
+      nav.innerHTML = '';
+
+      let availableTabs = SHEET_CONFIG;
+      if (filterMySubOnly && selectedUser) {
+        availableTabs = SHEET_CONFIG.filter(cfg => {
+          if (cfg.is8Man) return true; // 메인은 항상 노출
+          const sheetInfo = sheetsDataStore[cfg.id];
+          return sheetInfo && sheetInfo.users.includes(selectedUser);
+        });
+      }
+
+      if (!availableTabs.some(t => t.id === currentActiveTab)) {
+        currentActiveTab = availableTabs[0]?.id || 'Main_8Man';
+      }
+
+      availableTabs.forEach(cfg => {
+        const info = sheetsDataStore[cfg.id];
+        const tabTitle = info ? info.title : cfg.fixedTitle || cfg.id;
+        const isActive = (cfg.id === currentActiveTab);
+
+        const btn = document.createElement('button');
+        btn.className = `px-4 py-2 rounded-lg text-sm font-semibold transition whitespace-nowrap flex items-center space-x-1.5 ${
+          isActive
+            ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/50'
+            : 'text-gray-400 hover:text-white hover:bg-gray-800'
+        }`;
+        btn.innerHTML = `<span>${tabTitle}</span>`;
+        btn.onclick = () => {
+          currentActiveTab = cfg.id;
+          renderTabs();
+          renderActiveTabContent();
+        };
+        nav.appendChild(btn);
+      });
+    }
+
+    // 활성화된 탭의 레이드 목록 렌더링
+    function renderActiveTabContent() {
+      const container = document.getElementById('raidContainer');
+      const currentSheet = sheetsDataStore[currentActiveTab];
+
+      if (!currentSheet || currentSheet.blocks.length === 0) {
+        container.innerHTML = `
+          <div class="text-center py-20 text-gray-500 card-bg rounded-xl">
+            편성된 레이드 일정이 없습니다.
+          </div>
+        `;
+        return;
+      }
+
+      container.innerHTML = '';
+      currentSheet.blocks.forEach(block => {
+        const card = document.createElement('div');
+        card.className = 'card-bg rounded-xl p-5 shadow-lg';
+
+        let innerHTML = `
+          <div class="flex items-center justify-between border-b border-gray-800 pb-3 mb-4">
+            <div class="flex items-center space-x-2">
+              <span class="w-2.5 h-2.5 rounded-full ${block.is8Man ? 'bg-orange-400' : 'bg-blue-400'}"></span>
+              <h2 class="text-lg font-bold text-white tracking-wide">${block.title}</h2>
+            </div>
+            <span class="text-xs px-2 py-0.5 rounded ${block.is8Man ? 'bg-orange-950 text-orange-400 border border-orange-800' : 'bg-blue-950 text-blue-400 border border-blue-800'} font-medium">
+              ${block.is8Man ? '8인 공격대' : '4인 파티'}
+            </span>
+          </div>
+        `;
+
+        if (block.is8Man) {
+          const p1Slots = block.slots.filter(s => s.party === 1);
+          const p2Slots = block.slots.filter(s => s.party === 2);
+
+          innerHTML += `
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div class="space-y-2">
+                <div class="text-xs font-bold text-gray-400 px-1">1 파티</div>
+                <div class="space-y-1.5">${renderPartySlots(p1Slots)}</div>
+              </div>
+              <div class="space-y-2">
+                <div class="text-xs font-bold text-gray-400 px-1">2 파티</div>
+                <div class="space-y-1.5">${renderPartySlots(p2Slots)}</div>
+              </div>
+            </div>
+          `;
+        } else {
+          innerHTML += `
+            <div class="space-y-1.5 max-w-2xl">
+              ${renderPartySlots(block.slots)}
+            </div>
+          `;
+        }
+
+        card.innerHTML = innerHTML;
+        container.appendChild(card);
+      });
+
+      lucide.createIcons();
+    }
+
+    // 개별 슬롯 렌더링
+    function renderPartySlots(slots) {
+      return slots.map(slot => {
+        const isMe = selectedUser && slot.user.startsWith(selectedUser);
+        const isSupporter = slot.pos === '서포터';
+        const isSwap = slot.pos === '스왑가능';
+
+        let posBadge = `<span class="badge-dealer text-[11px] font-semibold px-2 py-0.5 rounded">딜러</span>`;
+        if (isSupporter) {
+          posBadge = `<span class="badge-supporter text-[11px] font-semibold px-2 py-0.5 rounded">서포터</span>`;
+        } else if (isSwap) {
+          posBadge = `<span class="badge-swap text-[11px] font-semibold px-2 py-0.5 rounded">스왑</span>`;
+        }
+
+        const rowStyle = isMe 
+          ? 'my-highlight' 
+          : (isSupporter ? 'supporter-row' : 'bg-[#0d1117]/60 hover:bg-[#0d1117]');
+
+        return `
+          <div class="flex items-center justify-between p-2.5 rounded-lg border border-gray-800/80 ${rowStyle} transition">
+            <div class="flex items-center space-x-3">
+              ${posBadge}
+              <div class="flex flex-col sm:flex-row sm:items-center sm:space-x-2">
+                <span class="text-xs text-gray-400 font-medium">${slot.user}</span>
+                <span class="text-sm font-semibold text-gray-200">${slot.name}</span>
+              </div>
+            </div>
+            <div class="flex items-center space-x-3 text-right">
+              <span class="text-xs text-gray-400">${slot.job}</span>
+              <span class="text-sm font-mono font-medium text-yellow-500/90">${slot.level}</span>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+  </script>
+</body>
+</html>
