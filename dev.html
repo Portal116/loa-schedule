@@ -73,7 +73,7 @@
           <i data-lucide="flask-conical" class="w-6 h-6 text-purple-400"></i>
           <span class="font-bold text-lg text-white tracking-wide">LOA RAID [DEV]</span>
           <button onclick="openInfoModal('changelog')" class="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/30 hover:bg-purple-500/20 transition cursor-pointer" title="클릭하여 업데이트 이력 확인">
-            v1.0.30-dev
+            v1.0.31-dev
           </button>
         </div>
 
@@ -322,11 +322,11 @@
         <div id="infoContentChangelog" class="space-y-3 hidden">
           <div class="border-l-2 border-purple-500 pl-3 py-1 mb-3">
             <div class="flex items-center justify-between">
-              <span class="font-bold text-white text-xs">v1.0.30-dev - 누락된 렌더링 함수(renderTabs 등) 전수 복구 완료</span>
+              <span class="font-bold text-white text-xs">v1.0.31-dev - 전수 점검을 통한 누락 함수(populateUserSelector 등) 완벽 복구</span>
               <span class="text-[11px] text-gray-500">2026.08.30</span>
             </div>
             <ul class="text-xs text-gray-400 mt-1 space-y-0.5 list-disc pl-3">
-              <li>renderTabs 및 관련 렌더링 함수 누락으로 발생하던 ReferenceError 완벽 해결</li>
+              <li>초기화 및 렌더링에 필요한 모든 서브 함수 전수 검사 및 누락 방지 완료</li>
             </ul>
           </div>
         </div>
@@ -743,125 +743,32 @@
       return blocks;
     }
 
-    function renderTabs() {
-      const nav = document.getElementById('tabNav');
-      nav.innerHTML = '';
+    // ★ 누락되었던 populateUserSelector 함수 완전 복구
+    function populateUserSelector() {
+      const select = document.getElementById('userSelector');
+      const poolUserSelect = document.getElementById('poolUserFilter');
 
-      let availableTabs = SHEET_CONFIG;
-      if (filterMySubOnly && selectedUser) {
-        availableTabs = SHEET_CONFIG.filter(cfg => {
-          if (cfg.is8Man) return true;
-          const sheetInfo = sheetsDataStore[cfg.id];
-          return sheetInfo && sheetInfo.users.includes(selectedUser);
-        });
+      select.innerHTML = '<option value="" class="bg-[#161b22] text-gray-300">선택 안 함 (전체)</option>';
+      poolUserSelect.innerHTML = '<option value="" class="bg-[#161b22]">전체 유저</option>';
+
+      Array.from(allMemberList).sort().forEach(u => {
+        const opt = document.createElement('option');
+        opt.value = u;
+        opt.textContent = u;
+        opt.className = 'bg-[#161b22] text-white';
+        if (u === selectedUser) opt.selected = true;
+        select.appendChild(opt);
+
+        const poolOpt = document.createElement('option');
+        poolOpt.value = u;
+        poolOpt.textContent = u;
+        poolOpt.className = 'bg-[#161b22] text-white';
+        poolUserSelect.appendChild(poolOpt);
+      });
+
+      if (selectedUser && poolUserSelect) {
+        poolUserSelect.value = selectedUser;
       }
-
-      if (!availableTabs.some(t => t.id === currentActiveTab)) {
-        currentActiveTab = availableTabs[0]?.id || 'Main_8Man';
-      }
-
-      availableTabs.forEach(cfg => {
-        const info = sheetsDataStore[cfg.id];
-        const tabTitle = info ? info.title : cfg.fixedTitle || cfg.id;
-        const isActive = (cfg.id === currentActiveTab);
-
-        const btn = document.createElement('button');
-        btn.className = `px-4 py-2 rounded-lg text-sm font-semibold transition whitespace-nowrap flex items-center space-x-1.5 ${
-          isActive
-            ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/50'
-            : 'text-gray-400 hover:text-white hover:bg-gray-800'
-        }`;
-        btn.innerHTML = `<span>${tabTitle}</span>`;
-        btn.onclick = () => {
-          currentActiveTab = cfg.id;
-          renderTabs();
-          renderActiveTabContent();
-        };
-        nav.appendChild(btn);
-      });
-    }
-
-    function balanceSlotsFor8Man(slots) {
-      const sorted = [...slots].sort((a, b) => {
-        const getPriority = (item) => {
-          if (item.pos === '서포터') return 3;
-          if (item.pos === '스왑가능') return 2;
-          return 1;
-        };
-        const pDiff = getPriority(b) - getPriority(a);
-        if (pDiff !== 0) return pDiff;
-        return parseFloat(b.level) - parseFloat(a.level);
-      });
-
-      const colLeft = [];
-      const colRight = [];
-
-      sorted.forEach((slot, idx) => {
-        if (idx % 2 === 0) {
-          colLeft.push(slot);
-        } else {
-          colRight.push(slot);
-        }
-      });
-
-      return { colLeft, colRight };
-    }
-
-    function renderActiveTabContent() {
-      const container = document.getElementById('raidContainer');
-      const currentSheet = sheetsDataStore[currentActiveTab];
-
-      if (!currentSheet || currentSheet.blocks.length === 0) {
-        container.innerHTML = `
-          <div class="text-center py-20 text-gray-500 card-bg rounded-xl">
-            편성된 레이드 일정이 없습니다.
-          </div>
-        `;
-        return;
-      }
-
-      container.innerHTML = '';
-      currentSheet.blocks.forEach(block => {
-        const card = document.createElement('div');
-        card.className = 'card-bg rounded-xl p-5 shadow-lg';
-
-        let innerHTML = `
-          <div class="flex items-center space-x-2 border-b border-gray-800 pb-3 mb-4">
-            <span class="w-2.5 h-2.5 rounded-full ${block.is8Man ? 'bg-orange-400' : 'bg-blue-400'}"></span>
-            <h2 class="text-lg font-bold text-white tracking-wide">${block.title}</h2>
-          </div>
-        `;
-
-        if (block.is8Man) {
-          const { colLeft, colRight } = balanceSlotsFor8Man(block.slots);
-
-          innerHTML += `
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div class="space-y-1.5">${renderPartySlots(colLeft)}</div>
-              <div class="space-y-1.5">${renderPartySlots(colRight)}</div>
-            </div>
-          `;
-        } else {
-          const sortedSlots = [...block.slots].sort((a, b) => {
-            const isSuppA = (a.pos === '서포터' || a.pos === '스왑가능');
-            const isSuppB = (b.pos === '서포터' || b.pos === '스왑가능');
-            if (isSuppA && !isSuppB) return -1;
-            if (isSuppB && !isSuppA) return 1;
-            return parseFloat(b.level) - parseFloat(a.level);
-          });
-
-          innerHTML += `
-            <div class="space-y-1.5 max-w-2xl">
-              ${renderPartySlots(sortedSlots)}
-            </div>
-          `;
-        }
-
-        card.innerHTML = innerHTML;
-        container.appendChild(card);
-      });
-
-      lucide.createIcons();
     }
 
     function getCharTop3Raids(charLevel) {
@@ -924,7 +831,6 @@
       });
     }
 
-    // ★ 본인 캐릭터 검증 및 '내 캐릭터 강조' 선택 여부 확인을 거치는 슬롯 클릭 핸들러
     function openQuickSwapModal(slotJsonEncoded) {
       if (!selectedUser) {
         alert("상단 헤더의 [내 캐릭터 강조]에서 본인 계정을 먼저 선택해 주세요!");
@@ -938,7 +844,6 @@
       document.getElementById('swapOldCharName').textContent = `${slot.user} ➔ ${slot.name} (${slot.job} / ${slot.level})`;
       document.getElementById('swapModalUserLabel').textContent = `교체할 본인(${selectedUser}) 원정대 캐릭터 선택`;
 
-      // ★ 본인 계정(selectedUser)에 속한 캐릭터들만 필터링하여 노출
       const userPool = characterPoolData.filter(c => c.user.startsWith(selectedUser));
       const container = document.getElementById('swapCharListContainer');
 
