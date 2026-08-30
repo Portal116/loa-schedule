@@ -1,0 +1,1162 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>로스트아크 공대 레이드 대시보드</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    body {
+      background-color: #0d1117;
+      color: #c9d1d9;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    }
+    .card-bg {
+      background-color: #161b22;
+      border: 1px solid #30363d;
+    }
+    .supporter-row {
+      background-color: rgba(46, 160, 67, 0.15) !important;
+      border-left: 3px solid #3fb950;
+    }
+    .my-highlight {
+      background-color: rgba(210, 153, 34, 0.25) !important;
+      border-left: 3px solid #f2cc60 !important;
+      font-weight: bold;
+    }
+    .badge-dealer {
+      background-color: rgba(248, 81, 73, 0.2);
+      color: #ff7b72;
+      border: 1px solid rgba(248, 81, 73, 0.4);
+    }
+    .badge-supporter {
+      background-color: rgba(56, 139, 253, 0.2);
+      color: #79c0ff;
+      border: 1px solid rgba(56, 139, 253, 0.4);
+    }
+    .badge-swap {
+      background-color: rgba(163, 113, 247, 0.2);
+      color: #d2a8ff;
+      border: 1px solid rgba(163, 113, 247, 0.4);
+    }
+    .slot-hover:hover {
+      border-color: #f59e0b;
+      cursor: pointer;
+      transform: translateY(-1px);
+    }
+    .modal-scroll {
+      overscroll-behavior: contain;
+    }
+    .modal-scroll::-webkit-scrollbar {
+      width: 6px;
+    }
+    .modal-scroll::-webkit-scrollbar-track {
+      background: #0d1117;
+      border-radius: 4px;
+    }
+    .modal-scroll::-webkit-scrollbar-thumb {
+      background: #30363d;
+      border-radius: 4px;
+    }
+    .modal-scroll::-webkit-scrollbar-thumb:hover {
+      background: #484f58;
+    }
+  </style>
+</head>
+<body class="min-h-screen pb-16">
+  <!-- 상단 헤더 -->
+  <header class="border-b border-gray-800 bg-[#161b22]/90 sticky top-0 z-50 backdrop-blur">
+    <div class="max-w-7xl mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-4">
+      <div class="flex items-center space-x-3">
+        <div class="flex items-center space-x-2">
+          <i data-lucide="shield" class="w-6 h-6 text-yellow-500"></i>
+          <span class="font-bold text-lg text-white tracking-wide">LOA RAID SCHEDULE</span>
+          <button onclick="openInfoModal('changelog')" class="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-yellow-500/10 text-yellow-400 border border-yellow-500/30 hover:bg-yellow-500/20 transition cursor-pointer" title="클릭하여 업데이트 이력 확인">
+            v1.0.0
+          </button>
+        </div>
+
+        <div class="flex bg-[#0d1117] p-1 rounded-lg border border-gray-800 text-xs">
+          <button onclick="switchMainView('schedule')" id="viewBtnSchedule" class="px-3 py-1.5 rounded-md font-semibold bg-gray-800 text-white transition">일정표</button>
+          <button onclick="switchMainView('pool')" id="viewBtnPool" class="px-3 py-1.5 rounded-md font-medium text-gray-400 hover:text-white transition">캐릭터 현황</button>
+          <button onclick="switchMainView('gold')" id="viewBtnGold" class="px-3 py-1.5 rounded-md font-medium text-gray-400 hover:text-white transition">레이드 골드표</button>
+        </div>
+      </div>
+
+      <div class="flex items-center flex-wrap gap-2.5">
+        <div class="flex items-center space-x-2 bg-[#0d1117] px-3 py-1.5 rounded-lg border border-gray-700">
+          <i data-lucide="user" class="w-4 h-4 text-gray-400"></i>
+          <span class="text-xs text-gray-400">내 캐릭터 강조:</span>
+          <select id="userSelector" class="bg-transparent text-sm text-yellow-400 font-semibold focus:outline-none cursor-pointer">
+            <option value="" class="bg-[#161b22] text-gray-300">선택 안 함 (전체)</option>
+          </select>
+        </div>
+
+        <button onclick="openInfoModal('guide')" class="flex items-center space-x-1 bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white border border-gray-700 text-xs font-semibold px-3 py-2 rounded-lg transition" title="도움말 및 패치노트">
+          <i data-lucide="help-circle" class="w-3.5 h-3.5 text-yellow-400"></i>
+          <span>도움말</span>
+        </button>
+
+        <button onclick="fetchSheetData()" class="flex items-center space-x-1 bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold px-3 py-2 rounded-lg transition">
+          <i data-lucide="refresh-cw" class="w-3.5 h-3.5" id="refreshIcon"></i>
+          <span>새로고침</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-7xl mx-auto px-4 mt-6">
+    <!-- 1. 일정표 뷰 -->
+    <div id="sectionSchedule">
+      <div class="flex items-center justify-between flex-wrap gap-3 border-b border-gray-800 pb-2">
+        <nav class="flex space-x-2 overflow-x-auto" id="tabNav"></nav>
+        <div class="flex items-center space-x-3">
+          <span class="text-[11px] text-gray-400 flex items-center space-x-1">
+            <i data-lucide="mouse-pointer-click" class="w-3.5 h-3.5 text-yellow-400"></i>
+            <span>슬롯 클릭 시 캐릭터 즉시 교체</span>
+          </span>
+          <label class="flex items-center space-x-1.5 text-xs text-gray-300 cursor-pointer bg-[#161b22] px-3 py-1.5 rounded-lg border border-gray-700 hover:border-gray-500 transition">
+            <input type="checkbox" id="filterMySubToggle" class="rounded bg-gray-800 border-gray-600 text-yellow-500 focus:ring-0 cursor-pointer" />
+            <span>내 서브 조만 보기</span>
+          </label>
+        </div>
+      </div>
+
+      <!-- 골드 범례 안내 바 -->
+      <div class="mt-4 px-3 py-2 bg-[#161b22] border border-gray-800 rounded-lg flex flex-wrap items-center gap-4 text-xs text-gray-400">
+        <span class="font-semibold text-gray-300">골드 획득 범례:</span>
+        <div class="flex items-center space-x-1.5">
+          <span class="inline-block w-4 h-4 rounded-full bg-amber-500 text-[10px] text-amber-950 font-bold text-center leading-4">G</span>
+          <span>골드 획득</span>
+        </div>
+        <div class="flex items-center space-x-1.5">
+          <span class="inline-block w-4 h-4 rounded-full bg-cyan-600 text-[10px] text-white font-bold text-center leading-4">?</span>
+          <span>선택 구간 (4막하드 3.8만 일반골 vs 성당2단 4만 귀속골)</span>
+        </div>
+        <div class="flex items-center space-x-1.5">
+          <span class="inline-block w-4 h-4 rounded-full bg-gray-700 text-[10px] text-red-500 font-bold text-center leading-4">✕</span>
+          <span>골드 미획득 (3회 초과)</span>
+        </div>
+      </div>
+
+      <section id="raidContainer" class="mt-6 grid grid-cols-1 gap-6"></section>
+    </div>
+
+    <!-- 2. 캐릭터 현황 뷰 -->
+    <div id="sectionPool" class="hidden">
+      <div class="card-bg p-4 rounded-xl mb-4 flex flex-wrap items-center justify-between gap-4">
+        <div class="flex flex-wrap items-center gap-3">
+          <div class="flex items-center space-x-2 bg-[#0d1117] px-3 py-1.5 rounded-lg border border-gray-700">
+            <span class="text-xs text-gray-400">유저:</span>
+            <select id="poolUserFilter" onchange="renderPoolView()" class="bg-transparent text-xs text-white focus:outline-none cursor-pointer">
+              <option value="" class="bg-[#161b22]">전체 유저</option>
+            </select>
+          </div>
+
+          <div class="flex items-center space-x-2 bg-[#0d1117] px-3 py-1.5 rounded-lg border border-gray-700">
+            <span class="text-xs text-gray-400">포지션:</span>
+            <select id="poolPosFilter" onchange="renderPoolView()" class="bg-transparent text-xs text-white focus:outline-none cursor-pointer">
+              <option value="ALL" class="bg-[#161b22]">전체 포지션</option>
+              <option value="DEALER" class="bg-[#161b22]">딜러 (스왑 포함)</option>
+              <option value="SUPPORTER" class="bg-[#161b22]">서포터 (스왑 포함)</option>
+            </select>
+          </div>
+
+          <div class="flex items-center space-x-2 bg-[#0d1117] px-3 py-1.5 rounded-lg border border-gray-700">
+            <span class="text-xs text-gray-400">최소 레벨:</span>
+            <select id="poolLevelFilter" onchange="renderPoolView()" class="bg-transparent text-xs text-white focus:outline-none cursor-pointer">
+              <option value="0" class="bg-[#161b22]">전체 레벨</option>
+              <option value="1720" class="bg-[#161b22]">1720+ (4막/성당)</option>
+              <option value="1730" class="bg-[#161b22]">1730+ (종막/세르카)</option>
+              <option value="1750" class="bg-[#161b22]">1750+ (성당3단/세르카나메/벨가)</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="text-xs text-gray-400">
+          조회된 캐릭터: <span id="poolCount" class="text-yellow-400 font-bold">0</span>개
+        </div>
+      </div>
+
+      <div class="mb-6 px-3 py-2 bg-[#161b22] border border-gray-800 rounded-lg flex flex-wrap items-center gap-4 text-xs text-gray-400">
+        <span class="font-semibold text-gray-300">상태 안내:</span>
+        <div class="flex items-center space-x-1.5">
+          <span class="px-1.5 py-0.5 bg-emerald-950 border border-emerald-700 text-emerald-400 font-bold rounded text-[10px]">레이드 ✓</span>
+          <span>출전 완료</span>
+        </div>
+        <div class="flex items-center space-x-1.5">
+          <span class="px-1.5 py-0.5 bg-gray-800 border border-gray-700 text-gray-300 rounded text-[10px]">레이드</span>
+          <span>입장 가능 (미배치 숙제)</span>
+        </div>
+        <div class="flex items-center space-x-1.5">
+          <span class="px-1.5 py-0.5 bg-[#0d1117] border border-gray-900 text-gray-600 line-through rounded text-[10px]">레이드</span>
+          <span>입장 불가 (레벨 미달)</span>
+        </div>
+      </div>
+
+      <div id="poolGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+    </div>
+
+    <!-- 3. 레이드 골드 정보 뷰 -->
+    <div id="sectionGold" class="hidden">
+      <div class="card-bg rounded-xl overflow-hidden shadow-lg border border-gray-800">
+        <div class="p-4 border-b border-gray-800 flex items-center justify-between">
+          <h3 class="font-bold text-white text-base">로스트아크 주요 레이드 골드 및 보상 안내</h3>
+          <span class="text-xs text-gray-400">시트(Raid_Info) 기준 실시간 연동</span>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-sm text-gray-300">
+            <thead class="bg-[#0d1117] text-xs uppercase text-gray-400 border-b border-gray-800">
+              <tr>
+                <th class="px-4 py-3">레이드명</th>
+                <th class="px-4 py-3">구분</th>
+                <th class="px-4 py-3">난이도</th>
+                <th class="px-4 py-3 text-right">입장 레벨</th>
+                <th class="px-4 py-3 text-right text-amber-400">일반 골드</th>
+                <th class="px-4 py-3 text-right text-emerald-400">귀속 골드</th>
+                <th class="px-4 py-3 text-right text-yellow-300 font-bold">총 획득 골드</th>
+              </tr>
+            </thead>
+            <tbody id="goldTableBody" class="divide-y divide-gray-800">
+              <tr><td colspan="7" class="text-center py-8 text-gray-500">데이터를 불러오는 중입니다...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- 원클릭 캐릭터 즉시 변경 모달 -->
+  <div id="quickSwapModal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="card-bg w-full max-w-lg rounded-2xl p-6 border border-gray-700 shadow-2xl relative">
+      <button onclick="closeQuickSwapModal()" class="absolute top-4 right-4 text-gray-400 hover:text-white">
+        <i data-lucide="x" class="w-5 h-5"></i>
+      </button>
+
+      <div class="flex items-center space-x-2 text-yellow-400 mb-2">
+        <i data-lucide="refresh-cw" class="w-5 h-5"></i>
+        <h3 class="text-lg font-bold text-white">캐릭터 즉시 변경</h3>
+      </div>
+      <p class="text-xs text-gray-400 mb-4" id="swapModalDesc">
+        변경할 캐릭터를 선택하시면 시트에 즉시 반영됩니다.
+      </p>
+
+      <div class="bg-[#0d1117] p-3 rounded-xl border border-gray-800 mb-4">
+        <div class="text-[11px] text-gray-500 mb-1">현재 슬롯 정보</div>
+        <div class="flex items-center justify-between">
+          <div class="text-xs text-gray-300 font-semibold" id="swapTargetRaidTitle">-</div>
+          <div class="text-xs font-bold text-red-400" id="swapOldCharName">-</div>
+        </div>
+      </div>
+
+      <div class="space-y-2">
+        <label class="block text-xs font-semibold text-gray-400">교체할 내 원정대 캐릭터 선택</label>
+        <div class="space-y-2 max-h-64 overflow-y-auto modal-scroll pr-1.5" id="swapCharListContainer"></div>
+      </div>
+
+      <div class="mt-5 flex items-center justify-end">
+        <button onclick="closeQuickSwapModal()" class="px-4 py-2 rounded-lg text-xs font-semibold text-gray-400 hover:text-white bg-gray-800 transition">취소</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 도움말 및 패치노트 모달 -->
+  <div id="infoModal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="card-bg w-full max-w-2xl max-h-[85vh] rounded-2xl p-6 border border-gray-700 shadow-2xl relative flex flex-col">
+      <button onclick="closeInfoModal()" class="absolute top-4 right-4 text-gray-400 hover:text-white">
+        <i data-lucide="x" class="w-5 h-5"></i>
+      </button>
+
+      <div class="flex items-center space-x-2 text-yellow-400 mb-4">
+        <i data-lucide="book-open" class="w-5 h-5"></i>
+        <h3 class="text-lg font-bold text-white">대시보드 이용 안내</h3>
+      </div>
+
+      <div class="flex border-b border-gray-800 mb-4">
+        <button onclick="switchInfoTab('guide')" id="infoTabBtnGuide" class="px-4 py-2 text-sm font-semibold border-b-2 border-yellow-500 text-yellow-400 transition">자주 묻는 질문</button>
+        <button onclick="switchInfoTab('changelog')" id="infoTabBtnChangelog" class="px-4 py-2 text-sm font-semibold text-gray-400 hover:text-white transition">업데이트 이력</button>
+      </div>
+
+      <div class="overflow-y-auto modal-scroll pr-2 space-y-4 text-sm text-gray-300 flex-1">
+        <!-- 1. 실사용자 맞춤형 도움말 (FAQ) -->
+        <div id="infoContentGuide" class="space-y-3">
+          <div class="bg-[#0d1117] p-3.5 rounded-xl border border-gray-800">
+            <h4 class="font-bold text-white text-xs mb-1 text-yellow-400">Q. 내가 출전하는 일정만 모아보고 싶어요!</h4>
+            <p class="text-xs text-gray-300 leading-relaxed">
+              상단 우측의 <strong>[내 캐릭터 강조]</strong>에서 본인 닉네임을 선택하면 내 캐릭터가 노란색으로 강조됩니다. 추가로 <strong>[내 서브 조만 보기]</strong>를 체크하면 내가 참여하는 조의 탭만 깔끔하게 필터링됩니다.
+            </p>
+          </div>
+
+          <div class="bg-[#0d1117] p-3.5 rounded-xl border border-gray-800">
+            <h4 class="font-bold text-white text-xs mb-1 text-yellow-400">Q. 출전할 캐릭터를 다른 캐릭터로 바꾸고 싶어요!</h4>
+            <p class="text-xs text-gray-300 leading-relaxed">
+              일정표에서 <strong>내 캐릭터 슬롯을 클릭</strong>하면 본인 원정대의 캐릭터 목록이 뜹니다. 바꾸고 싶은 캐릭터를 누르면 구글 시트에 즉시 반영되며, 디스코드 공지 채널로 변경 알림이 자동 전송됩니다.
+            </p>
+          </div>
+
+          <div class="bg-[#0d1117] p-3.5 rounded-xl border border-gray-800">
+            <h4 class="font-bold text-white text-xs mb-1 text-yellow-400">Q. 캐릭터 옆에 붙은 골드 아이콘은 무엇인가요?</h4>
+            <ul class="text-xs text-gray-300 space-y-1.5 list-disc pl-4 mt-1">
+              <li><span class="inline-block px-1.5 py-0.2 rounded bg-amber-500 text-amber-950 font-bold text-[10px]">G</span> : 주간 상위 3회 레이드로 <strong>골드를 정상 획득</strong>하는 일정입니다.</li>
+              <li><span class="inline-block px-1.5 py-0.2 rounded bg-cyan-600 text-white font-bold text-[10px]">?</span> : <strong>선택 구간</strong>입니다. (4막 하드의 일반골드 3.8만 vs 성당 2단계의 귀속골드 4.0만 중 본인 필요에 맞게 선택)</li>
+              <li><span class="inline-block px-1.5 py-0.2 rounded bg-gray-700 text-red-500 font-bold text-[10px]">✕</span> : 주간 3회를 초과 출전하여 <strong>골드가 나오지 않는 일정</strong>입니다.</li>
+            </ul>
+          </div>
+
+          <div class="bg-[#0d1117] p-3.5 rounded-xl border border-gray-800">
+            <h4 class="font-bold text-white text-xs mb-1 text-yellow-400">Q. [캐릭터 현황] 탭의 레이드 뱃지는 무슨 의미인가요?</h4>
+            <ul class="text-xs text-gray-300 space-y-1 list-disc pl-4 mt-1">
+              <li><span class="text-emerald-400 font-bold">초록색 ✓</span> : 이번 주 일정표에 출전 배치가 완료된 레이드</li>
+              <li><span class="text-gray-300">회색 뱃지</span> : 레벨은 만족하지만 아직 일정표에 안 들어간 숙제</li>
+              <li><span class="text-gray-600 line-through">취소선</span> : 캐릭터 레벨이 부족하여 입장할 수 없는 레이드</li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- 2. 패치노트 -->
+        <div id="infoContentChangelog" class="space-y-3 hidden">
+          <div class="border-l-2 border-yellow-500 pl-3 py-1">
+            <div class="flex items-center justify-between">
+              <span class="font-bold text-white text-xs">v1.0.0 - 정식 버전 릴리즈 (Official Release)</span>
+              <span class="text-[11px] text-gray-500">2026.08.30</span>
+            </div>
+            <ul class="text-xs text-gray-400 mt-1 space-y-0.5 list-disc pl-3">
+              <li>로스트아크 레이드 공대 관리 웹 대시보드 정식 출시</li>
+              <li>원클릭 실시간 슬롯 덮어쓰기, 디스코드 웹훅 알림, 변경 이력 로그 연동</li>
+              <li>8인 레이드 서포터 최상단 고정 및 2열 균등 밸런스 배치 적용</li>
+              <li>내 캐릭터 강조, 서브 조 필터링, 원정대 캐릭터 현황 및 골드표 탭 탑재</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="mt-4 pt-3 border-t border-gray-800 flex justify-end">
+        <button onclick="closeInfoModal()" class="px-4 py-2 rounded-lg text-xs font-semibold text-black bg-yellow-400 hover:bg-yellow-300 transition">닫기</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const SPREADSHEET_ID = '1dDM5LoLM75hhojd8p1vA-095J-HcOgFQPTQiaErXHi0';
+    const APPS_SCRIPT_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbwM4McotA-ZAQkfQGzP4572om4cJQkTp0-eyLPVOOPRSUeMdB0RMx23qZxcVBht4RYV/exec';
+    
+    const SHEET_CONFIG = [
+      { id: 'Main_8Man', fixedTitle: '[토요일 고정]', is8Man: true },
+      { id: 'Sub_Group1', is8Man: false },
+      { id: 'Sub_Group2', is8Man: false },
+      { id: 'Sub_Group3', is8Man: false },
+      { id: 'Sub_Group4', is8Man: false },
+    ];
+
+    const RAID_MIN_LEVELS = {
+      final: 1710,
+      act4: 1700,
+      cathedral: 1700,
+      serka: 1710,
+      belga: 1750
+    };
+
+    let currentMainView = 'schedule';
+    let currentActiveTab = 'Main_8Man';
+    let selectedUser = localStorage.getItem('loa_selected_user') || '';
+    let filterMySubOnly = localStorage.getItem('loa_filter_sub') === 'true';
+    let sheetsDataStore = {};
+    let allMemberList = new Set();
+    let slotGoldStatusMap = {};
+    let characterPoolData = [];
+    let raidInfoData = [];
+    let activeSwapTarget = null;
+
+    document.addEventListener('DOMContentLoaded', () => {
+      document.getElementById('filterMySubToggle').checked = filterMySubOnly;
+      document.getElementById('filterMySubToggle').addEventListener('change', (e) => {
+        filterMySubOnly = e.target.checked;
+        localStorage.setItem('loa_filter_sub', filterMySubOnly);
+        renderTabs();
+        renderActiveTabContent();
+      });
+
+      document.getElementById('userSelector').addEventListener('change', (e) => {
+        selectedUser = e.target.value;
+        localStorage.setItem('loa_selected_user', selectedUser);
+        renderTabs();
+        renderActiveTabContent();
+        if (currentMainView === 'pool') renderPoolView();
+      });
+
+      fetchSheetData();
+    });
+
+    function switchMainView(view) {
+      currentMainView = view;
+      ['schedule', 'pool', 'gold'].forEach(v => {
+        const btn = document.getElementById('viewBtn' + v.charAt(0).toUpperCase() + v.slice(1));
+        const sec = document.getElementById('section' + v.charAt(0).toUpperCase() + v.slice(1));
+        if (v === view) {
+          btn.className = 'px-3 py-1.5 rounded-md font-semibold bg-gray-800 text-white transition';
+          sec.classList.remove('hidden');
+        } else {
+          btn.className = 'px-3 py-1.5 rounded-md font-medium text-gray-400 hover:text-white transition';
+          sec.classList.add('hidden');
+        }
+      });
+
+      if (view === 'pool') renderPoolView();
+      if (view === 'gold') renderGoldTableView();
+      lucide.createIcons();
+    }
+
+    function getRaidGoldWeight(title) {
+      if (title.includes('종막')) return 500;
+      if (title.includes('세르카') && (title.includes('나메') || title.includes('3단'))) return 450;
+      if (title.includes('성당') && title.includes('3단')) return 430;
+      if (title.includes('성당') && (title.includes('2단') || title.includes('2단계'))) return 360;
+      if (title.includes('4막') && title.includes('하드')) return 359;
+      if (title.includes('세르카') && title.includes('하드')) return 320;
+      if (title.includes('4막')) return 300;
+      if (title.includes('성당') && (title.includes('1단') || title.includes('1단계'))) return 250;
+      if (title.includes('세르카')) return 200;
+      if (title.includes('벨가')) return 100;
+      return 50;
+    }
+
+    async function fetchSheetData() {
+      const refreshIcon = document.getElementById('refreshIcon');
+      if (refreshIcon) refreshIcon.classList.add('animate-spin');
+
+      sheetsDataStore = {};
+      allMemberList = new Set();
+      const allRaidInstances = [];
+
+      try {
+        for (const config of SHEET_CONFIG) {
+          const url = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURI(config.id)}&t=${new Date().getTime()}`;
+          const response = await fetch(url);
+          const csvText = await response.text();
+          
+          const parsed = Papa.parse(csvText, { skipEmptyLines: false });
+          const blocks = parseRaidBlocksRobust(parsed.data, config.is8Man, config.id);
+          
+          const groupUsers = new Set();
+          blocks.forEach(b => {
+            b.slots.forEach(s => {
+              if (s.user && !isHeaderWord(s.user)) {
+                const baseUser = s.user.split('(')[0].trim();
+                if (baseUser) {
+                  groupUsers.add(baseUser);
+                  allMemberList.add(baseUser);
+                }
+              }
+              if (s.name && !isHeaderWord(s.name)) {
+                allRaidInstances.push({
+                  charName: s.name,
+                  slotUid: s.slotUid,
+                  raidTitle: b.title,
+                  sheetTitle: config.fixedTitle || config.id,
+                  sheetId: config.id,
+                  sheetRow: s.sheetRow,
+                  party: s.party,
+                  user: s.user,
+                  job: s.job,
+                  level: s.level,
+                  weight: getRaidGoldWeight(b.title)
+                });
+              }
+            });
+          });
+
+          sheetsDataStore[config.id] = {
+            config: config,
+            blocks: blocks,
+            users: Array.from(groupUsers),
+            title: config.fixedTitle || (groupUsers.size > 0 ? Array.from(groupUsers).join(', ') : config.id)
+          };
+        }
+
+        const poolUrl = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=out:csv&sheet=Character_Pool&t=${new Date().getTime()}`;
+        const poolRes = await fetch(poolUrl);
+        const poolCsv = await poolRes.text();
+        parseCharacterPool(Papa.parse(poolCsv, { skipEmptyLines: false }).data);
+
+        try {
+          const goldUrl = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=out:csv&sheet=Raid_Info&t=${new Date().getTime()}`;
+          const goldRes = await fetch(goldUrl);
+          const goldCsv = await goldRes.text();
+          parseRaidInfo(Papa.parse(goldCsv, { skipEmptyLines: false }).data);
+        } catch (e) { console.log('Raid_Info optional', e); }
+
+        calculateGoldEligibilities(allRaidInstances);
+        window.allRaidInstancesStore = allRaidInstances;
+
+        populateUserSelector();
+        renderTabs();
+        renderActiveTabContent();
+        if (currentMainView === 'pool') renderPoolView();
+        if (currentMainView === 'gold') renderGoldTableView();
+      } catch (err) {
+        console.error(err);
+      } finally {
+        if (refreshIcon) refreshIcon.classList.remove('animate-spin');
+        lucide.createIcons();
+      }
+    }
+
+    function parseCharacterPool(rows) {
+      characterPoolData = [];
+      for (let r = 1; r < rows.length; r++) {
+        const row = rows[r] || [];
+        const user = (row[0] || '').toString().trim();
+        const server = (row[1] || '').toString().trim();
+        const name = (row[2] || '').toString().trim();
+        const job = (row[3] || '').toString().trim();
+
+        const valE = parseFloat(String(row[4]).replace(/,/g, '')) || 0;
+        const valF = parseFloat(String(row[5]).replace(/,/g, '')) || 0;
+        const valG = parseFloat(String(row[6]).replace(/,/g, '')) || 0;
+
+        let finalLevel = 0;
+        if (valF >= 1000) finalLevel = valF;
+        else if (valE >= 1000) finalLevel = valE;
+        else if (valG >= 1000) finalLevel = valG;
+        else finalLevel = valE || valF || valG;
+
+        const pos = (row[7] || '딜러').toString().trim();
+
+        const vFinal = (row[8] || '').toString().trim().toUpperCase() === 'V';
+        const vAct4 = (row[9] || '').toString().trim().toUpperCase() === 'V';
+        const vCathedral = (row[10] || '').toString().trim().toUpperCase() === 'V';
+        const vSerka = (row[11] || '').toString().trim().toUpperCase() === 'V';
+        const vBelga = (row[12] || '').toString().trim().toUpperCase() === 'V';
+
+        if (name && !isHeaderWord(name)) {
+          characterPoolData.push({
+            user, server, name, job,
+            level: finalLevel,
+            pos,
+            raids: { final: vFinal, act4: vAct4, cathedral: vCathedral, serka: vSerka, belga: vBelga }
+          });
+        }
+      }
+    }
+
+    function parseRaidInfo(rows) {
+      raidInfoData = [];
+      for (let r = 1; r < rows.length; r++) {
+        const row = rows[r] || [];
+        const name = (row[0] || '').toString().trim();
+        if (name && !name.includes('레이드')) {
+          raidInfoData.push({
+            name: name,
+            category: (row[1] || '').toString().trim(),
+            diff: (row[2] || '').toString().trim(),
+            level: (row[3] || '').toString().trim(),
+            goldTrade: (row[4] || '0').toString().trim(),
+            goldBound: (row[5] || '0').toString().trim(),
+            goldTotal: (row[6] || '0').toString().trim()
+          });
+        }
+      }
+    }
+
+    function calculateGoldEligibilities(instances) {
+      slotGoldStatusMap = {};
+      const groupedByChar = {};
+
+      instances.forEach(inst => {
+        if (!groupedByChar[inst.charName]) groupedByChar[inst.charName] = [];
+        groupedByChar[inst.charName].push(inst);
+      });
+
+      Object.keys(groupedByChar).forEach(charName => {
+        const list = groupedByChar[charName];
+        list.sort((a, b) => b.weight - a.weight);
+
+        const hasAct4Hard = list.some(i => i.raidTitle.includes('4막') && i.raidTitle.includes('하드'));
+        const hasCathedral2 = list.some(i => i.raidTitle.includes('성당') && (i.raidTitle.includes('2단') || i.raidTitle.includes('2단계')));
+        const isAmbiguousCase = (hasAct4Hard && hasCathedral2);
+
+        list.forEach((item, rank) => {
+          const isAct4Hard = item.raidTitle.includes('4막') && item.raidTitle.includes('하드');
+          const isCathedral2 = item.raidTitle.includes('성당') && (item.raidTitle.includes('2단') || item.raidTitle.includes('2단계'));
+
+          if (isAmbiguousCase && (isAct4Hard || isCathedral2) && (rank === 2 || rank === 3)) {
+            slotGoldStatusMap[item.slotUid] = 'MAYBE';
+          } else if (rank < 3) {
+            slotGoldStatusMap[item.slotUid] = 'EARN';
+          } else {
+            slotGoldStatusMap[item.slotUid] = 'NONE';
+          }
+        });
+      });
+    }
+
+    function isHeaderWord(word) {
+      if (!word) return true;
+      const w = word.trim();
+      return w === '유저명' || w === '캐릭터명' || w === '직업' || w === '레벨' || w === '포지션';
+    }
+
+    function sanitizeTitle(rawTitle) {
+      if (!rawTitle) return '';
+      return rawTitle.replace(/(유저명|캐릭터명|직업|레벨|포지션)/g, '').trim();
+    }
+
+    function parseRaidBlocksRobust(rows, is8Man, sheetId) {
+      const blocks = [];
+      let r = 0;
+      let blockIdx = 0;
+
+      while (r < rows.length) {
+        const row = rows[r] || [];
+        
+        let foundTitle = '';
+        for (let col = 0; col < (is8Man ? 10 : 5); col++) {
+          const val = (row[col] || '').toString().trim();
+          if (val.startsWith('[') && val.includes(']')) {
+            foundTitle = val;
+            break;
+          }
+        }
+
+        if (foundTitle) {
+          const cleanTitle = sanitizeTitle(foundTitle);
+          const rawTitle = foundTitle;
+          const slots = [];
+          
+          r++;
+
+          if (r < rows.length) {
+            const checkRow = rows[r] || [];
+            const isHeader = isHeaderWord((checkRow[0] || '').toString()) || isHeaderWord((checkRow[1] || '').toString());
+            if (isHeader) r++;
+          }
+
+          for (let slotIdx = 0; slotIdx < 4 && r < rows.length; slotIdx++, r++) {
+            const curRow = rows[r] || [];
+            const actualSheetRow = r + 1;
+
+            let nextTitleCheck = '';
+            for (let col = 0; col < (is8Man ? 10 : 5); col++) {
+              const val = (curRow[col] || '').toString().trim();
+              if (val.startsWith('[') && val.includes(']')) {
+                nextTitleCheck = val;
+                break;
+              }
+            }
+            if (nextTitleCheck) {
+              r--;
+              break;
+            }
+
+            const user1 = (curRow[0] || '').toString().trim();
+            const char1 = (curRow[1] || '').toString().trim();
+            const job1  = (curRow[2] || '').toString().trim();
+            const lvl1  = (curRow[3] || '').toString().trim();
+            const pos1  = (curRow[4] || '').toString().trim();
+
+            const user2 = (curRow[5] || '').toString().trim();
+            const char2 = (curRow[6] || '').toString().trim();
+            const job2  = (curRow[7] || '').toString().trim();
+            const lvl2  = (curRow[8] || '').toString().trim();
+            const pos2  = (curRow[9] || '').toString().trim();
+
+            if (char1 && !isHeaderWord(char1)) {
+              slots.push({
+                slotUid: `${sheetId}_b${blockIdx}_p1_s${slotIdx}_${char1}`,
+                sheetId: sheetId,
+                sheetRow: actualSheetRow,
+                party: 1,
+                user: user1,
+                name: char1,
+                job: job1,
+                level: lvl1,
+                pos: pos1 || (slotIdx === 3 ? '서포터' : '딜러'),
+                raidTitle: cleanTitle,
+                rawRaidTitle: rawTitle
+              });
+            }
+
+            if (is8Man && char2 && !isHeaderWord(char2)) {
+              slots.push({
+                slotUid: `${sheetId}_b${blockIdx}_p2_s${slotIdx}_${char2}`,
+                sheetId: sheetId,
+                sheetRow: actualSheetRow,
+                party: 2,
+                user: user2,
+                name: char2,
+                job: job2,
+                level: lvl2,
+                pos: pos2 || (slotIdx === 3 ? '서포터' : '딜러'),
+                raidTitle: cleanTitle,
+                rawRaidTitle: rawTitle
+              });
+            }
+          }
+
+          if (slots.length > 0) {
+            blocks.push({ title: cleanTitle, rawTitle, slots, is8Man, sheetId: sheetId });
+            blockIdx++;
+          }
+        } else {
+          r++;
+        }
+      }
+      return blocks;
+    }
+
+    function populateUserSelector() {
+      const select = document.getElementById('userSelector');
+      const poolUserSelect = document.getElementById('poolUserFilter');
+
+      select.innerHTML = '<option value="" class="bg-[#161b22] text-gray-300">선택 안 함 (전체)</option>';
+      poolUserSelect.innerHTML = '<option value="" class="bg-[#161b22]">전체 유저</option>';
+
+      Array.from(allMemberList).sort().forEach(u => {
+        const opt = document.createElement('option');
+        opt.value = u;
+        opt.textContent = u;
+        opt.className = 'bg-[#161b22] text-white';
+        if (u === selectedUser) opt.selected = true;
+        select.appendChild(opt);
+
+        const poolOpt = document.createElement('option');
+        poolOpt.value = u;
+        poolOpt.textContent = u;
+        poolOpt.className = 'bg-[#161b22] text-white';
+        poolUserSelect.appendChild(poolOpt);
+      });
+    }
+
+    function renderTabs() {
+      const nav = document.getElementById('tabNav');
+      nav.innerHTML = '';
+
+      let availableTabs = SHEET_CONFIG;
+      if (filterMySubOnly && selectedUser) {
+        availableTabs = SHEET_CONFIG.filter(cfg => {
+          if (cfg.is8Man) return true;
+          const sheetInfo = sheetsDataStore[cfg.id];
+          return sheetInfo && sheetInfo.users.includes(selectedUser);
+        });
+      }
+
+      if (!availableTabs.some(t => t.id === currentActiveTab)) {
+        currentActiveTab = availableTabs[0]?.id || 'Main_8Man';
+      }
+
+      availableTabs.forEach(cfg => {
+        const info = sheetsDataStore[cfg.id];
+        const tabTitle = info ? info.title : cfg.fixedTitle || cfg.id;
+        const isActive = (cfg.id === currentActiveTab);
+
+        const btn = document.createElement('button');
+        btn.className = `px-4 py-2 rounded-lg text-sm font-semibold transition whitespace-nowrap flex items-center space-x-1.5 ${
+          isActive
+            ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/50'
+            : 'text-gray-400 hover:text-white hover:bg-gray-800'
+        }`;
+        btn.innerHTML = `<span>${tabTitle}</span>`;
+        btn.onclick = () => {
+          currentActiveTab = cfg.id;
+          renderTabs();
+          renderActiveTabContent();
+        };
+        nav.appendChild(btn);
+      });
+    }
+
+    function balanceSlotsFor8Man(slots) {
+      const sorted = [...slots].sort((a, b) => {
+        const getPriority = (item) => {
+          if (item.pos === '서포터') return 3;
+          if (item.pos === '스왑가능') return 2;
+          return 1;
+        };
+        const pDiff = getPriority(b) - getPriority(a);
+        if (pDiff !== 0) return pDiff;
+        return parseFloat(b.level) - parseFloat(a.level);
+      });
+
+      const colLeft = [];
+      const colRight = [];
+
+      sorted.forEach((slot, idx) => {
+        if (idx % 2 === 0) {
+          colLeft.push(slot);
+        } else {
+          colRight.push(slot);
+        }
+      });
+
+      return { colLeft, colRight };
+    }
+
+    function renderActiveTabContent() {
+      const container = document.getElementById('raidContainer');
+      const currentSheet = sheetsDataStore[currentActiveTab];
+
+      if (!currentSheet || currentSheet.blocks.length === 0) {
+        container.innerHTML = `
+          <div class="text-center py-20 text-gray-500 card-bg rounded-xl">
+            편성된 레이드 일정이 없습니다.
+          </div>
+        `;
+        return;
+      }
+
+      container.innerHTML = '';
+      currentSheet.blocks.forEach(block => {
+        const card = document.createElement('div');
+        card.className = 'card-bg rounded-xl p-5 shadow-lg';
+
+        let innerHTML = `
+          <div class="flex items-center space-x-2 border-b border-gray-800 pb-3 mb-4">
+            <span class="w-2.5 h-2.5 rounded-full ${block.is8Man ? 'bg-orange-400' : 'bg-blue-400'}"></span>
+            <h2 class="text-lg font-bold text-white tracking-wide">${block.title}</h2>
+          </div>
+        `;
+
+        if (block.is8Man) {
+          const { colLeft, colRight } = balanceSlotsFor8Man(block.slots);
+
+          innerHTML += `
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div class="space-y-1.5">${renderPartySlots(colLeft)}</div>
+              <div class="space-y-1.5">${renderPartySlots(colRight)}</div>
+            </div>
+          `;
+        } else {
+          const sortedSlots = [...block.slots].sort((a, b) => {
+            const isSuppA = (a.pos === '서포터' || a.pos === '스왑가능');
+            const isSuppB = (b.pos === '서포터' || b.pos === '스왑가능');
+            if (isSuppA && !isSuppB) return -1;
+            if (isSuppB && !isSuppA) return 1;
+            return parseFloat(b.level) - parseFloat(a.level);
+          });
+
+          innerHTML += `
+            <div class="space-y-1.5 max-w-2xl">
+              ${renderPartySlots(sortedSlots)}
+            </div>
+          `;
+        }
+
+        card.innerHTML = innerHTML;
+        container.appendChild(card);
+      });
+
+      lucide.createIcons();
+    }
+
+    function renderGoldBadge(status) {
+      if (status === 'EARN') {
+        return `
+          <div class="relative flex items-center justify-center w-5 h-5 cursor-help" title="골드 획득 (주간 상위 3회)">
+            <svg class="w-5 h-5" viewBox="0 0 24 24">
+              <circle cx="12" cy="12" r="9.5" fill="#D97706" stroke="#B45309" stroke-width="1" />
+              <circle cx="12" cy="12" r="7.5" fill="#FBBF24" stroke="#FDE68A" stroke-width="0.8" />
+              <text x="12" y="15.2" font-size="9" font-weight="900" font-family="Arial, sans-serif" fill="#78350F" text-anchor="middle">G</text>
+            </svg>
+          </div>
+        `;
+      } else if (status === 'MAYBE') {
+        return `
+          <div class="relative flex items-center justify-center w-5 h-5 cursor-help" title="선택 구간: 4막하드(38,000 일반골드) vs 성당2단(40,000 귀속골드)">
+            <svg class="w-5 h-5" viewBox="0 0 24 24">
+              <circle cx="12" cy="12" r="9.5" fill="#D97706" stroke="#B45309" stroke-width="1" />
+              <circle cx="12" cy="12" r="7.5" fill="#FBBF24" stroke="#FDE68A" stroke-width="0.8" />
+              <text x="12" y="15.2" font-size="9" font-weight="900" font-family="Arial, sans-serif" fill="#78350F" text-anchor="middle">G</text>
+            </svg>
+            <div class="absolute -top-1 -right-1 w-3.5 h-3.5 bg-cyan-600 border border-[#161b22] rounded-full flex items-center justify-center">
+              <span class="text-[9px] font-black text-white leading-none">?</span>
+            </div>
+          </div>
+        `;
+      } else {
+        return `
+          <div class="relative flex items-center justify-center w-5 h-5 cursor-help opacity-75 hover:opacity-100 transition" title="골드 미획득 (주간 3회 초과/더보기)">
+            <svg class="w-5 h-5" viewBox="0 0 24 24">
+              <circle cx="12" cy="12" r="9.5" fill="#78716C" stroke="#57534E" stroke-width="1" />
+              <circle cx="12" cy="12" r="7.5" fill="#A8A29E" stroke="#D6D3D1" stroke-width="0.8" />
+              <text x="12" y="15.2" font-size="9" font-weight="900" font-family="Arial, sans-serif" fill="#44403C" text-anchor="middle">G</text>
+            </svg>
+            <svg class="absolute inset-0 w-5 h-5" viewBox="0 0 24 24">
+              <line x1="5.5" y1="5.5" x2="18.5" y2="18.5" stroke="#DC2626" stroke-width="2.5" stroke-linecap="round" />
+              <line x1="18.5" y1="5.5" x2="5.5" y2="18.5" stroke="#DC2626" stroke-width="2.5" stroke-linecap="round" />
+            </svg>
+          </div>
+        `;
+      }
+    }
+
+    function renderPartySlots(slots) {
+      return slots.map(slot => {
+        const isMe = selectedUser && slot.user.startsWith(selectedUser);
+        const isSupporter = slot.pos === '서포터';
+        const isSwap = slot.pos === '스왑가능';
+        const goldStatus = slotGoldStatusMap[slot.slotUid] || 'NONE';
+
+        let posBadge = `<span class="badge-dealer text-[11px] font-semibold px-2 py-0.5 rounded">딜러</span>`;
+        if (isSupporter) {
+          posBadge = `<span class="badge-supporter text-[11px] font-semibold px-2 py-0.5 rounded">서포터</span>`;
+        } else if (isSwap) {
+          posBadge = `<span class="badge-swap text-[11px] font-semibold px-2 py-0.5 rounded">스왑</span>`;
+        }
+
+        const rowStyle = isMe 
+          ? 'my-highlight' 
+          : (isSupporter ? 'supporter-row' : 'bg-[#0d1117]/60 hover:bg-[#0d1117]');
+
+        const slotJson = encodeURIComponent(JSON.stringify(slot));
+
+        return `
+          <div onclick="openQuickSwapModal('${slotJson}')" class="flex items-center justify-between p-2.5 rounded-lg border border-gray-800/80 ${rowStyle} slot-hover transition">
+            <div class="flex items-center space-x-3">
+              ${posBadge}
+              <div class="flex flex-col sm:flex-row sm:items-center sm:space-x-2">
+                <span class="text-xs text-gray-400 font-medium">${slot.user}</span>
+                <span class="text-sm font-semibold text-gray-200">${slot.name}</span>
+              </div>
+            </div>
+            <div class="flex items-center space-x-2.5 sm:space-x-3 text-right">
+              ${renderGoldBadge(goldStatus)}
+              <span class="text-xs text-gray-400 hidden sm:inline">${slot.job}</span>
+              <span class="text-sm font-mono font-medium text-yellow-500/90">${slot.level}</span>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function openQuickSwapModal(slotJsonEncoded) {
+      const slot = JSON.parse(decodeURIComponent(slotJsonEncoded));
+      activeSwapTarget = slot;
+
+      document.getElementById('swapTargetRaidTitle').textContent = `[${slot.raidTitle}]`;
+      document.getElementById('swapOldCharName').textContent = `${slot.user} ➔ ${slot.name} (${slot.job} / ${slot.level})`;
+
+      const baseUser = slot.user.split('(')[0].trim();
+      const userPool = characterPoolData.filter(c => c.user.startsWith(baseUser));
+      const container = document.getElementById('swapCharListContainer');
+
+      if (userPool.length === 0) {
+        container.innerHTML = `<div class="text-center py-6 text-xs text-gray-500">원정대에 등록된 캐릭터가 없습니다.</div>`;
+      } else {
+        container.innerHTML = userPool.map(c => {
+          const isCurrent = (c.name === slot.name);
+          return `
+            <div onclick="executeInstantSwap('${encodeURIComponent(JSON.stringify(c))}')" class="flex items-center justify-between p-3 rounded-lg border ${isCurrent ? 'border-yellow-500/60 bg-yellow-950/20' : 'border-gray-800 bg-[#0d1117] hover:border-gray-600'} cursor-pointer transition">
+              <div>
+                <div class="text-xs text-gray-400">${c.user} (${c.server})</div>
+                <div class="text-sm font-bold text-white flex items-center space-x-2">
+                  <span>${c.name}</span>
+                  ${isCurrent ? '<span class="text-[10px] text-yellow-400 font-normal">[현재 출전 중]</span>' : ''}
+                </div>
+              </div>
+              <div class="text-right">
+                <span class="text-xs text-gray-400">${c.job} · ${c.pos}</span>
+                <div class="text-xs font-mono font-bold text-yellow-500">${c.level.toLocaleString('ko-KR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+              </div>
+            </div>
+          `;
+        }).join('');
+      }
+
+      document.body.style.overflow = 'hidden';
+      document.getElementById('quickSwapModal').classList.remove('hidden');
+      lucide.createIcons();
+    }
+
+    function closeQuickSwapModal() {
+      document.body.style.overflow = '';
+      document.getElementById('quickSwapModal').classList.add('hidden');
+      activeSwapTarget = null;
+    }
+
+    async function executeInstantSwap(newCharJsonEncoded) {
+      const newChar = JSON.parse(decodeURIComponent(newCharJsonEncoded));
+      if (!activeSwapTarget) return;
+
+      const target = activeSwapTarget;
+      closeQuickSwapModal();
+
+      const curSheet = sheetsDataStore[target.sheetId];
+      if (curSheet) {
+        curSheet.blocks.forEach(b => {
+          b.slots.forEach(s => {
+            if (s.slotUid === target.slotUid) {
+              s.name = newChar.name;
+              s.job = newChar.job;
+              s.level = newChar.level.toFixed(2);
+              s.pos = newChar.pos;
+            }
+          });
+        });
+        renderActiveTabContent();
+      }
+
+      const payload = {
+        sheetId: target.sheetId,
+        sheetRow: target.sheetRow,
+        party: target.party,
+        user: target.user,
+        targetRaid: `[${target.sheetId}] ${target.raidTitle}`,
+        rawRaidTitle: target.rawRaidTitle || target.raidTitle,
+        oldCharName: target.name,
+        oldChar: `${target.name} (${target.job} / ${target.level} / ${target.pos})`,
+        newCharName: newChar.name,
+        newJob: newChar.job,
+        newLevel: newChar.level.toFixed(2),
+        newPos: newChar.pos,
+        reason: '대시보드 원클릭 즉시 변경'
+      };
+
+      try {
+        await fetch(APPS_SCRIPT_WEB_APP_URL, {
+          method: 'POST',
+          mode: 'no-cors',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+      } catch (err) {
+        console.error('시트 저장 오류:', err);
+      }
+    }
+
+    function renderRaidTagByLevel(label, isDone, charLevel, raidKey) {
+      const minCut = RAID_MIN_LEVELS[raidKey] || 1700;
+      const canEnter = (charLevel >= minCut);
+
+      if (isDone) {
+        return `<span class="px-1.5 py-0.5 bg-emerald-950/80 border border-emerald-700/60 text-emerald-400 font-bold rounded text-[10px] flex items-center space-x-0.5" title="이번 주 출전 완료"><span>${label}</span><span>✓</span></span>`;
+      } else if (canEnter) {
+        return `<span class="px-1.5 py-0.5 bg-gray-800 border border-gray-700 text-gray-300 font-medium rounded text-[10px] hover:border-gray-500 transition" title="입장 가능 (미배치 숙제)">${label}</span>`;
+      } else {
+        return `<span class="px-1.5 py-0.5 bg-[#0d1117] border border-gray-900 text-gray-600 line-through rounded text-[10px] opacity-60 cursor-not-allowed select-none" title="입장 불가 (최소 레벨 ${minCut} 미달)">${label}</span>`;
+      }
+    }
+
+    function renderPoolView() {
+      const grid = document.getElementById('poolGrid');
+      const uFilter = document.getElementById('poolUserFilter').value;
+      const pFilter = document.getElementById('poolPosFilter').value;
+      const lFilter = parseFloat(document.getElementById('poolLevelFilter').value) || 0;
+
+      const filtered = characterPoolData.filter(c => {
+        if (uFilter && !c.user.startsWith(uFilter)) return false;
+        if (lFilter > 0 && c.level < lFilter) return false;
+
+        if (pFilter === 'DEALER') {
+          if (c.pos !== '딜러' && c.pos !== '스왑가능') return false;
+        } else if (pFilter === 'SUPPORTER') {
+          if (c.pos !== '서포터' && c.pos !== '스왑가능') return false;
+        }
+        return true;
+      });
+
+      document.getElementById('poolCount').textContent = filtered.length;
+
+      if (filtered.length === 0) {
+        grid.innerHTML = `<div class="col-span-full py-16 text-center text-gray-500 card-bg rounded-xl">조건에 맞는 캐릭터가 없습니다.</div>`;
+        return;
+      }
+
+      grid.innerHTML = filtered.map(c => {
+        const isMe = selectedUser && c.user.startsWith(selectedUser);
+        let posBadge = `<span class="badge-dealer text-[11px] font-semibold px-2 py-0.5 rounded">딜러</span>`;
+        if (c.pos === '서포터') posBadge = `<span class="badge-supporter text-[11px] font-semibold px-2 py-0.5 rounded">서포터</span>`;
+        else if (c.pos === '스왑가능') posBadge = `<span class="badge-swap text-[11px] font-semibold px-2 py-0.5 rounded">스왑가능</span>`;
+
+        return `
+          <div class="card-bg p-4 rounded-xl border border-gray-800 flex flex-col justify-between space-y-3 ${isMe ? 'border-yellow-500/50 bg-yellow-950/10' : ''}">
+            <div class="flex items-start justify-between">
+              <div>
+                <div class="text-xs text-gray-400 font-medium mb-0.5">${c.user} (${c.server})</div>
+                <div class="text-base font-bold text-white">${c.name}</div>
+              </div>
+              <div class="text-right">
+                ${posBadge}
+                <div class="text-xs text-gray-400 mt-1">${c.job}</div>
+              </div>
+            </div>
+
+            <div class="flex items-center justify-between border-t border-gray-800/60 pt-2.5">
+              <span class="text-sm font-mono font-bold text-yellow-500/90">${c.level.toLocaleString('ko-KR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+              <div class="flex items-center space-x-1">
+                ${renderRaidTagByLevel('종막', c.raids.final, c.level, 'final')}
+                ${renderRaidTagByLevel('4막', c.raids.act4, c.level, 'act4')}
+                ${renderRaidTagByLevel('성당', c.raids.cathedral, c.level, 'cathedral')}
+                ${renderRaidTagByLevel('세르카', c.raids.serka, c.level, 'serka')}
+                ${renderRaidTagByLevel('벨가', c.raids.belga, c.level, 'belga')}
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function getDifficultyBadge(diff) {
+      if (diff.includes('나이트메어') || diff.includes('3단')) {
+        return `<span class="px-2 py-0.5 rounded text-xs bg-purple-950 text-purple-400 border border-purple-800 font-medium">${diff}</span>`;
+      } else if (diff.includes('하드') || diff.includes('2단')) {
+        return `<span class="px-2 py-0.5 rounded text-xs bg-red-950 text-red-400 border border-red-800 font-medium">${diff}</span>`;
+      } else {
+        return `<span class="px-2 py-0.5 rounded text-xs bg-gray-800 text-gray-300 font-medium">${diff}</span>`;
+      }
+    }
+
+    function renderGoldTableView() {
+      const tbody = document.getElementById('goldTableBody');
+      if (raidInfoData.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="7" class="text-center py-8 text-gray-500">Raid_Info 시트 데이터를 가져오지 못했습니다.</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = raidInfoData.map(r => `
+        <tr class="hover:bg-gray-800/40 transition">
+          <td class="px-4 py-3 font-semibold text-white">${r.name}</td>
+          <td class="px-4 py-3"><span class="px-2 py-0.5 rounded text-xs bg-blue-950 text-blue-400 border border-blue-800">${r.category}</span></td>
+          <td class="px-4 py-3">${getDifficultyBadge(r.diff)}</td>
+          <td class="px-4 py-3 text-right font-mono">${r.level}</td>
+          <td class="px-4 py-3 text-right font-mono text-amber-400">${r.goldTrade} G</td>
+          <td class="px-4 py-3 text-right font-mono text-emerald-400">${r.goldBound} G</td>
+          <td class="px-4 py-3 text-right font-mono font-bold text-yellow-300">${r.goldTotal} G</td>
+        </tr>
+      `).join('');
+    }
+
+    function openInfoModal(defaultTab = 'guide') {
+      document.body.style.overflow = 'hidden';
+      document.getElementById('infoModal').classList.remove('hidden');
+      switchInfoTab(defaultTab);
+      lucide.createIcons();
+    }
+
+    function closeInfoModal() {
+      document.body.style.overflow = '';
+      document.getElementById('infoModal').classList.add('hidden');
+    }
+
+    function switchInfoTab(tab) {
+      const guideBtn = document.getElementById('infoTabBtnGuide');
+      const changelogBtn = document.getElementById('infoTabBtnChangelog');
+      const guideContent = document.getElementById('infoContentGuide');
+      const changelogContent = document.getElementById('infoContentChangelog');
+
+      if (tab === 'guide') {
+        guideBtn.className = 'px-4 py-2 text-sm font-semibold border-b-2 border-yellow-500 text-yellow-400 transition';
+        changelogBtn.className = 'px-4 py-2 text-sm font-semibold text-gray-400 hover:text-white transition';
+        guideContent.classList.remove('hidden');
+        changelogContent.classList.add('hidden');
+      } else {
+        guideBtn.className = 'px-4 py-2 text-sm font-semibold text-gray-400 hover:text-white transition';
+        changelogBtn.className = 'px-4 py-2 text-sm font-semibold border-b-2 border-yellow-500 text-yellow-400 transition';
+        guideContent.classList.add('hidden');
+        changelogContent.classList.remove('hidden');
+      }
+    }
+  </script>
+</body>
+</html>
