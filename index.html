@@ -96,7 +96,6 @@
   <script>
     const SPREADSHEET_ID = '1dDM5LoLM75hhojd8p1vA-095J-HcOgFQPTQiaErXHi0';
     
-    // 시트 탭 목록
     const SHEET_CONFIG = [
       { id: 'Main_8Man', fixedTitle: '[토요일 고정]', is8Man: true },
       { id: 'Sub_Group1', is8Man: false },
@@ -111,7 +110,6 @@
     let sheetsDataStore = {};
     let allMemberList = new Set();
 
-    // 초기 실행
     document.addEventListener('DOMContentLoaded', () => {
       document.getElementById('filterMySubToggle').checked = filterMySubOnly;
       document.getElementById('filterMySubToggle').addEventListener('change', (e) => {
@@ -131,7 +129,6 @@
       fetchSheetData();
     });
 
-    // 구글 시트 CSV Fetch
     async function fetchSheetData() {
       const refreshIcon = document.getElementById('refreshIcon');
       if (refreshIcon) refreshIcon.classList.add('animate-spin');
@@ -141,21 +138,22 @@
 
       try {
         for (const config of SHEET_CONFIG) {
-          const url = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURI(config.id)}`;
+          const url = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURI(config.id)}&t=${new Date().getTime()}`;
           const response = await fetch(url);
           const csvText = await response.text();
           
           const parsed = Papa.parse(csvText, { skipEmptyLines: false });
-          const blocks = parseRaidBlocks(parsed.data, config.is8Man);
+          const blocks = parseRaidBlocksRobust(parsed.data, config.is8Man);
           
-          // 조에 포함된 고유 유저 추출
           const groupUsers = new Set();
           blocks.forEach(b => {
             b.slots.forEach(s => {
-              if (s.user) {
+              if (s.user && !isHeaderWord(s.user)) {
                 const baseUser = s.user.split('(')[0].trim();
-                groupUsers.add(baseUser);
-                allMemberList.add(baseUser);
+                if (baseUser) {
+                  groupUsers.add(baseUser);
+                  allMemberList.add(baseUser);
+                }
               }
             });
           });
@@ -185,66 +183,87 @@
       }
     }
 
-    // 시트 행 파싱 (타이틀 행 및 4인/8인 슬롯 분리)
-    function parseRaidBlocks(rows, is8Man) {
-      const blocks = [];
-      for (let r = 0; r < rows.length; r++) {
-        const cellA = (rows[r][0] || '').toString().trim();
-        if (cellA.startsWith('[') && cellA.includes(']')) {
-          const title = cellA;
-          const slots = [];
-          const startR = r + 2; // 데이터 시작 행 (타이틀 다음다음 행)
+    function isHeaderWord(word) {
+      if (!word) return true;
+      const w = word.trim();
+      return w === '유저명' || w === '캐릭터명' || w === '직업' || w === '레벨' || w === '포지션';
+    }
 
-          for (let i = 0; i < 4; i++) {
-            const rowData = rows[startR + i] || [];
+    // 병합 셀 및 헤더 완벽 처리 파서
+    function parseRaidBlocksRobust(rows, is8Man) {
+      const blocks = [];
+      let i = 0;
+
+      while (i < rows.length) {
+        const rawCellA = (rows[i][0] || '').toString().trim();
+        
+        // 타이틀 행 탐지 (예: [1회차] 종막하드)
+        if (rawCellA.startsWith('[') && rawCellA.includes(']')) {
+          // 타이틀에서 불필요한 옆 텍스트 제거
+          let cleanTitle = rawCellA;
+          const match = rawCellA.match(/^\[[^\]]+\]\s*[^,]*/);
+          if (match) cleanTitle = match[0].trim();
+
+          const slots = [];
+          i++; // 헤더 또는 데이터 행으로 이동
+
+          let collectedCount = 0;
+          while (i < rows.length && collectedCount < 4) {
+            const row = rows[i] || [];
+            const user1 = (row[0] || '').toString().trim();
+            const char1 = (row[1] || '').toString().trim();
+
+            // 다음 타이틀을 만나면 중단
+            if (user1.startsWith('[') && user1.includes(']')) break;
+
+            // 헤더 행 건너뛰기
+            if (isHeaderWord(user1) || isHeaderWord(char1)) {
+              i++;
+              continue;
+            }
+
+            // 1파티 슬롯 파싱
+            if (char1 && !isHeaderWord(char1)) {
+              slots.push({
+                party: 1,
+                user: user1,
+                name: char1,
+                job: (row[2] || '').toString().trim(),
+                level: (row[3] || '').toString().trim(),
+                pos: (row[4] || '').toString().trim() || (collectedCount === 3 ? '서포터' : '딜러')
+              });
+            }
+
+            // 8인 시트 2파티 슬롯 파싱 (F~J열 / 인덱스 5~9)
             if (is8Man) {
-              // 1파티: [유저, 캐릭터, 직업, 레벨, 포지션]
-              if (rowData[1]) {
-                slots.push({
-                  party: 1,
-                  user: (rowData[0] || '').trim(),
-                  name: (rowData[1] || '').trim(),
-                  job: (rowData[2] || '').trim(),
-                  level: (rowData[3] || '').trim(),
-                  pos: (rowData[4] || '').trim() || (i === 3 ? '서포터' : '딜러')
-                });
-              }
-              // 2파티: [유저, 캐릭터, 직업, 레벨, 포지션]
-              if (rowData[6]) {
+              const user2 = (row[5] || '').toString().trim();
+              const char2 = (row[6] || '').toString().trim();
+              if (char2 && !isHeaderWord(char2)) {
                 slots.push({
                   party: 2,
-                  user: (rowData[5] || '').trim(),
-                  name: (rowData[6] || '').trim(),
-                  job: (rowData[7] || '').trim(),
-                  level: (rowData[8] || '').trim(),
-                  pos: (rowData[9] || '').trim() || (i === 3 ? '서포터' : '딜러')
-                });
-              }
-            } else {
-              // 4인 파티: [유저, 캐릭터, 직업, 레벨, 포지션]
-              if (rowData[1]) {
-                slots.push({
-                  party: 1,
-                  user: (rowData[0] || '').trim(),
-                  name: (rowData[1] || '').trim(),
-                  job: (rowData[2] || '').trim(),
-                  level: (rowData[3] || '').trim(),
-                  pos: (rowData[4] || '').trim() || (i === 3 ? '서포터' : '딜러')
+                  user: user2,
+                  name: char2,
+                  job: (row[7] || '').toString().trim(),
+                  level: (row[8] || '').toString().trim(),
+                  pos: (row[9] || '').toString().trim() || (collectedCount === 3 ? '서포터' : '딜러')
                 });
               }
             }
+
+            collectedCount++;
+            i++;
           }
 
           if (slots.length > 0) {
-            blocks.push({ title, slots, is8Man });
+            blocks.push({ title: cleanTitle, slots, is8Man });
           }
-          r += 5;
+        } else {
+          i++;
         }
       }
       return blocks;
     }
 
-    // 유저 선택 드롭다운 채우기
     function populateUserSelector() {
       const select = document.getElementById('userSelector');
       select.innerHTML = '<option value="" class="bg-[#161b22] text-gray-300">선택 안 함 (전체)</option>';
@@ -258,7 +277,6 @@
       });
     }
 
-    // 탭 목록 렌더링
     function renderTabs() {
       const nav = document.getElementById('tabNav');
       nav.innerHTML = '';
@@ -266,7 +284,7 @@
       let availableTabs = SHEET_CONFIG;
       if (filterMySubOnly && selectedUser) {
         availableTabs = SHEET_CONFIG.filter(cfg => {
-          if (cfg.is8Man) return true; // 메인은 항상 노출
+          if (cfg.is8Man) return true;
           const sheetInfo = sheetsDataStore[cfg.id];
           return sheetInfo && sheetInfo.users.includes(selectedUser);
         });
@@ -297,7 +315,6 @@
       });
     }
 
-    // 활성화된 탭의 레이드 목록 렌더링
     function renderActiveTabContent() {
       const container = document.getElementById('raidContainer');
       const currentSheet = sheetsDataStore[currentActiveTab];
@@ -359,7 +376,6 @@
       lucide.createIcons();
     }
 
-    // 개별 슬롯 렌더링
     function renderPartySlots(slots) {
       return slots.map(slot => {
         const isMe = selectedUser && slot.user.startsWith(selectedUser);
