@@ -49,6 +49,25 @@
       cursor: pointer;
       transform: translateY(-1px);
     }
+
+    /* 모달 스크롤 간섭 방지 및 깔끔한 스크롤바 */
+    .modal-scroll {
+      overscroll-behavior: contain;
+    }
+    .modal-scroll::-webkit-scrollbar {
+      width: 6px;
+    }
+    .modal-scroll::-webkit-scrollbar-track {
+      background: #0d1117;
+      border-radius: 4px;
+    }
+    .modal-scroll::-webkit-scrollbar-thumb {
+      background: #30363d;
+      border-radius: 4px;
+    }
+    .modal-scroll::-webkit-scrollbar-thumb:hover {
+      background: #484f58;
+    }
   </style>
 </head>
 <body class="min-h-screen pb-16">
@@ -100,7 +119,7 @@
         <div class="flex items-center space-x-3">
           <span class="text-[11px] text-gray-400 flex items-center space-x-1">
             <i data-lucide="mouse-pointer-click" class="w-3.5 h-3.5 text-yellow-400"></i>
-            <span>슬롯을 클릭하면 즉시 캐릭터 교체 가능</span>
+            <span>슬롯 클릭 시 캐릭터 즉시 교체</span>
           </span>
           <label class="flex items-center space-x-1.5 text-xs text-gray-300 cursor-pointer bg-[#161b22] px-3 py-1.5 rounded-lg border border-gray-700 hover:border-gray-500 transition">
             <input type="checkbox" id="filterMySubToggle" class="rounded bg-gray-800 border-gray-600 text-yellow-500 focus:ring-0 cursor-pointer" />
@@ -215,7 +234,7 @@
   </main>
 
   <!-- 4. 원클릭 캐릭터 즉시 변경 모달 -->
-  <div id="quickSwapModal" class="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm hidden flex items-center justify-center p-4">
+  <div id="quickSwapModal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-4">
     <div class="card-bg w-full max-w-lg rounded-2xl p-6 border border-gray-700 shadow-2xl relative">
       <button onclick="closeQuickSwapModal()" class="absolute top-4 right-4 text-gray-400 hover:text-white">
         <i data-lucide="x" class="w-5 h-5"></i>
@@ -237,19 +256,19 @@
         </div>
       </div>
 
-      <div class="space-y-3">
+      <div class="space-y-2">
         <label class="block text-xs font-semibold text-gray-400">교체할 내 원정대 캐릭터 선택</label>
-        <div class="space-y-2 max-h-60 overflow-y-auto pr-1" id="swapCharListContainer"></div>
+        <div class="space-y-2 max-h-64 overflow-y-auto modal-scroll pr-1.5" id="swapCharListContainer"></div>
       </div>
 
-      <div class="mt-6 flex items-center justify-end space-x-3">
+      <div class="mt-5 flex items-center justify-end">
         <button onclick="closeQuickSwapModal()" class="px-4 py-2 rounded-lg text-xs font-semibold text-gray-400 hover:text-white bg-gray-800 transition">취소</button>
       </div>
     </div>
   </div>
 
   <!-- 5. 도움말 및 패치노트 모달 -->
-  <div id="infoModal" class="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm hidden flex items-center justify-center p-4">
+  <div id="infoModal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-4">
     <div class="card-bg w-full max-w-2xl max-h-[85vh] rounded-2xl p-6 border border-gray-700 shadow-2xl relative flex flex-col">
       <button onclick="closeInfoModal()" class="absolute top-4 right-4 text-gray-400 hover:text-white">
         <i data-lucide="x" class="w-5 h-5"></i>
@@ -265,7 +284,7 @@
         <button onclick="switchInfoTab('changelog')" id="infoTabBtnChangelog" class="px-4 py-2 text-sm font-semibold text-gray-400 hover:text-white transition">업데이트 이력</button>
       </div>
 
-      <div class="overflow-y-auto pr-2 space-y-4 text-sm text-gray-300 flex-1">
+      <div class="overflow-y-auto modal-scroll pr-2 space-y-4 text-sm text-gray-300 flex-1">
         <div id="infoContentGuide" class="space-y-4">
           <div class="bg-[#0d1117] p-3.5 rounded-xl border border-gray-800">
             <h4 class="font-bold text-white text-sm mb-1.5 flex items-center space-x-1.5">
@@ -312,6 +331,7 @@
               <li>1파티 공란 시 2파티 캐릭터(나리)가 누락되던 파서 로직 완전 개편</li>
               <li>슬롯 클릭 시 원클릭 인플레이스 캐릭터 즉시 변경 시스템 탑재</li>
               <li>시트 실시간 셀 수정(덮어쓰기) 및 Change_Logs 자동 기록</li>
+              <li>모달 스크롤 체이닝 간섭 방지 및 스크롤바 UI 개선</li>
             </ul>
           </div>
         </div>
@@ -352,7 +372,7 @@
     let slotGoldStatusMap = {};
     let characterPoolData = [];
     let raidInfoData = [];
-    let activeSwapTarget = null; // 현재 클릭하여 변경 대기 중인 슬롯 정보
+    let activeSwapTarget = null;
 
     document.addEventListener('DOMContentLoaded', () => {
       document.getElementById('filterMySubToggle').checked = filterMySubOnly;
@@ -596,7 +616,6 @@
       return title;
     }
 
-    // ★ 버그 수정: 1파티가 비어있어도 2파티 캐릭터를 정상 수집하도록 완벽 보정
     function parseRaidBlocksRobust(rows, is8Man, sheetId) {
       const blocks = [];
       let i = 0;
@@ -608,28 +627,25 @@
         if (rawCellA.startsWith('[') && rawCellA.includes(']')) {
           const cleanTitle = sanitizeTitle(rawCellA);
           const slots = [];
-          i++; // 타이틀 행 다음부터 시작
+          i++;
 
           let collectedSlots = 0;
           while (i < rows.length && collectedSlots < 4) {
             const row = rows[i] || [];
-            const actualSheetRow = i + 1; // 구글 시트 실제 1-based 행 번호
+            const actualSheetRow = i + 1;
 
             const user1 = (row[0] || '').toString().trim();
             const char1 = (row[1] || '').toString().trim();
             const user2 = (row[5] || '').toString().trim();
             const char2 = (row[6] || '').toString().trim();
 
-            // 다음 타이틀을 만나면 종료
             if (user1.startsWith('[') && user1.includes(']')) break;
 
-            // 헤더 행 건너뛰기
             if (isHeaderWord(user1) || isHeaderWord(char1)) {
               i++;
               continue;
             }
 
-            // 1파티 파싱
             if (char1 && !isHeaderWord(char1)) {
               slots.push({
                 slotUid: `${sheetId}_b${blockIdx}_p1_s${collectedSlots}_${char1}`,
@@ -645,7 +661,6 @@
               });
             }
 
-            // 2파티 파싱 (1파티가 비어있더라도 독립적으로 정상 파싱)
             if (is8Man && char2 && !isHeaderWord(char2)) {
               slots.push({
                 slotUid: `${sheetId}_b${blockIdx}_p2_s${collectedSlots}_${char2}`,
@@ -834,7 +849,6 @@
       }
     }
 
-    // ★ 슬롯 클릭 시 즉시 스왑 모달 열기 연동
     function renderPartySlots(slots) {
       return slots.map(slot => {
         const isMe = selectedUser && slot.user.startsWith(selectedUser);
@@ -874,7 +888,7 @@
       }).join('');
     }
 
-    // ★ 원클릭 캐릭터 즉시 변경 모달 열기
+    // ★ 모달 열 때 배경 스크롤 잠금 (overflow: hidden)
     function openQuickSwapModal(slotJsonEncoded) {
       const slot = JSON.parse(decodeURIComponent(slotJsonEncoded));
       activeSwapTarget = slot;
@@ -882,7 +896,6 @@
       document.getElementById('swapTargetRaidTitle').textContent = `[${slot.raidTitle}] (파티 ${slot.party})`;
       document.getElementById('swapOldCharName').textContent = `${slot.user} ➔ ${slot.name} (${slot.job} / ${slot.level})`;
 
-      // 같은 유저의 원정대 전체 캐릭터 풀 필터링 (교차 스왑 지원)
       const baseUser = slot.user.split('(')[0].trim();
       const userPool = characterPoolData.filter(c => c.user.startsWith(baseUser));
       const container = document.getElementById('swapCharListContainer');
@@ -910,16 +923,18 @@
         }).join('');
       }
 
+      document.body.style.overflow = 'hidden';
       document.getElementById('quickSwapModal').classList.remove('hidden');
       lucide.createIcons();
     }
 
+    // ★ 모달 닫을 때 배경 스크롤 해제
     function closeQuickSwapModal() {
+      document.body.style.overflow = '';
       document.getElementById('quickSwapModal').classList.add('hidden');
       activeSwapTarget = null;
     }
 
-    // ★ 선택 즉시 화면 반영 + 시트 덮어쓰기 + Change_Logs 기록 + 디스코드 전송
     async function executeInstantSwap(newCharJsonEncoded) {
       const newChar = JSON.parse(decodeURIComponent(newCharJsonEncoded));
       if (!activeSwapTarget) return;
@@ -927,7 +942,6 @@
       const target = activeSwapTarget;
       closeQuickSwapModal();
 
-      // 1) 화면 UI 즉시 갱신 (반응성 최적화)
       const curSheet = sheetsDataStore[target.sheetId];
       if (curSheet) {
         curSheet.blocks.forEach(b => {
@@ -943,7 +957,6 @@
         renderActiveTabContent();
       }
 
-      // 2) 백엔드 Apps Script 호출 (시트 덮어쓰기 및 로그 적재)
       const payload = {
         sheetId: target.sheetId,
         rowIndex: target.rowIndex,
@@ -966,7 +979,7 @@
           body: JSON.stringify(payload)
         });
       } catch (err) {
-        console.error('시트 저장 중 오류 발생:', err);
+        console.error('시트 저장 중 오류:', err);
       }
     }
 
@@ -1073,12 +1086,14 @@
     }
 
     function openInfoModal() {
+      document.body.style.overflow = 'hidden';
       document.getElementById('infoModal').classList.remove('hidden');
       switchInfoTab('guide');
       lucide.createIcons();
     }
 
     function closeInfoModal() {
+      document.body.style.overflow = '';
       document.getElementById('infoModal').classList.add('hidden');
     }
 
