@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>로스트아크 공대 레이드 대시보드</title>
+  <title>[DEV] 로스트아크 공대 대시보드 & 주간 숙제 체크</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
   <script src="https://unpkg.com/lucide@latest"></script>
@@ -71,16 +71,16 @@
     <div class="max-w-7xl mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-4">
       <div class="flex items-center space-x-3">
         <div class="flex items-center space-x-2">
-          <i data-lucide="shield" class="w-6 h-6 text-yellow-500"></i>
-          <span class="font-bold text-lg text-white tracking-wide">LOA RAID SCHEDULE</span>
-          <button onclick="openInfoModal('changelog')" class="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-yellow-500/10 text-yellow-400 border border-yellow-500/30 hover:bg-yellow-500/20 transition cursor-pointer" title="클릭하여 업데이트 이력 확인">
-            v1.0.0
+          <i data-lucide="flask-conical" class="w-6 h-6 text-purple-400"></i>
+          <span class="font-bold text-lg text-white tracking-wide">LOA RAID [DEV]</span>
+          <button onclick="openInfoModal('changelog')" class="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/30 hover:bg-purple-500/20 transition cursor-pointer" title="클릭하여 업데이트 이력 확인">
+            v1.1.0-dev
           </button>
         </div>
 
         <div class="flex bg-[#0d1117] p-1 rounded-lg border border-gray-800 text-xs">
           <button onclick="switchMainView('schedule')" id="viewBtnSchedule" class="px-3 py-1.5 rounded-md font-semibold bg-gray-800 text-white transition">일정표</button>
-          <button onclick="switchMainView('pool')" id="viewBtnPool" class="px-3 py-1.5 rounded-md font-medium text-gray-400 hover:text-white transition">캐릭터 현황</button>
+          <button onclick="switchMainView('pool')" id="viewBtnPool" class="px-3 py-1.5 rounded-md font-medium text-gray-400 hover:text-white transition">캐릭터 현황 & 숙제 체크</button>
           <button onclick="switchMainView('gold')" id="viewBtnGold" class="px-3 py-1.5 rounded-md font-medium text-gray-400 hover:text-white transition">레이드 골드표</button>
         </div>
       </div>
@@ -124,7 +124,6 @@
         </div>
       </div>
 
-      <!-- 골드 범례 안내 바 -->
       <div class="mt-4 px-3 py-2 bg-[#161b22] border border-gray-800 rounded-lg flex flex-wrap items-center gap-4 text-xs text-gray-400">
         <span class="font-semibold text-gray-300">골드 획득 범례:</span>
         <div class="flex items-center space-x-1.5">
@@ -144,7 +143,7 @@
       <section id="raidContainer" class="mt-6 grid grid-cols-1 gap-6"></section>
     </div>
 
-    <!-- 2. 캐릭터 현황 뷰 -->
+    <!-- 2. 캐릭터 현황 & 숙제 체크 뷰 -->
     <div id="sectionPool" class="hidden">
       <div class="card-bg p-4 rounded-xl mb-4 flex flex-wrap items-center justify-between gap-4">
         <div class="flex flex-wrap items-center gap-3">
@@ -175,24 +174,35 @@
           </div>
         </div>
 
-        <div class="text-xs text-gray-400">
-          조회된 캐릭터: <span id="poolCount" class="text-yellow-400 font-bold">0</span>개
+        <div class="flex items-center space-x-3 text-xs text-gray-400">
+          <button onclick="resetCustomClears()" class="text-gray-400 hover:text-red-400 flex items-center space-x-1 border border-gray-700 px-2 py-1 rounded bg-[#0d1117] transition" title="개인이 수동 체크한 숙제를 모두 초기화합니다">
+            <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i>
+            <span>수동 체크 초기화</span>
+          </button>
+          <span>조회된 캐릭터: <strong id="poolCount" class="text-yellow-400">0</strong>개</span>
         </div>
       </div>
 
-      <div class="mb-6 px-3 py-2 bg-[#161b22] border border-gray-800 rounded-lg flex flex-wrap items-center gap-4 text-xs text-gray-400">
-        <span class="font-semibold text-gray-300">상태 안내:</span>
-        <div class="flex items-center space-x-1.5">
-          <span class="px-1.5 py-0.5 bg-emerald-950 border border-emerald-700 text-emerald-400 font-bold rounded text-[10px]">레이드 ✓</span>
-          <span>출전 완료</span>
+      <!-- RLOA 스타일 숙제 상태 범례 안내 바 -->
+      <div class="mb-6 px-3 py-2.5 bg-[#161b22] border border-gray-800 rounded-lg flex flex-wrap items-center justify-between gap-4 text-xs text-gray-400">
+        <div class="flex flex-wrap items-center gap-4">
+          <span class="font-semibold text-gray-300">숙제 체크 가이드:</span>
+          <div class="flex items-center space-x-1.5">
+            <span class="px-1.5 py-0.5 bg-emerald-950 border border-emerald-600 text-emerald-400 font-bold rounded text-[10px]">종막 ✓ (공대)</span>
+            <span>공대 일정 완료</span>
+          </div>
+          <div class="flex items-center space-x-1.5">
+            <span class="px-1.5 py-0.5 bg-purple-950 border border-purple-500 text-purple-300 font-bold rounded text-[10px]">성당 ✓ (야생)</span>
+            <span>야생/공방 수동 완료 (클릭 토글)</span>
+          </div>
+          <div class="flex items-center space-x-1.5">
+            <span class="px-1.5 py-0.5 bg-gray-800 border border-gray-600 text-gray-200 rounded text-[10px] ring-1 ring-amber-500/50">4막 🟡G</span>
+            <span>골드 획득 추천 숙제 (클릭 시 완료)</span>
+          </div>
         </div>
-        <div class="flex items-center space-x-1.5">
-          <span class="px-1.5 py-0.5 bg-gray-800 border border-gray-700 text-gray-300 rounded text-[10px]">레이드</span>
-          <span>입장 가능 (미배치 숙제)</span>
-        </div>
-        <div class="flex items-center space-x-1.5">
-          <span class="px-1.5 py-0.5 bg-[#0d1117] border border-gray-900 text-gray-600 line-through rounded text-[10px]">레이드</span>
-          <span>입장 불가 (레벨 미달)</span>
+        <div class="text-[11px] text-gray-500 flex items-center space-x-1">
+          <i data-lucide="info" class="w-3.5 h-3.5 text-yellow-500"></i>
+          <span>수요일 오전 6시 자동 초기화</span>
         </div>
       </div>
 
@@ -271,7 +281,7 @@
 
       <div class="flex items-center space-x-2 text-yellow-400 mb-4">
         <i data-lucide="book-open" class="w-5 h-5"></i>
-        <h3 class="text-lg font-bold text-white">대시보드 이용 안내</h3>
+        <h3 class="text-lg font-bold text-white">대시보드 이용 안내 [DEV]</h3>
       </div>
 
       <div class="flex border-b border-gray-800 mb-4">
@@ -280,12 +290,11 @@
       </div>
 
       <div class="overflow-y-auto modal-scroll pr-2 space-y-4 text-sm text-gray-300 flex-1">
-        <!-- 1. 실사용자 맞춤형 도움말 (FAQ) -->
         <div id="infoContentGuide" class="space-y-3">
           <div class="bg-[#0d1117] p-3.5 rounded-xl border border-gray-800">
-            <h4 class="font-bold text-white text-xs mb-1 text-yellow-400">Q. 내가 출전하는 일정만 모아보고 싶어요!</h4>
+            <h4 class="font-bold text-white text-xs mb-1 text-yellow-400">Q. 주간 골드 숙제 체크는 어떻게 하나요?</h4>
             <p class="text-xs text-gray-300 leading-relaxed">
-              상단 우측의 <strong>[내 캐릭터 강조]</strong>에서 본인 닉네임을 선택하면 내 캐릭터가 노란색으로 강조됩니다. 추가로 <strong>[내 서브 조만 보기]</strong>를 체크하면 내가 참여하는 조의 탭만 깔끔하게 필터링됩니다.
+              <strong>[캐릭터 현황 & 숙제 체크]</strong> 탭에서 캐릭터별 레이드 뱃지를 클릭하면 클리어 상태로 토글됩니다. 공대 일정에 포함된 레이드는 <span class="text-emerald-400 font-bold">초록색(공대)</span>으로 자동 고정되며, 야생으로 돈 레이드는 <span class="text-purple-400 font-bold">보라색(야생)</span>으로 수동 체크하여 주간 3회 골드 숙제 완료 현황을 관리할 수 있습니다.
             </p>
           </div>
 
@@ -304,29 +313,19 @@
               <li><span class="inline-block px-1.5 py-0.2 rounded bg-gray-700 text-red-500 font-bold text-[10px]">✕</span> : 주간 3회를 초과 출전하여 <strong>골드가 나오지 않는 일정</strong>입니다.</li>
             </ul>
           </div>
-
-          <div class="bg-[#0d1117] p-3.5 rounded-xl border border-gray-800">
-            <h4 class="font-bold text-white text-xs mb-1 text-yellow-400">Q. [캐릭터 현황] 탭의 레이드 뱃지는 무슨 의미인가요?</h4>
-            <ul class="text-xs text-gray-300 space-y-1 list-disc pl-4 mt-1">
-              <li><span class="text-emerald-400 font-bold">초록색 ✓</span> : 이번 주 일정표에 출전 배치가 완료된 레이드</li>
-              <li><span class="text-gray-300">회색 뱃지</span> : 레벨은 만족하지만 아직 일정표에 안 들어간 숙제</li>
-              <li><span class="text-gray-600 line-through">취소선</span> : 캐릭터 레벨이 부족하여 입장할 수 없는 레이드</li>
-            </ul>
-          </div>
         </div>
 
-        <!-- 2. 패치노트 -->
         <div id="infoContentChangelog" class="space-y-3 hidden">
-          <div class="border-l-2 border-yellow-500 pl-3 py-1">
+          <div class="border-l-2 border-purple-500 pl-3 py-1">
             <div class="flex items-center justify-between">
-              <span class="font-bold text-white text-xs">v1.0.0 - 정식 버전 릴리즈 (Official Release)</span>
+              <span class="font-bold text-white text-xs">v1.1.0-dev - RLOA 스타일 주간 골드 숙제 체크 기능</span>
               <span class="text-[11px] text-gray-500">2026.08.30</span>
             </div>
             <ul class="text-xs text-gray-400 mt-1 space-y-0.5 list-disc pl-3">
-              <li>로스트아크 레이드 공대 관리 웹 대시보드 정식 출시</li>
-              <li>원클릭 실시간 슬롯 덮어쓰기, 디스코드 웹훅 알림, 변경 이력 로그 연동</li>
-              <li>8인 레이드 서포터 최상단 고정 및 2열 균등 밸런스 배치 적용</li>
-              <li>내 캐릭터 강조, 서브 조 필터링, 원정대 캐릭터 현황 및 골드표 탭 탑재</li>
+              <li>캐릭터 현황 탭에서 골드 레이드 원클릭 수동 체크 기능 탑재</li>
+              <li>공대 출전 자동 체크(초록) vs 야생/공방 수동 체크(보라) 분리 표기</li>
+              <li>캐릭터별 골드 숙제 달성도 프로그레스 바 제공</li>
+              <li>수요일 오전 6시 기준 자동 리셋 타이머 연동</li>
             </ul>
           </div>
         </div>
@@ -350,13 +349,14 @@
       { id: 'Sub_Group4', is8Man: false },
     ];
 
-    const RAID_MIN_LEVELS = {
-      final: 1710,
-      act4: 1700,
-      cathedral: 1700,
-      serka: 1710,
-      belga: 1750
-    };
+    // 레이드별 최소 입장 레벨 및 골드 가중치
+    const RAID_DEFINITIONS = [
+      { key: 'final', label: '종막', minLevel: 1710, weight: 500 },
+      { key: 'serka', label: '세르카', minLevel: 1710, weight: 450 },
+      { key: 'cathedral', label: '성당', minLevel: 1700, weight: 430 },
+      { key: 'act4', label: '4막', minLevel: 1700, weight: 359 },
+      { key: 'belga', label: '벨가', minLevel: 1750, weight: 100 }
+    ];
 
     let currentMainView = 'schedule';
     let currentActiveTab = 'Main_8Man';
@@ -368,6 +368,44 @@
     let characterPoolData = [];
     let raidInfoData = [];
     let activeSwapTarget = null;
+
+    // 수요일 기준 주간 체크 스토리지 관리
+    function getCurrentWeekKey() {
+      const now = new Date();
+      const day = now.getDay();
+      const diffToWednesday = (day >= 3 ? day - 3 : day + 4);
+      const lastWed = new Date(now);
+      lastWed.setDate(now.getDate() - diffToWednesday);
+      lastWed.setHours(6, 0, 0, 0);
+      if (now < lastWed) {
+        lastWed.setDate(lastWed.getDate() - 7);
+      }
+      return `loa_clears_${lastWed.toISOString().slice(0, 10)}`;
+    }
+
+    function getCustomClears() {
+      const key = getCurrentWeekKey();
+      try {
+        return JSON.parse(localStorage.getItem(key) || '{}');
+      } catch (e) {
+        return {};
+      }
+    }
+
+    function saveCustomClear(charName, raidKey, isCleared) {
+      const key = getCurrentWeekKey();
+      const clears = getCustomClears();
+      if (!clears[charName]) clears[charName] = {};
+      clears[charName][raidKey] = isCleared;
+      localStorage.setItem(key, JSON.stringify(clears));
+    }
+
+    function resetCustomClears() {
+      if (confirm('수동으로 체크한 야생/공방 클리어 현황을 모두 초기화하시겠습니까?')) {
+        localStorage.removeItem(getCurrentWeekKey());
+        renderPoolView();
+      }
+    }
 
     document.addEventListener('DOMContentLoaded', () => {
       document.getElementById('filterMySubToggle').checked = filterMySubOnly;
@@ -1025,17 +1063,65 @@
       }
     }
 
-    function renderRaidTagByLevel(label, isDone, charLevel, raidKey) {
-      const minCut = RAID_MIN_LEVELS[raidKey] || 1700;
-      const canEnter = (charLevel >= minCut);
+    // ★ RLOA 스타일 원클릭 토글 함수
+    function toggleCustomClear(charName, raidKey) {
+      const clears = getCustomClears();
+      const currentVal = clears[charName] && clears[charName][raidKey];
+      saveCustomClear(charName, raidKey, !currentVal);
+      renderPoolView();
+    }
 
-      if (isDone) {
-        return `<span class="px-1.5 py-0.5 bg-emerald-950/80 border border-emerald-700/60 text-emerald-400 font-bold rounded text-[10px] flex items-center space-x-0.5" title="이번 주 출전 완료"><span>${label}</span><span>✓</span></span>`;
-      } else if (canEnter) {
-        return `<span class="px-1.5 py-0.5 bg-gray-800 border border-gray-700 text-gray-300 font-medium rounded text-[10px] hover:border-gray-500 transition" title="입장 가능 (미배치 숙제)">${label}</span>`;
-      } else {
-        return `<span class="px-1.5 py-0.5 bg-[#0d1117] border border-gray-900 text-gray-600 line-through rounded text-[10px] opacity-60 cursor-not-allowed select-none" title="입장 불가 (최소 레벨 ${minCut} 미달)">${label}</span>`;
+    // ★ RLOA 스타일 골드 숙제 태그 렌더링
+    function renderRaidTagWithToggle(c, def, isTopGoldRaid, customClears) {
+      const sheetDone = c.raids[def.key]; // 시트 상 공대 일정 완료
+      const userDone = customClears[c.name] && customClears[c.name][def.key]; // 사용자 수동 완료
+      const isEnterable = c.level >= def.minLevel;
+
+      // 1. 공대 일정으로 이미 완료된 경우 (초록색 고정)
+      if (sheetDone) {
+        return `
+          <span class="px-2 py-1 bg-emerald-950 border border-emerald-600 text-emerald-400 font-bold rounded text-[11px] flex items-center space-x-1 cursor-default select-none shadow-sm" title="공대 일정표 출전 완료">
+            <span>${def.label}</span>
+            <span>✓</span>
+          </span>
+        `;
       }
+
+      // 2. 레벨 미달 (비활성화)
+      if (!isEnterable) {
+        return `
+          <span class="px-2 py-1 bg-[#0d1117] border border-gray-900 text-gray-600 line-through rounded text-[11px] opacity-50 cursor-not-allowed select-none" title="입장 불가 (최소 레벨 ${def.minLevel} 미달)">
+            ${def.label}
+          </span>
+        `;
+      }
+
+      // 3. 개인이 야생/공방으로 완료 체크한 경우 (보라색 토글)
+      if (userDone) {
+        return `
+          <button onclick="toggleCustomClear('${c.name}', '${def.key}')" class="px-2 py-1 bg-purple-950 border border-purple-500 text-purple-300 font-bold rounded text-[11px] flex items-center space-x-1 hover:bg-purple-900 transition shadow-sm" title="야생/공방 수동 완료 (클릭 시 취소)">
+            <span>${def.label}</span>
+            <span>✓</span>
+          </button>
+        `;
+      }
+
+      // 4. 골드 획득 추천 상위 3개 숙제 (강조 버튼)
+      if (isTopGoldRaid) {
+        return `
+          <button onclick="toggleCustomClear('${c.name}', '${def.key}')" class="px-2 py-1 bg-gray-800 border border-gray-600 text-gray-200 font-medium rounded text-[11px] ring-1 ring-amber-500/40 hover:border-amber-400 hover:text-white transition flex items-center space-x-1 shadow-sm" title="골드 획득 추천 레이드 (클릭하여 완료 체크)">
+            <span>${def.label}</span>
+            <span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
+          </button>
+        `;
+      }
+
+      // 5. 일반 숙제 (3회 초과/더보기 구간)
+      return `
+        <button onclick="toggleCustomClear('${c.name}', '${def.key}')" class="px-2 py-1 bg-gray-900 border border-gray-800 text-gray-400 hover:text-gray-200 hover:border-gray-600 rounded text-[11px] transition" title="클릭하여 완료 체크">
+          ${def.label}
+        </button>
+      `;
     }
 
     function renderPoolView() {
@@ -1043,6 +1129,7 @@
       const uFilter = document.getElementById('poolUserFilter').value;
       const pFilter = document.getElementById('poolPosFilter').value;
       const lFilter = parseFloat(document.getElementById('poolLevelFilter').value) || 0;
+      const customClears = getCustomClears();
 
       const filtered = characterPoolData.filter(c => {
         if (uFilter && !c.user.startsWith(uFilter)) return false;
@@ -1069,12 +1156,28 @@
         if (c.pos === '서포터') posBadge = `<span class="badge-supporter text-[11px] font-semibold px-2 py-0.5 rounded">서포터</span>`;
         else if (c.pos === '스왑가능') posBadge = `<span class="badge-swap text-[11px] font-semibold px-2 py-0.5 rounded">스왑가능</span>`;
 
+        // 입장 가능한 상위 3개 골드 레이드 산출
+        const availableRaids = RAID_DEFINITIONS.filter(d => c.level >= d.minLevel).sort((a, b) => b.weight - a.weight);
+        const top3Keys = availableRaids.slice(0, 3).map(d => d.key);
+
+        // 총 완료 개수 계산 (공대 완료 + 수동 완료)
+        let completedCount = 0;
+        RAID_DEFINITIONS.forEach(def => {
+          const isDone = c.raids[def.key] || (customClears[c.name] && customClears[c.name][def.key]);
+          if (isDone && top3Keys.includes(def.key)) completedCount++;
+        });
+
+        const progressColor = completedCount === 3 ? 'bg-emerald-500' : (completedCount > 0 ? 'bg-yellow-500' : 'bg-gray-700');
+
         return `
-          <div class="card-bg p-4 rounded-xl border border-gray-800 flex flex-col justify-between space-y-3 ${isMe ? 'border-yellow-500/50 bg-yellow-950/10' : ''}">
+          <div class="card-bg p-4 rounded-xl border border-gray-800 flex flex-col justify-between space-y-3.5 ${isMe ? 'border-yellow-500/50 bg-yellow-950/10' : ''}">
             <div class="flex items-start justify-between">
               <div>
                 <div class="text-xs text-gray-400 font-medium mb-0.5">${c.user} (${c.server})</div>
-                <div class="text-base font-bold text-white">${c.name}</div>
+                <div class="text-base font-bold text-white flex items-center space-x-2">
+                  <span>${c.name}</span>
+                  <span class="text-[11px] font-mono text-gray-400 font-normal">(${completedCount}/3)</span>
+                </div>
               </div>
               <div class="text-right">
                 ${posBadge}
@@ -1082,14 +1185,15 @@
               </div>
             </div>
 
-            <div class="flex items-center justify-between border-t border-gray-800/60 pt-2.5">
+            <!-- 골드 숙제 진행도 바 -->
+            <div class="w-full bg-[#0d1117] h-1.5 rounded-full overflow-hidden border border-gray-800">
+              <div class="${progressColor} h-full transition-all duration-300" style="width: ${(completedCount / 3) * 100}%"></div>
+            </div>
+
+            <div class="flex items-center justify-between border-t border-gray-800/60 pt-3 flex-wrap gap-2">
               <span class="text-sm font-mono font-bold text-yellow-500/90">${c.level.toLocaleString('ko-KR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-              <div class="flex items-center space-x-1">
-                ${renderRaidTagByLevel('종막', c.raids.final, c.level, 'final')}
-                ${renderRaidTagByLevel('4막', c.raids.act4, c.level, 'act4')}
-                ${renderRaidTagByLevel('성당', c.raids.cathedral, c.level, 'cathedral')}
-                ${renderRaidTagByLevel('세르카', c.raids.serka, c.level, 'serka')}
-                ${renderRaidTagByLevel('벨가', c.raids.belga, c.level, 'belga')}
+              <div class="flex items-center space-x-1.5 flex-wrap gap-y-1">
+                ${RAID_DEFINITIONS.map(def => renderRaidTagWithToggle(c, def, top3Keys.includes(def.key), customClears)).join('')}
               </div>
             </div>
           </div>
