@@ -47,16 +47,25 @@
   </style>
 </head>
 <body class="min-h-screen pb-16">
-  <!-- 상단 내비게이션 바 -->
+  <!-- 상단 헤더 -->
   <header class="border-b border-gray-800 bg-[#161b22]/90 sticky top-0 z-50 backdrop-blur">
     <div class="max-w-7xl mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-4">
-      <div class="flex items-center space-x-2">
-        <i data-lucide="shield" class="w-6 h-6 text-yellow-500"></i>
-        <span class="font-bold text-lg text-white tracking-wide">LOA RAID SCHEDULE</span>
+      <div class="flex items-center space-x-3">
+        <div class="flex items-center space-x-2">
+          <i data-lucide="shield" class="w-6 h-6 text-yellow-500"></i>
+          <span class="font-bold text-lg text-white tracking-wide">LOA RAID SCHEDULE</span>
+        </div>
+
+        <!-- 뷰 모드 전환 버튼 -->
+        <div class="flex bg-[#0d1117] p-1 rounded-lg border border-gray-800 text-xs">
+          <button onclick="switchMainView('schedule')" id="viewBtnSchedule" class="px-3 py-1.5 rounded-md font-semibold bg-gray-800 text-white transition">일정표</button>
+          <button onclick="switchMainView('pool')" id="viewBtnPool" class="px-3 py-1.5 rounded-md font-medium text-gray-400 hover:text-white transition">캐릭터 현황</button>
+          <button onclick="switchMainView('gold')" id="viewBtnGold" class="px-3 py-1.5 rounded-md font-medium text-gray-400 hover:text-white transition">레이드 골드표</button>
+        </div>
       </div>
 
-      <!-- 공대원 선택 및 필터 설정 -->
-      <div class="flex items-center flex-wrap gap-3">
+      <!-- 공대원 설정 및 액션 버튼 -->
+      <div class="flex items-center flex-wrap gap-2.5">
         <div class="flex items-center space-x-2 bg-[#0d1117] px-3 py-1.5 rounded-lg border border-gray-700">
           <i data-lucide="user" class="w-4 h-4 text-gray-400"></i>
           <span class="text-xs text-gray-400">내 캐릭터 강조:</span>
@@ -65,10 +74,10 @@
           </select>
         </div>
 
-        <label class="flex items-center space-x-1.5 text-xs text-gray-300 cursor-pointer bg-[#0d1117] px-3 py-2 rounded-lg border border-gray-700 hover:border-gray-500 transition">
-          <input type="checkbox" id="filterMySubToggle" class="rounded bg-gray-800 border-gray-600 text-yellow-500 focus:ring-0 cursor-pointer" />
-          <span>내 서브 조만 보기</span>
-        </label>
+        <button onclick="openChangeRequestModal()" class="flex items-center space-x-1.5 bg-yellow-600/20 hover:bg-yellow-600/30 text-yellow-400 border border-yellow-500/40 text-xs font-semibold px-3 py-2 rounded-lg transition">
+          <i data-lucide="arrow-left-right" class="w-3.5 h-3.5"></i>
+          <span>편성 변경 요청</span>
+        </button>
 
         <button onclick="fetchSheetData()" class="flex items-center space-x-1 bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold px-3 py-2 rounded-lg transition">
           <i data-lucide="refresh-cw" class="w-3.5 h-3.5" id="refreshIcon"></i>
@@ -78,37 +87,160 @@
     </div>
   </header>
 
-  <!-- 메인 탭 메뉴 -->
+  <!-- 메인 컨텐츠 영역 -->
   <main class="max-w-7xl mx-auto px-4 mt-6">
-    <nav class="flex space-x-2 border-b border-gray-800 pb-2 overflow-x-auto" id="tabNav">
-      <!-- 탭 목록 -->
-    </nav>
+    
+    <!-- 1. 일정표 뷰 (Schedule View) -->
+    <div id="sectionSchedule">
+      <div class="flex items-center justify-between flex-wrap gap-3 border-b border-gray-800 pb-2">
+        <nav class="flex space-x-2 overflow-x-auto" id="tabNav"></nav>
+        <label class="flex items-center space-x-1.5 text-xs text-gray-300 cursor-pointer bg-[#161b22] px-3 py-1.5 rounded-lg border border-gray-700 hover:border-gray-500 transition">
+          <input type="checkbox" id="filterMySubToggle" class="rounded bg-gray-800 border-gray-600 text-yellow-500 focus:ring-0 cursor-pointer" />
+          <span>내 서브 조만 보기</span>
+        </label>
+      </div>
 
-    <!-- 범례 안내 바 -->
-    <div class="mt-4 px-3 py-2 bg-[#161b22] border border-gray-800 rounded-lg flex flex-wrap items-center gap-4 text-xs text-gray-400">
-      <span class="font-semibold text-gray-300">골드 획득 범례:</span>
-      <div class="flex items-center space-x-1.5">
-        <span class="inline-block w-4 h-4 rounded-full bg-amber-500 text-[10px] text-amber-950 font-bold text-center leading-4">G</span>
-        <span>골드 획득</span>
+      <!-- 골드 범례 안내 바 -->
+      <div class="mt-4 px-3 py-2 bg-[#161b22] border border-gray-800 rounded-lg flex flex-wrap items-center gap-4 text-xs text-gray-400">
+        <span class="font-semibold text-gray-300">골드 획득 범례:</span>
+        <div class="flex items-center space-x-1.5">
+          <span class="inline-block w-4 h-4 rounded-full bg-amber-500 text-[10px] text-amber-950 font-bold text-center leading-4">G</span>
+          <span>골드 획득</span>
+        </div>
+        <div class="flex items-center space-x-1.5">
+          <span class="inline-block w-4 h-4 rounded-full bg-cyan-600 text-[10px] text-white font-bold text-center leading-4">?</span>
+          <span>선택 구간 (4막하드 3.8만 일반골 vs 성당2단 4만 귀속골)</span>
+        </div>
+        <div class="flex items-center space-x-1.5">
+          <span class="inline-block w-4 h-4 rounded-full bg-gray-700 text-[10px] text-red-500 font-bold text-center leading-4">✕</span>
+          <span>골드 미획득 (3회 초과)</span>
+        </div>
       </div>
-      <div class="flex items-center space-x-1.5">
-        <span class="inline-block w-4 h-4 rounded-full bg-cyan-600 text-[10px] text-white font-bold text-center leading-4">?</span>
-        <span>선택 구간 (4막하드 3.8만 일반골 vs 성당2단 4만 귀속골)</span>
+
+      <!-- 레이드 카드 컨테이너 -->
+      <section id="raidContainer" class="mt-6 grid grid-cols-1 gap-6"></section>
+    </div>
+
+    <!-- 2. 캐릭터 현황 뷰 (Character Pool View) -->
+    <div id="sectionPool" class="hidden">
+      <!-- 필터 바 -->
+      <div class="card-bg p-4 rounded-xl mb-6 flex flex-wrap items-center justify-between gap-4">
+        <div class="flex flex-wrap items-center gap-3">
+          <!-- 유저 필터 -->
+          <div class="flex items-center space-x-2 bg-[#0d1117] px-3 py-1.5 rounded-lg border border-gray-700">
+            <span class="text-xs text-gray-400">유저:</span>
+            <select id="poolUserFilter" onchange="renderPoolView()" class="bg-transparent text-xs text-white focus:outline-none cursor-pointer">
+              <option value="" class="bg-[#161b22]">전체 유저</option>
+            </select>
+          </div>
+
+          <!-- 포지션 필터 (스왑은 딜/서폿 양쪽 모두 포함) -->
+          <div class="flex items-center space-x-2 bg-[#0d1117] px-3 py-1.5 rounded-lg border border-gray-700">
+            <span class="text-xs text-gray-400">포지션:</span>
+            <select id="poolPosFilter" onchange="renderPoolView()" class="bg-transparent text-xs text-white focus:outline-none cursor-pointer">
+              <option value="ALL" class="bg-[#161b22]">전체 포지션</option>
+              <option value="DEALER" class="bg-[#161b22]">딜러 (스왑 포함)</option>
+              <option value="SUPPORTER" class="bg-[#161b22]">서포터 (스왑 포함)</option>
+            </select>
+          </div>
+
+          <!-- 레벨 필터 -->
+          <div class="flex items-center space-x-2 bg-[#0d1117] px-3 py-1.5 rounded-lg border border-gray-700">
+            <span class="text-xs text-gray-400">최소 레벨:</span>
+            <select id="poolLevelFilter" onchange="renderPoolView()" class="bg-transparent text-xs text-white focus:outline-none cursor-pointer">
+              <option value="0" class="bg-[#161b22]">전체 레벨</option>
+              <option value="1720" class="bg-[#161b22]">1720+ (4막/성당)</option>
+              <option value="1730" class="bg-[#161b22]">1730+ (종막/세르카)</option>
+              <option value="1750" class="bg-[#161b22]">1750+ (성당3단/세르카나메)</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="text-xs text-gray-400">
+          조회된 캐릭터: <span id="poolCount" class="text-yellow-400 font-bold">0</span>개
+        </div>
       </div>
-      <div class="flex items-center space-x-1.5">
-        <span class="inline-block w-4 h-4 rounded-full bg-gray-700 text-[10px] text-red-500 font-bold text-center leading-4">✕</span>
-        <span>골드 미획득 (3회 초과)</span>
+
+      <!-- 캐릭터 풀 카드 그리드 -->
+      <div id="poolGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+    </div>
+
+    <!-- 3. 레이드 골드 정보 뷰 (Raid Info View) -->
+    <div id="sectionGold" class="hidden">
+      <div class="card-bg rounded-xl overflow-hidden shadow-lg border border-gray-800">
+        <div class="p-4 border-b border-gray-800 flex items-center justify-between">
+          <h3 class="font-bold text-white text-base">로스트아크 주요 레이드 골드 및 보상 안내</h3>
+          <span class="text-xs text-gray-400">시트(Raid_Info) 기준 실시간 연동</span>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-sm text-gray-300">
+            <thead class="bg-[#0d1117] text-xs uppercase text-gray-400 border-b border-gray-800">
+              <tr>
+                <th class="px-4 py-3">레이드명</th>
+                <th class="px-4 py-3">난이도</th>
+                <th class="px-4 py-3 text-right">입장 레벨</th>
+                <th class="px-4 py-3 text-right text-amber-400">일반 골드</th>
+                <th class="px-4 py-3 text-right text-emerald-400">귀속 골드</th>
+                <th class="px-4 py-3 text-right text-yellow-300 font-bold">총 획득 골드</th>
+                <th class="px-4 py-3 text-right text-red-400">더보기 비용</th>
+              </tr>
+            </thead>
+            <tbody id="goldTableBody" class="divide-y divide-gray-800">
+              <tr><td colspan="7" class="text-center py-8 text-gray-500">데이터를 불러오는 중입니다...</td></tr>
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
 
-    <!-- 레이드 카드 컨테이너 -->
-    <section id="raidContainer" class="mt-6 grid grid-cols-1 gap-6">
-      <div class="text-center py-20 text-gray-500">
-        <i data-lucide="loader" class="w-8 h-8 animate-spin mx-auto mb-2 text-yellow-500"></i>
-        데이터를 불러오는 중입니다...
-      </div>
-    </section>
   </main>
+
+  <!-- 4. 편성 변경 요청 모달 -->
+  <div id="changeModal" class="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="card-bg w-full max-w-lg rounded-2xl p-6 border border-gray-700 shadow-2xl relative">
+      <button onclick="closeChangeRequestModal()" class="absolute top-4 right-4 text-gray-400 hover:text-white">
+        <i data-lucide="x" class="w-5 h-5"></i>
+      </button>
+
+      <div class="flex items-center space-x-2 text-yellow-400 mb-4">
+        <i data-lucide="arrow-left-right" class="w-5 h-5"></i>
+        <h3 class="text-lg font-bold text-white">공대 편성 변경 요청</h3>
+      </div>
+      <p class="text-xs text-gray-400 mb-5 leading-relaxed">
+        변경 요청 내용을 입력 후 복사하여 공대 디스코드나 카카오톡에 전달해 주세요.
+      </p>
+
+      <div class="space-y-4 text-sm">
+        <div>
+          <label class="block text-xs font-semibold text-gray-400 mb-1">요청자 (유저명)</label>
+          <select id="modalUserSelect" onchange="onModalUserChange()" class="w-full bg-[#0d1117] border border-gray-700 rounded-lg px-3 py-2 text-white focus:border-yellow-500 focus:outline-none"></select>
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-gray-400 mb-1">현재 출전 중인 일정 / 기존 캐릭터</label>
+          <select id="modalTargetRaidSelect" class="w-full bg-[#0d1117] border border-gray-700 rounded-lg px-3 py-2 text-white focus:border-yellow-500 focus:outline-none"></select>
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-gray-400 mb-1">변경 희망하는 내 캐릭터</label>
+          <select id="modalNewCharSelect" class="w-full bg-[#0d1117] border border-gray-700 rounded-lg px-3 py-2 text-white focus:border-yellow-500 focus:outline-none"></select>
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-gray-400 mb-1">변경 사유 (선택)</label>
+          <input type="text" id="modalReasonInput" placeholder="예: 스펙업 완료, 세팅 변경 등" class="w-full bg-[#0d1117] border border-gray-700 rounded-lg px-3 py-2 text-white focus:border-yellow-500 focus:outline-none placeholder-gray-600" />
+        </div>
+      </div>
+
+      <div class="mt-6 flex items-center justify-end space-x-3">
+        <button onclick="closeChangeRequestModal()" class="px-4 py-2 rounded-lg text-xs font-semibold text-gray-400 hover:text-white bg-gray-800 transition">취소</button>
+        <button onclick="copyChangeRequestText()" class="px-4 py-2 rounded-lg text-xs font-semibold text-black bg-yellow-400 hover:bg-yellow-300 transition flex items-center space-x-1.5">
+          <i data-lucide="copy" class="w-4 h-4"></i>
+          <span>디스코드 양식 복사</span>
+        </button>
+      </div>
+    </div>
+  </div>
 
   <script>
     const SPREADSHEET_ID = '1dDM5LoLM75hhojd8p1vA-095J-HcOgFQPTQiaErXHi0';
@@ -121,12 +253,15 @@
       { id: 'Sub_Group4', is8Man: false },
     ];
 
+    let currentMainView = 'schedule';
     let currentActiveTab = 'Main_8Man';
     let selectedUser = localStorage.getItem('loa_selected_user') || '';
     let filterMySubOnly = localStorage.getItem('loa_filter_sub') === 'true';
     let sheetsDataStore = {};
     let allMemberList = new Set();
-    let slotGoldStatusMap = {}; // { [slotUid]: 'EARN' | 'MAYBE' | 'NONE' }
+    let slotGoldStatusMap = {};
+    let characterPoolData = [];
+    let raidInfoData = [];
 
     document.addEventListener('DOMContentLoaded', () => {
       document.getElementById('filterMySubToggle').checked = filterMySubOnly;
@@ -142,21 +277,37 @@
         localStorage.setItem('loa_selected_user', selectedUser);
         renderTabs();
         renderActiveTabContent();
+        if (currentMainView === 'pool') renderPoolView();
       });
 
       fetchSheetData();
     });
 
-    // 레이드별 골드 보상 기본 가중치
+    function switchMainView(view) {
+      currentMainView = view;
+      ['schedule', 'pool', 'gold'].forEach(v => {
+        const btn = document.getElementById('viewBtn' + v.charAt(0).toUpperCase() + v.slice(1));
+        const sec = document.getElementById('section' + v.charAt(0).toUpperCase() + v.slice(1));
+        if (v === view) {
+          btn.className = 'px-3 py-1.5 rounded-md font-semibold bg-gray-800 text-white transition';
+          sec.classList.remove('hidden');
+        } else {
+          btn.className = 'px-3 py-1.5 rounded-md font-medium text-gray-400 hover:text-white transition';
+          sec.classList.add('hidden');
+        }
+      });
+
+      if (view === 'pool') renderPoolView();
+      if (view === 'gold') renderGoldTableView();
+      lucide.createIcons();
+    }
+
     function getRaidGoldWeight(title) {
       if (title.includes('종막')) return 500;
       if (title.includes('세르카') && (title.includes('나메') || title.includes('3단'))) return 450;
       if (title.includes('성당') && title.includes('3단')) return 430;
-      
-      // 4막하드(38,000 일반) vs 성당2단(40,000 귀속) 경합 구간
       if (title.includes('성당') && (title.includes('2단') || title.includes('2단계'))) return 360;
       if (title.includes('4막') && title.includes('하드')) return 359;
-      
       if (title.includes('세르카') && title.includes('하드')) return 320;
       if (title.includes('4막')) return 300;
       if (title.includes('성당') && (title.includes('1단') || title.includes('1단계'))) return 250;
@@ -174,6 +325,7 @@
       const allRaidInstances = [];
 
       try {
+        // 1) 일정표 시트 Fetch
         for (const config of SHEET_CONFIG) {
           const url = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURI(config.id)}&t=${new Date().getTime()}`;
           const response = await fetch(url);
@@ -197,6 +349,10 @@
                   charName: s.name,
                   slotUid: s.slotUid,
                   raidTitle: b.title,
+                  sheetTitle: config.fixedTitle || config.id,
+                  user: s.user,
+                  job: s.job,
+                  level: s.level,
                   weight: getRaidGoldWeight(b.title)
                 });
               }
@@ -211,12 +367,28 @@
           };
         }
 
-        // 골드 상태 판별 (EARN / MAYBE / NONE)
+        // 2) Character_Pool 시트 Fetch
+        const poolUrl = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=out:csv&sheet=Character_Pool&t=${new Date().getTime()}`;
+        const poolRes = await fetch(poolUrl);
+        const poolCsv = await poolRes.text();
+        parseCharacterPool(Papa.parse(poolCsv, { skipEmptyLines: false }).data);
+
+        // 3) Raid_Info 시트 Fetch
+        try {
+          const goldUrl = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=out:csv&sheet=Raid_Info&t=${new Date().getTime()}`;
+          const goldRes = await fetch(goldUrl);
+          const goldCsv = await goldRes.text();
+          parseRaidInfo(Papa.parse(goldCsv, { skipEmptyLines: false }).data);
+        } catch (e) { console.log('Raid_Info sheet optional', e); }
+
         calculateGoldEligibilities(allRaidInstances);
+        window.allRaidInstancesStore = allRaidInstances;
 
         populateUserSelector();
         renderTabs();
         renderActiveTabContent();
+        if (currentMainView === 'pool') renderPoolView();
+        if (currentMainView === 'gold') renderGoldTableView();
       } catch (err) {
         console.error(err);
         document.getElementById('raidContainer').innerHTML = `
@@ -231,7 +403,57 @@
       }
     }
 
-    // 캐릭터별 골드 상태 계산
+    // 캐릭터 풀 데이터 파싱
+    function parseCharacterPool(rows) {
+      characterPoolData = [];
+      for (let r = 1; r < rows.length; r++) {
+        const row = rows[r] || [];
+        const user = (row[0] || '').toString().trim();
+        const server = (row[1] || '').toString().trim();
+        const name = (row[2] || '').toString().trim();
+        const job = (row[3] || '').toString().trim();
+        const curLevel = parseFloat(row[4]) || 0;
+        const finalLevel = parseFloat(row[6]) || curLevel;
+        const pos = (row[7] || '딜러').toString().trim();
+
+        // 5대 레이드 출전 체크 여부 (V)
+        const vFinal = (row[8] || '').toString().trim().toUpperCase() === 'V';
+        const vAct4 = (row[9] || '').toString().trim().toUpperCase() === 'V';
+        const vCathedral = (row[10] || '').toString().trim().toUpperCase() === 'V';
+        const vSerka = (row[11] || '').toString().trim().toUpperCase() === 'V';
+        const vBelga = (row[12] || '').toString().trim().toUpperCase() === 'V';
+
+        if (name && !isHeaderWord(name)) {
+          characterPoolData.push({
+            user, server, name, job,
+            level: finalLevel,
+            pos,
+            raids: { final: vFinal, act4: vAct4, cathedral: vCathedral, serka: vSerka, belga: vBelga }
+          });
+        }
+      }
+    }
+
+    // Raid_Info 데이터 파싱
+    function parseRaidInfo(rows) {
+      raidInfoData = [];
+      for (let r = 1; r < rows.length; r++) {
+        const row = rows[r] || [];
+        const name = (row[0] || '').toString().trim();
+        if (name && !name.includes('레이드')) {
+          raidInfoData.push({
+            name: name,
+            diff: (row[1] || '').toString().trim(),
+            level: (row[2] || '').toString().trim(),
+            goldTrade: (row[3] || '0').toString().trim(),
+            goldBound: (row[4] || '0').toString().trim(),
+            goldTotal: (row[5] || '0').toString().trim(),
+            moreCost: (row[6] || '0').toString().trim(),
+          });
+        }
+      }
+    }
+
     function calculateGoldEligibilities(instances) {
       slotGoldStatusMap = {};
       const groupedByChar = {};
@@ -245,7 +467,6 @@
         const list = groupedByChar[charName];
         list.sort((a, b) => b.weight - a.weight);
 
-        // 4막하드와 성당2단계 동시 출전 여부 확인
         const hasAct4Hard = list.some(i => i.raidTitle.includes('4막') && i.raidTitle.includes('하드'));
         const hasCathedral2 = list.some(i => i.raidTitle.includes('성당') && (i.raidTitle.includes('2단') || i.raidTitle.includes('2단계')));
         const isAmbiguousCase = (hasAct4Hard && hasCathedral2);
@@ -349,7 +570,11 @@
 
     function populateUserSelector() {
       const select = document.getElementById('userSelector');
+      const poolUserSelect = document.getElementById('poolUserFilter');
+
       select.innerHTML = '<option value="" class="bg-[#161b22] text-gray-300">선택 안 함 (전체)</option>';
+      poolUserSelect.innerHTML = '<option value="" class="bg-[#161b22]">전체 유저</option>';
+
       Array.from(allMemberList).sort().forEach(u => {
         const opt = document.createElement('option');
         opt.value = u;
@@ -357,6 +582,12 @@
         opt.className = 'bg-[#161b22] text-white';
         if (u === selectedUser) opt.selected = true;
         select.appendChild(opt);
+
+        const poolOpt = document.createElement('option');
+        poolOpt.value = u;
+        poolOpt.textContent = u;
+        poolOpt.className = 'bg-[#161b22] text-white';
+        poolUserSelect.appendChild(poolOpt);
       });
     }
 
@@ -454,12 +685,10 @@
       lucide.createIcons();
     }
 
-    // ★ 골드 아이콘 3단계 렌더링 (EARN, MAYBE, NONE)
     function renderGoldBadge(status) {
       if (status === 'EARN') {
-        // 1. 골드 획득 (노란 코인)
         return `
-          <div class="relative flex items-center justify-center w-5 h-5 cursor-help group" title="골드 획득 (주간 상위 3회)">
+          <div class="relative flex items-center justify-center w-5 h-5 cursor-help" title="골드 획득 (주간 상위 3회)">
             <svg class="w-5 h-5" viewBox="0 0 24 24">
               <circle cx="12" cy="12" r="9.5" fill="#D97706" stroke="#B45309" stroke-width="1" />
               <circle cx="12" cy="12" r="7.5" fill="#FBBF24" stroke="#FDE68A" stroke-width="0.8" />
@@ -468,7 +697,6 @@
           </div>
         `;
       } else if (status === 'MAYBE') {
-        // 2. 선택 구간 (노란 코인 + 물음표 ? 뱃지)
         return `
           <div class="relative flex items-center justify-center w-5 h-5 cursor-help" title="선택 구간: 4막하드(38,000 일반골드) vs 성당2단(40,000 귀속골드)">
             <svg class="w-5 h-5" viewBox="0 0 24 24">
@@ -482,7 +710,6 @@
           </div>
         `;
       } else {
-        // 3. 골드 미획득 (회색 코인 + 빨간색 X 빗금)
         return `
           <div class="relative flex items-center justify-center w-5 h-5 cursor-help opacity-75 hover:opacity-100 transition" title="골드 미획득 (주간 3회 초과/더보기)">
             <svg class="w-5 h-5" viewBox="0 0 24 24">
@@ -519,7 +746,6 @@
 
         return `
           <div class="flex items-center justify-between p-2.5 rounded-lg border border-gray-800/80 ${rowStyle} transition">
-            <!-- 좌측: 포지션 뱃지 + 유저명 + 캐릭터명 -->
             <div class="flex items-center space-x-3">
               ${posBadge}
               <div class="flex flex-col sm:flex-row sm:items-center sm:space-x-2">
@@ -527,8 +753,6 @@
                 <span class="text-sm font-semibold text-gray-200">${slot.name}</span>
               </div>
             </div>
-
-            <!-- 우측: 3단계 골드 상태 코인 + 직업 + 아이템 레벨 -->
             <div class="flex items-center space-x-2.5 sm:space-x-3 text-right">
               ${renderGoldBadge(goldStatus)}
               <span class="text-xs text-gray-400 hidden sm:inline">${slot.job}</span>
@@ -537,6 +761,194 @@
           </div>
         `;
       }).join('');
+    }
+
+    // ★ 2. 캐릭터 풀 렌더링 (스왑가능 포지션 양쪽 검색 지원)
+    function renderPoolView() {
+      const grid = document.getElementById('poolGrid');
+      const uFilter = document.getElementById('poolUserFilter').value;
+      const pFilter = document.getElementById('poolPosFilter').value;
+      const lFilter = parseFloat(document.getElementById('poolLevelFilter').value) || 0;
+
+      const filtered = characterPoolData.filter(c => {
+        if (uFilter && !c.user.startsWith(uFilter)) return false;
+        if (lFilter > 0 && c.level < lFilter) return false;
+
+        // ★ 스왑가능은 딜러/서포터 양쪽 필터 모두에 걸리도록 처리
+        if (pFilter === 'DEALER') {
+          if (c.pos !== '딜러' && c.pos !== '스왑가능') return false;
+        } else if (pFilter === 'SUPPORTER') {
+          if (c.pos !== '서포터' && c.pos !== '스왑가능') return false;
+        }
+        return true;
+      });
+
+      document.getElementById('poolCount').textContent = filtered.length;
+
+      if (filtered.length === 0) {
+        grid.innerHTML = `<div class="col-span-full py-16 text-center text-gray-500 card-bg rounded-xl">조건에 맞는 캐릭터가 없습니다.</div>`;
+        return;
+      }
+
+      grid.innerHTML = filtered.map(c => {
+        const isMe = selectedUser && c.user.startsWith(selectedUser);
+        let posBadge = `<span class="badge-dealer text-[11px] font-semibold px-2 py-0.5 rounded">딜러</span>`;
+        if (c.pos === '서포터') posBadge = `<span class="badge-supporter text-[11px] font-semibold px-2 py-0.5 rounded">서포터</span>`;
+        else if (c.pos === '스왑가능') posBadge = `<span class="badge-swap text-[11px] font-semibold px-2 py-0.5 rounded">스왑가능</span>`;
+
+        // 레이드별 V체크 뱃지 (출전 완료 여부)
+        const renderRaidTag = (label, isDone) => {
+          return isDone
+            ? `<span class="px-1.5 py-0.5 bg-emerald-950/80 border border-emerald-700/60 text-emerald-400 font-bold rounded text-[10px] flex items-center space-x-0.5"><span>${label}</span><span>✓</span></span>`
+            : `<span class="px-1.5 py-0.5 bg-gray-900 border border-gray-800 text-gray-500 rounded text-[10px]">${label}</span>`;
+        };
+
+        return `
+          <div class="card-bg p-4 rounded-xl border border-gray-800 flex flex-col justify-between space-y-3 ${isMe ? 'border-yellow-500/50 bg-yellow-950/10' : ''}">
+            <div class="flex items-start justify-between">
+              <div>
+                <div class="text-xs text-gray-400 font-medium mb-0.5">${c.user} (${c.server})</div>
+                <div class="text-base font-bold text-white">${c.name}</div>
+              </div>
+              <div class="text-right">
+                ${posBadge}
+                <div class="text-xs text-gray-400 mt-1">${c.job}</div>
+              </div>
+            </div>
+
+            <div class="flex items-center justify-between border-t border-gray-800/60 pt-2.5">
+              <span class="text-sm font-mono font-bold text-yellow-500/90">${c.level.toFixed(2)}</span>
+              <div class="flex items-center space-x-1">
+                ${renderRaidTag('종막', c.raids.final)}
+                ${renderRaidTag('4막', c.raids.act4)}
+                ${renderRaidTag('성당', c.raids.cathedral)}
+                ${renderRaidTag('세르카', c.raids.serka)}
+                ${renderRaidTag('벨가', c.raids.belga)}
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    // ★ 3. 레이드 골드 표 렌더링
+    function renderGoldTableView() {
+      const tbody = document.getElementById('goldTableBody');
+      if (raidInfoData.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="7" class="text-center py-8 text-gray-500">Raid_Info 시트 데이터를 가져오지 못했습니다.</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = raidInfoData.map(r => `
+        <tr class="hover:bg-gray-800/40 transition">
+          <td class="px-4 py-3 font-semibold text-white">${r.name}</td>
+          <td class="px-4 py-3"><span class="px-2 py-0.5 rounded text-xs ${r.diff.includes('하드') || r.diff.includes('3단') || r.diff.includes('나메') ? 'bg-red-950 text-red-400 border border-red-800' : 'bg-blue-950 text-blue-400 border border-blue-800'}">${r.diff}</span></td>
+          <td class="px-4 py-3 text-right font-mono">${r.level}</td>
+          <td class="px-4 py-3 text-right font-mono text-amber-400">${r.goldTrade} G</td>
+          <td class="px-4 py-3 text-right font-mono text-emerald-400">${r.goldBound} G</td>
+          <td class="px-4 py-3 text-right font-mono font-bold text-yellow-300">${r.goldTotal} G</td>
+          <td class="px-4 py-3 text-right font-mono text-red-400">${r.moreCost} G</td>
+        </tr>
+      `).join('');
+    }
+
+    // ★ 4. 캐릭터 변경 요청 모달 컨트롤 & 디스코드 복사 연동
+    function openChangeRequestModal() {
+      const modal = document.getElementById('changeModal');
+      const userSelect = document.getElementById('modalUserSelect');
+
+      userSelect.innerHTML = '<option value="">-- 유저 선택 --</option>';
+      Array.from(allMemberList).sort().forEach(u => {
+        const opt = document.createElement('option');
+        opt.value = u;
+        opt.textContent = u;
+        if (u === selectedUser) opt.selected = true;
+        userSelect.appendChild(opt);
+      });
+
+      // 내 캐릭터 강조가 미선택 상태라면 안내
+      if (!selectedUser) {
+        userSelect.value = '';
+      }
+
+      onModalUserChange();
+      modal.classList.remove('hidden');
+      lucide.createIcons();
+    }
+
+    function closeChangeRequestModal() {
+      document.getElementById('changeModal').classList.add('hidden');
+    }
+
+    function onModalUserChange() {
+      const u = document.getElementById('modalUserSelect').value;
+      const targetSelect = document.getElementById('modalTargetRaidSelect');
+      const newCharSelect = document.getElementById('modalNewCharSelect');
+
+      targetSelect.innerHTML = '';
+      newCharSelect.innerHTML = '';
+
+      if (!u) {
+        targetSelect.innerHTML = '<option value="">유저를 먼저 선택해주세요.</option>';
+        newCharSelect.innerHTML = '<option value="">유저를 먼저 선택해주세요.</option>';
+        return;
+      }
+
+      // 1) 해당 유저가 출전 중인 일정 목록 추출
+      const userRaidSlots = (window.allRaidInstancesStore || []).filter(inst => inst.user && inst.user.startsWith(u));
+      if (userRaidSlots.length === 0) {
+        targetSelect.innerHTML = '<option value="">현재 편성된 레이드 일정이 없습니다.</option>';
+      } else {
+        userRaidSlots.forEach(inst => {
+          const opt = document.createElement('option');
+          opt.value = JSON.stringify(inst);
+          opt.textContent = `[${inst.sheetTitle}] ${inst.raidTitle} ➔ ${inst.charName} (${inst.job}/${inst.level})`;
+          targetSelect.appendChild(opt);
+        });
+      }
+
+      // 2) 해당 유저의 원정대 전체 캐릭터 풀 목록 추출
+      const userPoolChars = characterPoolData.filter(c => c.user && c.user.startsWith(u));
+      if (userPoolChars.length === 0) {
+        newCharSelect.innerHTML = '<option value="">등록된 캐릭터가 없습니다.</option>';
+      } else {
+        userPoolChars.forEach(c => {
+          const opt = document.createElement('option');
+          opt.value = JSON.stringify(c);
+          opt.textContent = `${c.name} [${c.job} / ${c.level.toFixed(2)} / ${c.pos}]`;
+          newCharSelect.appendChild(opt);
+        });
+      }
+    }
+
+    function copyChangeRequestText() {
+      const user = document.getElementById('modalUserSelect').value;
+      const targetVal = document.getElementById('modalTargetRaidSelect').value;
+      const newVal = document.getElementById('modalNewCharSelect').value;
+      const reason = document.getElementById('modalReasonInput').value.trim() || '없음';
+
+      if (!user || !targetVal || !newVal) {
+        alert('요청자, 기존 일정, 변경할 캐릭터를 모두 선택해 주세요.');
+        return;
+      }
+
+      const targetObj = JSON.parse(targetVal);
+      const newObj = JSON.parse(newVal);
+
+      const discordText = `📢 **[공대 편성 변경 요청]**
+• **요청자**: ${user}
+• **대상 일정**: [${targetObj.sheetTitle}] ${targetObj.raidTitle}
+• **기존 캐릭터**: ${targetObj.charName} (${targetObj.job} / ${targetObj.level})
+• **변경 희망 캐릭터**: ${newObj.name} (${newObj.job} / ${newObj.level.toFixed(2)} / ${newObj.pos})
+• **사유**: ${reason}`;
+
+      navigator.clipboard.writeText(discordText).then(() => {
+        alert('디스코드용 변경 요청 양식이 클립보드에 복사되었습니다!\n디스코드나 단톡방에 붙여넣어 주세요.');
+        closeChangeRequestModal();
+      }).catch(err => {
+        console.error(err);
+        prompt('아래 내용을 복사해 주세요:', discordText);
+      });
     }
   </script>
 </body>
