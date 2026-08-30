@@ -73,7 +73,7 @@
           <i data-lucide="flask-conical" class="w-6 h-6 text-purple-400"></i>
           <span class="font-bold text-lg text-white tracking-wide">LOA RAID [DEV]</span>
           <button onclick="openInfoModal('changelog')" class="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/30 hover:bg-purple-500/20 transition cursor-pointer" title="클릭하여 업데이트 이력 확인">
-            v1.0.7-dev
+            v1.0.9-dev
           </button>
         </div>
 
@@ -127,7 +127,7 @@
         <span class="font-semibold text-gray-300">골드 획득 범례:</span>
         <div class="flex items-center space-x-1.5">
           <span class="inline-block w-4 h-4 rounded-full bg-amber-500 text-[10px] text-amber-950 font-bold text-center leading-4">G</span>
-          <span>골드 획득 (절대적 상위 골드 레이드 3개 기준)</span>
+          <span>골드 획득 (레벨별 상위 골드 레이드 3개 기준)</span>
         </div>
         <div class="flex items-center space-x-1.5">
           <span class="inline-block w-4 h-4 rounded-full bg-cyan-600 text-[10px] text-white font-bold text-center leading-4">?</span>
@@ -135,7 +135,7 @@
         </div>
         <div class="flex items-center space-x-1.5">
           <span class="inline-block w-4 h-4 rounded-full bg-gray-700 text-[10px] text-red-500 font-bold text-center leading-4">✕</span>
-          <span>골드 미획득 (상위 3개 외 초과 일정)</span>
+          <span>골드 미획득 (상위 3개 외 하위 레이드)</span>
         </div>
       </div>
 
@@ -284,7 +284,7 @@
           <div class="bg-[#0d1117] p-3.5 rounded-xl border border-gray-800">
             <h4 class="font-bold text-white text-xs mb-1 text-yellow-400">Q. 골드 획득 슬롯 판별 기준은 무엇인가요?</h4>
             <p class="text-xs text-gray-300 leading-relaxed">
-              공대 일정에 등록된 레이드와 무관하게, <strong>각 캐릭터의 레벨별 절대적 상위 골드 레이드 3개</strong>만 골드 획득(EARN)으로 인정됩니다. 4회차 이상 출전하거나 하위 레이드 슬롯은 골드 미획득(NONE)으로 처리됩니다.
+              각 캐릭터의 레벨별 절대적 상위 골드 레이드 3개 종류를 기준으로 판별됩니다. 예를 들어 벨가/세르카/성당이 상위 3개인 캐릭터라면, 일정표에 4막이나 하위 레이드가 등록되어 있을 때 해당 슬롯은 골드가 미획득(빨간 X)으로 표시됩니다.
             </p>
           </div>
         </div>
@@ -292,12 +292,12 @@
         <div id="infoContentChangelog" class="space-y-3 hidden">
           <div class="border-l-2 border-purple-500 pl-3 py-1">
             <div class="flex items-center justify-between">
-              <span class="font-bold text-white text-xs">v1.0.7-dev - 절대적 상위 골드 레이드 기준 판별 고정</span>
+              <span class="font-bold text-white text-xs">v1.0.9-dev - 캐릭터별 레벨 맞춤형 상위 골드 3개 레이드 기준 고정</span>
               <span class="text-[11px] text-gray-500">2026.08.30</span>
             </div>
             <ul class="text-xs text-gray-400 mt-1 space-y-0.5 list-disc pl-3">
-              <li>캐릭터별 레벨 기준으로 가장 골드를 많이 주는 상위 3개 레이드를 절대 기준으로 설정</li>
-              <li>일정표에 등록된 슬롯이 해당 절대 상위 3개에 포함될 때만 골드(EARN) 부여</li>
+              <li>캐릭터 레벨에 따라 갈 수 있는 가장 비싼 레이드 3종을 절대 기준으로 산출</li>
+              <li>일정표 슬롯의 레이드 종류가 해당 기준에 부합할 때만 골드(EARN) 부여</li>
             </ul>
           </div>
         </div>
@@ -580,33 +580,23 @@
       }
     }
 
-    // ★ 절대적 상위 골드 레이드 3개 기준 판별 로직
+    // ★ 캐릭터별 레벨 기반 '절대적 상위 골드 레이드 3개' 가중치 선별 후 슬롯 매칭
     function calculateGoldEligibilities(instances) {
       slotGoldStatusMap = {};
 
-      // 1. 캐릭터 풀에서 각 캐릭터별 '절대적 상위 골드 레이드 3개'를 미리 계산해둠
-      const charTop3GoldWeights = {};
+      const charTop3Weights = {};
       characterPoolData.forEach(c => {
         const possibleRaids = [
-          { name: '종막', weight: getRaidGoldWeight('종막 하드') },
-          { name: '세르카', weight: getRaidGoldWeight('세르카 나이트메어') },
-          { name: '성당', weight: getRaidGoldWeight('지평의 성당 3단계') },
-          { name: '4막', weight: getRaidGoldWeight('4막 하드') },
-          { name: '벨가', weight: getRaidGoldWeight('벨가르딘 나이트메어') }
-        ].filter(r => {
-          if (r.name === '종막') return c.level >= 1710;
-          if (r.name === '세르카') return c.level >= 1710;
-          if (r.name === '성당') return c.level >= 1700;
-          if (r.name === '4막') return c.level >= 1700;
-          if (r.name === '벨가') return c.level >= 1750;
-          return false;
-        }).sort((a, b) => b.weight - a.weight);
+          { name: '벨가', weight: getRaidGoldWeight('벨가르딘 나이트메어'), min: 1750 },
+          { name: '세르카', weight: getRaidGoldWeight('세르카 나이트메어'), min: 1710 },
+          { name: '성당', weight: getRaidGoldWeight('지평의 성당 3단계'), min: 1700 },
+          { name: '종막', weight: getRaidGoldWeight('종막 하드'), min: 1710 },
+          { name: '4막', weight: getRaidGoldWeight('4막 하드'), min: 1700 }
+        ].filter(r => c.level >= r.min).sort((a, b) => b.weight - a.weight);
 
-        // 상위 3개의 가중치 목록 확보
-        charTop3GoldWeights[c.name] = possibleRaids.slice(0, 3).map(r => r.weight);
+        charTop3Weights[c.name] = possibleRaids.slice(0, 3).map(r => r.weight);
       });
 
-      // 2. 각 슬롯별로 해당 레이드가 캐릭터의 '상위 3개 골드 레이드 가중치'에 포함되는지 확인
       instances.forEach(inst => {
         const isGoldChar = goldEligibleCharNames.has(inst.charName);
         if (!isGoldChar) {
@@ -614,12 +604,11 @@
           return;
         }
 
-        const top3Weights = charTop3GoldWeights[inst.charName] || [];
+        const top3Weights = charTop3Weights[inst.charName] || [];
         const hasAct4Hard = inst.raidTitle.includes('4막') && inst.raidTitle.includes('하드');
         const hasCathedral2 = inst.raidTitle.includes('성당') && (inst.raidTitle.includes('2단') || inst.raidTitle.includes('2단계'));
 
-        // 해당 레이드의 가중치가 캐릭터의 상위 3개 가중치 커팅라인에 드는지 확인
-        const isTop3 = top3Weights.some(w => Math.abs(w - inst.weight) < 5); // 오차 범위 내 일치
+        const isTop3 = top3Weights.some(w => Math.abs(w - inst.weight) < 5);
 
         if (hasAct4Hard && hasCathedral2) {
           slotGoldStatusMap[inst.slotUid] = 'MAYBE';
@@ -892,7 +881,7 @@
     function renderGoldBadge(status) {
       if (status === 'EARN') {
         return `
-          <div class="relative flex items-center justify-center w-5 h-5 cursor-help" title="골드 획득 (상위 골드 레이드)">
+          <div class="relative flex items-center justify-center w-5 h-5 cursor-help" title="골드 획득 (레벨별 상위 골드 레이드)">
             <svg class="w-5 h-5" viewBox="0 0 24 24">
               <circle cx="12" cy="12" r="9.5" fill="#D97706" stroke="#B45309" stroke-width="1" />
               <circle cx="12" cy="12" r="7.5" fill="#FBBF24" stroke="#FDE68A" stroke-width="0.8" />
@@ -915,7 +904,7 @@
         `;
       } else {
         return `
-          <div class="relative flex items-center justify-center w-5 h-5 cursor-help opacity-75 hover:opacity-100 transition" title="골드 미획득 (상위 3개 레이드 외 일정)">
+          <div class="relative flex items-center justify-center w-5 h-5 cursor-help opacity-75 hover:opacity-100 transition" title="골드 미획득 (상위 3개 골드 레이드 외 일정)">
             <svg class="w-5 h-5" viewBox="0 0 24 24">
               <circle cx="12" cy="12" r="9.5" fill="#78716C" stroke="#57534E" stroke-width="1" />
               <circle cx="12" cy="12" r="7.5" fill="#A8A29E" stroke="#D6D3D1" stroke-width="0.8" />
