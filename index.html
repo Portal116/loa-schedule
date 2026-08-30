@@ -73,9 +73,8 @@
         <div class="flex items-center space-x-2">
           <i data-lucide="shield" class="w-6 h-6 text-yellow-500"></i>
           <span class="font-bold text-lg text-white tracking-wide">LOA RAID SCHEDULE</span>
-          <!-- 화면 상단 작게 표시되는 버전 뱃지 (클릭 시 패치노트 열림) -->
           <button onclick="openInfoModal('changelog')" class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-yellow-500/10 text-yellow-400 border border-yellow-500/30 hover:bg-yellow-500/20 transition cursor-pointer" title="클릭하여 업데이트 이력 확인">
-            v1.3.3
+            v1.3.4
           </button>
         </div>
 
@@ -308,12 +307,12 @@
         <div id="infoContentChangelog" class="space-y-3 hidden">
           <div class="border-l-2 border-yellow-500 pl-3 py-1">
             <div class="flex items-center justify-between">
-              <span class="font-bold text-white text-xs">v1.3.3 - 3번째 슬롯 파서 보정 및 버전 표시</span>
+              <span class="font-bold text-white text-xs">v1.3.4 - 서포터 상단 배치 & 파티 라벨 간소화</span>
               <span class="text-[11px] text-gray-500">2026.08.30</span>
             </div>
             <ul class="text-xs text-gray-400 mt-1 space-y-0.5 list-disc pl-3">
-              <li>상단 타이틀 옆 버전 뱃지(`v1.3.3`) 추가 및 바로가기 연동</li>
-              <li>1파티 공란 시 2파티 캐릭터가 100% 온전하게 읽히도록 고정 4슬롯 스캔 알고리즘 적용</li>
+              <li>화면 표시 시 서포터 슬롯을 맨 위칸에 우선 정렬</li>
+              <li>불필요한 1파티 / 2파티 텍스트 라벨 제거로 가독성 향상</li>
             </ul>
           </div>
         </div>
@@ -598,7 +597,6 @@
       while (r < rows.length) {
         const row = rows[r] || [];
         
-        // A열부터 J열까지 중 레이드 타이틀([...])이 있는지 전체 검사 (셀 병합 대응)
         let foundTitle = '';
         for (let col = 0; col < (is8Man ? 10 : 5); col++) {
           const val = (row[col] || '').toString().trim();
@@ -613,21 +611,18 @@
           const rawTitle = foundTitle;
           const slots = [];
           
-          r++; // 타이틀 다음 행으로 이동
+          r++;
 
-          // 헤더 행(유저명, 캐릭터명 등)이 있으면 1행 건너뛰기
           if (r < rows.length) {
             const checkRow = rows[r] || [];
             const isHeader = isHeaderWord((checkRow[0] || '').toString()) || isHeaderWord((checkRow[1] || '').toString());
             if (isHeader) r++;
           }
 
-          // 정확히 4개의 슬롯 데이터 행 수집
           for (let slotIdx = 0; slotIdx < 4 && r < rows.length; slotIdx++, r++) {
             const curRow = rows[r] || [];
             const actualSheetRow = r + 1;
 
-            // 만약 도중에 다음 레이드 타이틀을 만나면 조기 종료
             let nextTitleCheck = '';
             for (let col = 0; col < (is8Man ? 10 : 5); col++) {
               const val = (curRow[col] || '').toString().trim();
@@ -637,7 +632,7 @@
               }
             }
             if (nextTitleCheck) {
-              r--; // 다음 루프에서 처리할 수 있도록 인덱스 되돌림
+              r--;
               break;
             }
 
@@ -758,6 +753,24 @@
       });
     }
 
+    // ★ 화면 렌더링 시 서포터를 맨 위칸으로 정렬
+    function sortSlotsForDisplay(slots) {
+      return [...slots].sort((a, b) => {
+        const isSuppA = (a.pos === '서포터' || a.pos === '스왑가능');
+        const isSuppB = (b.pos === '서포터' || b.pos === '스왑가능');
+
+        // 순수 서포터를 최상단에 우선 배치
+        if (a.pos === '서포터' && b.pos !== '서포터') return -1;
+        if (b.pos === '서포터' && a.pos !== '서포터') return 1;
+
+        // 스왑가능을 다음 우선순위로 배치
+        if (isSuppA && !isSuppB) return -1;
+        if (isSuppB && !isSuppA) return 1;
+
+        return parseFloat(b.level) - parseFloat(a.level);
+      });
+    }
+
     function renderActiveTabContent() {
       const container = document.getElementById('raidContainer');
       const currentSheet = sheetsDataStore[currentActiveTab];
@@ -784,25 +797,21 @@
         `;
 
         if (block.is8Man) {
-          const p1Slots = block.slots.filter(s => s.party === 1);
-          const p2Slots = block.slots.filter(s => s.party === 2);
+          const p1Slots = sortSlotsForDisplay(block.slots.filter(s => s.party === 1));
+          const p2Slots = sortSlotsForDisplay(block.slots.filter(s => s.party === 2));
 
+          // 1파티/2파티 라벨 제거 및 깔끔한 2열 나열
           innerHTML += `
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div class="space-y-2">
-                <div class="text-xs font-bold text-gray-400 px-1">1 파티</div>
-                <div class="space-y-1.5">${renderPartySlots(p1Slots)}</div>
-              </div>
-              <div class="space-y-2">
-                <div class="text-xs font-bold text-gray-400 px-1">2 파티</div>
-                <div class="space-y-1.5">${renderPartySlots(p2Slots)}</div>
-              </div>
+              <div class="space-y-1.5">${renderPartySlots(p1Slots)}</div>
+              <div class="space-y-1.5">${renderPartySlots(p2Slots)}</div>
             </div>
           `;
         } else {
+          const sortedSlots = sortSlotsForDisplay(block.slots);
           innerHTML += `
             <div class="space-y-1.5 max-w-2xl">
-              ${renderPartySlots(block.slots)}
+              ${renderPartySlots(sortedSlots)}
             </div>
           `;
         }
@@ -898,7 +907,7 @@
       const slot = JSON.parse(decodeURIComponent(slotJsonEncoded));
       activeSwapTarget = slot;
 
-      document.getElementById('swapTargetRaidTitle').textContent = `[${slot.raidTitle}] (파티 ${slot.party})`;
+      document.getElementById('swapTargetRaidTitle').textContent = `[${slot.raidTitle}]`;
       document.getElementById('swapOldCharName').textContent = `${slot.user} ➔ ${slot.name} (${slot.job} / ${slot.level})`;
 
       const baseUser = slot.user.split('(')[0].trim();
@@ -946,7 +955,6 @@
       const target = activeSwapTarget;
       closeQuickSwapModal();
 
-      // UI 즉시 반영
       const curSheet = sheetsDataStore[target.sheetId];
       if (curSheet) {
         curSheet.blocks.forEach(b => {
@@ -962,7 +970,6 @@
         renderActiveTabContent();
       }
 
-      // Apps Script API 호출
       const payload = {
         sheetId: target.sheetId,
         sheetRow: target.sheetRow,
