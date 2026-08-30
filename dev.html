@@ -73,7 +73,7 @@
           <i data-lucide="flask-conical" class="w-6 h-6 text-purple-400"></i>
           <span class="font-bold text-lg text-white tracking-wide">LOA RAID [DEV]</span>
           <button onclick="openInfoModal('changelog')" class="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/30 hover:bg-purple-500/20 transition cursor-pointer" title="클릭하여 업데이트 이력 확인">
-            v1.0.32-dev
+            v1.0.34-dev
           </button>
         </div>
 
@@ -270,7 +270,7 @@
         <h3 class="text-lg font-bold text-white">내 캐릭터 즉시 변경</h3>
       </div>
       <p class="text-xs text-gray-400 mb-4" id="swapModalDesc">
-        본인 원정대 캐릭터로만 교체할 수 있습니다.
+        본인 원정대 캐릭터로만 교체할 수 있습니다. 캐릭터를 먼저 선택한 뒤, 하단의 <strong>확정 버튼</strong>을 눌러야 실제로 반영됩니다.
       </p>
 
       <div class="bg-[#0d1117] p-3 rounded-xl border border-gray-800 mb-4">
@@ -286,8 +286,9 @@
         <div class="space-y-2 max-h-64 overflow-y-auto modal-scroll pr-1.5" id="swapCharListContainer"></div>
       </div>
 
-      <div class="mt-5 flex items-center justify-end">
+      <div class="mt-5 flex items-center justify-between gap-2">
         <button onclick="closeQuickSwapModal()" class="px-4 py-2 rounded-lg text-xs font-semibold text-gray-400 hover:text-white bg-gray-800 transition">취소</button>
+        <button id="swapConfirmBtn" onclick="confirmQuickSwap()" disabled class="px-4 py-2 rounded-lg text-xs font-bold text-black bg-yellow-400 hover:bg-yellow-300 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-yellow-400 transition">캐릭터를 선택해 주세요</button>
       </div>
     </div>
   </div>
@@ -314,19 +315,48 @@
           <div class="bg-[#0d1117] p-3.5 rounded-xl border border-gray-800">
             <h4 class="font-bold text-white text-xs mb-1 text-yellow-400">Q. 일정표 슬롯 수정은 어떻게 하나요?</h4>
             <p class="text-xs text-gray-300 leading-relaxed">
-              상단 헤더의 <strong>[내 캐릭터 강조]</strong>에서 본인 계정을 먼저 선택하신 후, 일정표의 슬롯을 클릭하시면 본인 원정대 캐릭터들로만 구성된 교체 창이 열립니다.
+              상단 헤더의 <strong>[내 캐릭터 강조]</strong>에서 본인 계정을 먼저 선택하신 후, 일정표의 슬롯을 클릭하시면 본인 원정대 캐릭터들로만 구성된 교체 창이 열립니다. 목록에서 캐릭터를 <strong>먼저 선택</strong>한 뒤, 하단의 <strong>확정 버튼</strong>을 눌러야 실제로 반영됩니다 (오조작 방지를 위해 클릭 즉시 반영되지 않습니다).
             </p>
+          </div>
+          <div class="bg-[#0d1117] p-3.5 rounded-xl border border-gray-800">
+            <h4 class="font-bold text-white text-xs mb-1 text-yellow-400">Q. [캐릭터 현황] 탭의 V / W 상태는 무엇이 다른가요?</h4>
+            <ul class="text-xs text-gray-300 space-y-1.5 list-disc pl-4 mt-1">
+              <li><span class="text-gray-300 font-bold">V (일정표 자동 등록)</span> : 공대 일정표에 배치되어 자동으로 완료 처리된 숙제입니다. 일정표 종속 상태라 웹에서는 해제할 수 없습니다.</li>
+              <li><span class="text-purple-300 font-bold">W (개별 수동 완료)</span> : 일정표와 무관하게 개인이 직접 완료 처리한 숙제입니다. 뱃지를 클릭하면 원클릭으로 켜고 끌 수 있습니다.</li>
+            </ul>
           </div>
         </div>
 
         <div id="infoContentChangelog" class="space-y-3 hidden">
           <div class="border-l-2 border-purple-500 pl-3 py-1 mb-3">
             <div class="flex items-center justify-between">
-              <span class="font-bold text-white text-xs">v1.0.32-dev - 렌더링 함수(renderTabs 등) 누락 없는 완전체 버전</span>
+              <span class="font-bold text-white text-xs">v1.0.34-dev - 캐릭터 즉시 변경 UX 개선 및 Apps Script 실배포 코드 대조 완료</span>
+              <span class="text-[11px] text-gray-500">2026.08.31</span>
+            </div>
+            <ul class="text-xs text-gray-400 mt-1 space-y-0.5 list-disc pl-3">
+              <li>[내 캐릭터 즉시 변경] 모달: 캐릭터 클릭 시 즉시 반영되던 방식을 '선택 → 확정 버튼 클릭' 2단계 방식으로 변경 (오조작 방지)</li>
+              <li>W(개별 수동 완료) 토글 전송 액션명을 실제 Api.gs 기준인 'toggleWildClear'로 일치시킴</li>
+              <li>Config.gs / Menu.gs / Api.gs / Sync.gs 4개 백엔드 스크립트 전수 대조 검토 완료</li>
+            </ul>
+          </div>
+          <div class="border-l-2 border-purple-500 pl-3 py-1 mb-3">
+            <div class="flex items-center justify-between">
+              <span class="font-bold text-white text-xs">v1.0.33-dev - 누락 함수 전수 복구 및 V/W 토글 연동</span>
               <span class="text-[11px] text-gray-500">2026.08.30</span>
             </div>
             <ul class="text-xs text-gray-400 mt-1 space-y-0.5 list-disc pl-3">
-              <li>renderTabs 및 관련 UI 렌더링 함수 전수 검수 완료</li>
+              <li>renderPartySlots / renderGoldBadge / renderPoolView / renderGoldTableView 등 정의 누락으로 발생하던 ReferenceError 전수 수정</li>
+              <li>캐릭터 현황 탭에 V(일정표 종속, 해제 불가) / W(개별 수동 완료, 원클릭 토글) 상태 뱃지 신규 연동</li>
+              <li>일정표 슬롯 즉시 교체(payload)에 action 필드를 추가하여 Apps Script 백엔드에서 스왑/숙제토글 요청을 구분하도록 개선</li>
+            </ul>
+          </div>
+          <div class="border-l-2 border-gray-700 pl-3 py-1 mb-3">
+            <div class="flex items-center justify-between">
+              <span class="font-bold text-white text-xs">v1.0.32-dev - 렌더링 함수(renderTabs 등) 누락 없는 완전체 버전 (시도)</span>
+              <span class="text-[11px] text-gray-500">2026.08.30</span>
+            </div>
+            <ul class="text-xs text-gray-400 mt-1 space-y-0.5 list-disc pl-3">
+              <li>renderTabs 및 관련 UI 렌더링 함수 전수 검수 완료 (일부 함수 누락은 v1.0.33-dev에서 수정됨)</li>
             </ul>
           </div>
         </div>
@@ -368,6 +398,7 @@
     let characterPoolData = [];
     let raidInfoData = [];
     let activeSwapTarget = null;
+    let pendingSwapChar = null;
     let goldEligibleCharNames = new Set();
 
     document.addEventListener('DOMContentLoaded', () => {
@@ -891,6 +922,250 @@
       lucide.createIcons();
     }
 
+    // ============================================================
+    // [v1.0.33-dev 패치] 누락되어 있던 렌더링/토글 함수 전수 복구
+    // renderPartySlots / renderGoldBadge / renderPoolView /
+    // renderRaidTag / getDifficultyBadge / renderGoldTableView /
+    // toggleManualHomework 가 정의되지 않아 ReferenceError가 발생하던
+    // 부분을 이 블록에서 모두 채워 넣었습니다.
+    // ============================================================
+
+    function renderGoldBadge(status) {
+      if (status === 'EARN') {
+        return `
+          <div class="relative flex items-center justify-center w-5 h-5 cursor-help" title="골드 획득 (레벨 기준 상위 3개 레이드)">
+            <svg class="w-5 h-5" viewBox="0 0 24 24">
+              <circle cx="12" cy="12" r="9.5" fill="#D97706" stroke="#B45309" stroke-width="1" />
+              <circle cx="12" cy="12" r="7.5" fill="#FBBF24" stroke="#FDE68A" stroke-width="0.8" />
+              <text x="12" y="15.2" font-size="9" font-weight="900" font-family="Arial, sans-serif" fill="#78350F" text-anchor="middle">G</text>
+            </svg>
+          </div>
+        `;
+      } else if (status === 'MAYBE') {
+        return `
+          <div class="relative flex items-center justify-center w-5 h-5 cursor-help" title="선택 골드 구간 (레벨 구간에 따라 상위 3개 중 하나로 취급될 수 있는 일정)">
+            <svg class="w-5 h-5" viewBox="0 0 24 24">
+              <circle cx="12" cy="12" r="9.5" fill="#D97706" stroke="#B45309" stroke-width="1" />
+              <circle cx="12" cy="12" r="7.5" fill="#FBBF24" stroke="#FDE68A" stroke-width="0.8" />
+              <text x="12" y="15.2" font-size="9" font-weight="900" font-family="Arial, sans-serif" fill="#78350F" text-anchor="middle">G</text>
+            </svg>
+            <div class="absolute -top-1 -right-1 w-3.5 h-3.5 bg-cyan-600 border border-[#161b22] rounded-full flex items-center justify-center">
+              <span class="text-[9px] font-black text-white leading-none">?</span>
+            </div>
+          </div>
+        `;
+      } else {
+        return `
+          <div class="relative flex items-center justify-center w-5 h-5 cursor-help opacity-75 hover:opacity-100 transition" title="골드 미획득 (상위 3개 레이드 외 일정)">
+            <svg class="w-5 h-5" viewBox="0 0 24 24">
+              <circle cx="12" cy="12" r="9.5" fill="#78716C" stroke="#57534E" stroke-width="1" />
+              <circle cx="12" cy="12" r="7.5" fill="#A8A29E" stroke="#D6D3D1" stroke-width="0.8" />
+              <text x="12" y="15.2" font-size="9" font-weight="900" font-family="Arial, sans-serif" fill="#44403C" text-anchor="middle">G</text>
+            </svg>
+            <svg class="absolute inset-0 w-5 h-5" viewBox="0 0 24 24">
+              <line x1="5.5" y1="5.5" x2="18.5" y2="18.5" stroke="#DC2626" stroke-width="2.5" stroke-linecap="round" />
+              <line x1="18.5" y1="5.5" x2="5.5" y2="18.5" stroke="#DC2626" stroke-width="2.5" stroke-linecap="round" />
+            </svg>
+          </div>
+        `;
+      }
+    }
+
+    function renderPartySlots(slots) {
+      return slots.map(slot => {
+        const isMe = selectedUser && slot.user.startsWith(selectedUser);
+        const isSupporter = slot.pos === '서포터';
+        const isSwap = slot.pos === '스왑가능';
+        const goldStatus = slotGoldStatusMap[slot.slotUid] || 'NONE';
+
+        let posBadge = `<span class="badge-dealer text-[11px] font-semibold px-2 py-0.5 rounded">딜러</span>`;
+        if (isSupporter) {
+          posBadge = `<span class="badge-supporter text-[11px] font-semibold px-2 py-0.5 rounded">서포터</span>`;
+        } else if (isSwap) {
+          posBadge = `<span class="badge-swap text-[11px] font-semibold px-2 py-0.5 rounded">스왑</span>`;
+        }
+
+        const rowStyle = isMe
+          ? 'my-highlight'
+          : (isSupporter ? 'supporter-row' : 'bg-[#0d1117]/60 hover:bg-[#0d1117]');
+
+        const slotJson = encodeURIComponent(JSON.stringify(slot));
+
+        return `
+          <div onclick="openQuickSwapModal('${slotJson}')" class="flex items-center justify-between p-2.5 rounded-lg border border-gray-800/80 ${rowStyle} slot-hover transition">
+            <div class="flex items-center space-x-3">
+              ${posBadge}
+              <div class="flex flex-col sm:flex-row sm:items-center sm:space-x-2">
+                <span class="text-xs text-gray-400 font-medium">${slot.user}</span>
+                <span class="text-sm font-semibold text-gray-200">${slot.name}</span>
+              </div>
+            </div>
+            <div class="flex items-center space-x-2.5 sm:space-x-3 text-right">
+              ${renderGoldBadge(goldStatus)}
+              <span class="text-xs text-gray-400 hidden sm:inline">${slot.job}</span>
+              <span class="text-sm font-mono font-medium text-yellow-500/90">${slot.level}</span>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function getRaidMinLevel(raidKey) {
+      const def = RAID_DEFINITIONS.find(r => r.key === raidKey);
+      return def ? def.minLevel : 1700;
+    }
+
+    // 캐릭터 현황 탭의 레이드별 숙제 뱃지 렌더링
+    // status: 'V' = 일정표 자동 등록(웹에서 해제 불가), 'W' = 개별 수동 완료(원클릭 토글 가능), '' = 미완료
+    function renderRaidTag(label, status, charLevel, raidKey, charName) {
+      const minCut = getRaidMinLevel(raidKey);
+      const canEnter = charLevel >= minCut;
+
+      if (status === 'V') {
+        return `<span class="px-1.5 py-0.5 bg-gray-900 border border-gray-700 text-gray-400 font-bold rounded text-[10px] cursor-not-allowed select-none" title="일정표에 자동 등록된 숙제입니다 (웹에서는 해제할 수 없습니다)">${label} ✓</span>`;
+      }
+
+      if (status === 'W') {
+        return `<span onclick="toggleManualHomework('${charName.replace(/'/g, "\\'")}','${raidKey}')" class="px-1.5 py-0.5 bg-purple-950 border border-purple-500 text-purple-300 font-bold rounded text-[10px] cursor-pointer hover:bg-purple-900 transition" title="개별 수동 완료 처리됨 (클릭 시 취소)">${label} ✓</span>`;
+      }
+
+      if (canEnter) {
+        return `<span onclick="toggleManualHomework('${charName.replace(/'/g, "\\'")}','${raidKey}')" class="px-1.5 py-0.5 bg-gray-800 border border-gray-700 text-gray-300 font-medium rounded text-[10px] hover:border-yellow-500 hover:text-yellow-300 cursor-pointer transition" title="입장 가능 (클릭하여 개별 수동 완료 처리)">${label}</span>`;
+      }
+
+      return `<span class="px-1.5 py-0.5 bg-[#0d1117] border border-gray-900 text-gray-600 line-through rounded text-[10px] opacity-60 cursor-not-allowed select-none" title="입장 불가 (최소 레벨 ${minCut} 미달)">${label}</span>`;
+    }
+
+    // W(개별 수동 완료) 상태만 웹에서 원클릭 토글 가능. V(일정표 자동 등록)는 해제 불가.
+    async function toggleManualHomework(charName, raidKey) {
+      const charObj = characterPoolData.find(c => c.name === charName);
+      if (!charObj) return;
+
+      const curStatus = charObj.raids[raidKey];
+      if (curStatus === 'V') return; // 공대 일정 종속 상태는 웹에서 해제 불가
+
+      const minCut = getRaidMinLevel(raidKey);
+      if (curStatus !== 'W' && charObj.level < minCut) return; // 입장 불가 레벨이면 클릭 무시
+
+      const newStatus = (curStatus === 'W') ? '' : 'W';
+      charObj.raids[raidKey] = newStatus;
+      renderPoolView();
+
+      try {
+        await fetch(APPS_SCRIPT_WEB_APP_URL, {
+          method: 'POST',
+          mode: 'no-cors',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'toggleWildClear',
+            charName: charName,
+            raidKey: raidKey
+          })
+        });
+      } catch (err) {
+        console.error('숙제 상태 저장 오류:', err);
+      }
+    }
+
+    function renderPoolView() {
+      const grid = document.getElementById('poolGrid');
+      const uFilter = document.getElementById('poolUserFilter').value;
+      const pFilter = document.getElementById('poolPosFilter').value;
+      const lFilter = parseFloat(document.getElementById('poolLevelFilter').value) || 0;
+
+      const filtered = characterPoolData.filter(c => {
+        if (uFilter && !c.user.startsWith(uFilter)) return false;
+        if (lFilter > 0 && c.level < lFilter) return false;
+
+        if (pFilter === 'DEALER') {
+          if (c.pos !== '딜러' && c.pos !== '스왑가능') return false;
+        } else if (pFilter === 'SUPPORTER') {
+          if (c.pos !== '서포터' && c.pos !== '스왑가능') return false;
+        }
+        return true;
+      });
+
+      const poolCountEl = document.getElementById('poolCount');
+      if (poolCountEl) poolCountEl.textContent = filtered.length;
+
+      if (filtered.length === 0) {
+        grid.innerHTML = `<div class="col-span-full py-16 text-center text-gray-500 card-bg rounded-xl">조건에 맞는 캐릭터가 없습니다.</div>`;
+        return;
+      }
+
+      grid.innerHTML = filtered.map(c => {
+        const isMe = selectedUser && c.user.startsWith(selectedUser);
+        let posBadge = `<span class="badge-dealer text-[11px] font-semibold px-2 py-0.5 rounded">딜러</span>`;
+        if (c.pos === '서포터') posBadge = `<span class="badge-supporter text-[11px] font-semibold px-2 py-0.5 rounded">서포터</span>`;
+        else if (c.pos === '스왑가능') posBadge = `<span class="badge-swap text-[11px] font-semibold px-2 py-0.5 rounded">스왑가능</span>`;
+
+        const goldTag = goldEligibleCharNames.has(c.name)
+          ? `<span class="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 border border-amber-600/40 font-semibold">골드권</span>`
+          : `<span class="text-[10px] px-1.5 py-0.5 rounded bg-gray-800 text-gray-500 border border-gray-700">골드권 외</span>`;
+
+        return `
+          <div class="card-bg p-4 rounded-xl border border-gray-800 flex flex-col justify-between space-y-3 ${isMe ? 'border-yellow-500/50 bg-yellow-950/10' : ''}">
+            <div class="flex items-start justify-between">
+              <div>
+                <div class="text-xs text-gray-400 font-medium mb-0.5">${c.user} (${c.server})</div>
+                <div class="text-base font-bold text-white flex items-center space-x-2">
+                  <span>${c.name}</span>
+                </div>
+              </div>
+              <div class="text-right space-y-1">
+                ${posBadge}
+                <div class="text-xs text-gray-400">${c.job}</div>
+                ${goldTag}
+              </div>
+            </div>
+
+            <div class="flex items-center justify-between border-t border-gray-800/60 pt-2.5">
+              <span class="text-sm font-mono font-bold text-yellow-500/90">${c.level.toLocaleString('ko-KR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+              <div class="flex items-center flex-wrap justify-end gap-1">
+                ${renderRaidTag('종막', c.raids.final, c.level, 'final', c.name)}
+                ${renderRaidTag('4막', c.raids.act4, c.level, 'act4', c.name)}
+                ${renderRaidTag('성당', c.raids.cathedral, c.level, 'cathedral', c.name)}
+                ${renderRaidTag('세르카', c.raids.serka, c.level, 'serka', c.name)}
+                ${renderRaidTag('벨가', c.raids.belga, c.level, 'belga', c.name)}
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      lucide.createIcons();
+    }
+
+    function getDifficultyBadge(diff) {
+      if (diff.includes('나이트메어') || diff.includes('3단')) {
+        return `<span class="px-2 py-0.5 rounded text-xs bg-purple-950 text-purple-400 border border-purple-800 font-medium">${diff}</span>`;
+      } else if (diff.includes('하드') || diff.includes('2단')) {
+        return `<span class="px-2 py-0.5 rounded text-xs bg-red-950 text-red-400 border border-red-800 font-medium">${diff}</span>`;
+      } else {
+        return `<span class="px-2 py-0.5 rounded text-xs bg-gray-800 text-gray-300 font-medium">${diff}</span>`;
+      }
+    }
+
+    function renderGoldTableView() {
+      const tbody = document.getElementById('goldTableBody');
+      if (raidInfoData.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="7" class="text-center py-8 text-gray-500">Raid_Info 시트 데이터를 가져오지 못했습니다.</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = raidInfoData.map(r => `
+        <tr class="hover:bg-gray-800/40 transition">
+          <td class="px-4 py-3 font-semibold text-white">${r.name}</td>
+          <td class="px-4 py-3"><span class="px-2 py-0.5 rounded text-xs bg-blue-950 text-blue-400 border border-blue-800">${r.category}</span></td>
+          <td class="px-4 py-3">${getDifficultyBadge(r.diff)}</td>
+          <td class="px-4 py-3 text-right font-mono">${r.level}</td>
+          <td class="px-4 py-3 text-right font-mono text-amber-400">${r.goldTrade} G</td>
+          <td class="px-4 py-3 text-right font-mono text-emerald-400">${r.goldBound} G</td>
+          <td class="px-4 py-3 text-right font-mono font-bold text-yellow-300">${r.goldTotal} G</td>
+        </tr>
+      `).join('');
+    }
+
     function getCharTop3Raids(charLevel) {
       const pool = [
         { key: 'belga', name: '벨가르딘', min: 1750, payout: 75000 },
@@ -959,26 +1234,30 @@
 
       const slot = JSON.parse(decodeURIComponent(slotJsonEncoded));
       activeSwapTarget = slot;
+      pendingSwapChar = null;
 
       document.getElementById('swapTargetRaidTitle').textContent = `[${slot.raidTitle}]`;
       document.getElementById('swapOldCharName').textContent = `${slot.user} ➔ ${slot.name} (${slot.job} / ${slot.level})`;
       document.getElementById('swapModalUserLabel').textContent = `교체할 본인(${selectedUser}) 원정대 캐릭터 선택`;
 
       const userPool = characterPoolData.filter(c => c.user.startsWith(selectedUser));
+      window.__swapUserPool = userPool;
+
       const container = document.getElementById('swapCharListContainer');
 
       if (userPool.length === 0) {
         container.innerHTML = `<div class="text-center py-6 text-xs text-gray-500">선택된 계정(${selectedUser})으로 등록된 캐릭터가 없습니다.</div>`;
       } else {
-        container.innerHTML = userPool.map(c => {
+        container.innerHTML = userPool.map((c, idx) => {
           const isCurrent = (c.name === slot.name);
           return `
-            <div onclick="executeInstantSwap('${encodeURIComponent(JSON.stringify(c))}')" class="flex items-center justify-between p-3 rounded-lg border ${isCurrent ? 'border-yellow-500/60 bg-yellow-950/20' : 'border-gray-800 bg-[#0d1117] hover:border-gray-600'} cursor-pointer transition">
+            <div id="swapRow_${idx}" onclick="selectSwapCandidate(${idx})" class="swap-candidate-row flex items-center justify-between p-3 rounded-lg border ${isCurrent ? 'border-yellow-500/60 bg-yellow-950/20' : 'border-gray-800 bg-[#0d1117] hover:border-gray-600'} cursor-pointer transition">
               <div>
                 <div class="text-xs text-gray-400">${c.user} (${c.server})</div>
                 <div class="text-sm font-bold text-white flex items-center space-x-2">
                   <span>${c.name}</span>
                   ${isCurrent ? '<span class="text-[10px] text-yellow-400 font-normal">[현재 출전 중]</span>' : ''}
+                  <span class="swap-selected-tag hidden text-[10px] text-cyan-300 font-bold">[선택됨]</span>
                 </div>
               </div>
               <div class="text-right">
@@ -990,15 +1269,60 @@
         }).join('');
       }
 
+      updateSwapConfirmButtonState();
       document.body.style.overflow = 'hidden';
       document.getElementById('quickSwapModal').classList.remove('hidden');
       lucide.createIcons();
+    }
+
+    // 목록에서 캐릭터를 누르면 즉시 반영하지 않고 '선택'만 표시한다.
+    function selectSwapCandidate(idx) {
+      const pool = window.__swapUserPool || [];
+      const char = pool[idx];
+      if (!char) return;
+
+      pendingSwapChar = char;
+
+      document.querySelectorAll('#swapCharListContainer .swap-candidate-row').forEach(el => {
+        el.classList.remove('ring-2', 'ring-cyan-400', 'border-cyan-400', 'bg-cyan-950/20');
+        const tag = el.querySelector('.swap-selected-tag');
+        if (tag) tag.classList.add('hidden');
+      });
+
+      const target = document.getElementById(`swapRow_${idx}`);
+      if (target) {
+        target.classList.add('ring-2', 'ring-cyan-400', 'border-cyan-400', 'bg-cyan-950/20');
+        const tag = target.querySelector('.swap-selected-tag');
+        if (tag) tag.classList.remove('hidden');
+      }
+
+      updateSwapConfirmButtonState();
+    }
+
+    function updateSwapConfirmButtonState() {
+      const btn = document.getElementById('swapConfirmBtn');
+      if (!btn) return;
+      if (pendingSwapChar) {
+        btn.disabled = false;
+        btn.textContent = `${pendingSwapChar.name} (으)로 변경 확정`;
+      } else {
+        btn.disabled = true;
+        btn.textContent = '캐릭터를 선택해 주세요';
+      }
+    }
+
+    // 확정 버튼을 눌렀을 때만 실제로 시트에 반영한다.
+    function confirmQuickSwap() {
+      if (!pendingSwapChar) return;
+      executeInstantSwap(encodeURIComponent(JSON.stringify(pendingSwapChar)));
     }
 
     function closeQuickSwapModal() {
       document.body.style.overflow = '';
       document.getElementById('quickSwapModal').classList.add('hidden');
       activeSwapTarget = null;
+      pendingSwapChar = null;
+      window.__swapUserPool = null;
     }
 
     async function executeInstantSwap(newCharJsonEncoded) {
@@ -1024,6 +1348,7 @@
       }
 
       const payload = {
+        action: 'swap',
         sheetId: target.sheetId,
         sheetRow: target.sheetRow,
         party: target.party,
