@@ -73,7 +73,7 @@
           <i data-lucide="flask-conical" class="w-6 h-6 text-purple-400"></i>
           <span class="font-bold text-lg text-white tracking-wide">LOA RAID [DEV]</span>
           <button onclick="openInfoModal('changelog')" class="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/30 hover:bg-purple-500/20 transition cursor-pointer" title="클릭하여 업데이트 이력 확인">
-            v1.0.11-dev
+            v1.0.12-dev
           </button>
         </div>
 
@@ -278,9 +278,9 @@
       <div class="overflow-y-auto modal-scroll pr-2 space-y-4 text-sm text-gray-300 flex-1">
         <div id="infoContentGuide" class="space-y-3">
           <div class="bg-[#0d1117] p-3.5 rounded-xl border border-gray-800">
-            <h4 class="font-bold text-white text-xs mb-1 text-yellow-400">Q. 완료 체크 색상이 다른 이유는 무엇인가요?</h4>
+            <h4 class="font-bold text-white text-xs mb-1 text-yellow-400">Q. 골드 획득 슬롯 판별 기준은 무엇인가요?</h4>
             <p class="text-xs text-gray-300 leading-relaxed">
-              <strong>골드 획득 대상(상위 3개) 레이드</strong>를 완료하면 선명한 초록색/보라색으로 표시되며, <strong>골드를 받지 않는 하위 레이드(배럭 참여 등)</strong>를 완료한 경우 회색빛(톤다운된 스타일)으로 구분되어 표시됩니다.
+              각 캐릭터의 레벨별 실제 골드 보상이 가장 높은 상위 3개 레이드를 기준으로 판별됩니다. 고스펙 캐릭터가 4막이나 종막 같은 하위 레이드 공대에 참여하더라도, 실제 골드 획득 대상이 아니기 때문에 빨간 X로 정확히 표시됩니다.
             </p>
           </div>
         </div>
@@ -289,15 +289,25 @@
           <!-- 최신 버전 이력 -->
           <div class="border-l-2 border-purple-500 pl-3 py-1 mb-3">
             <div class="flex items-center justify-between">
-              <span class="font-bold text-white text-xs">v1.0.11-dev - 골드 획득 여부에 따른 체크 뱃지 시각적 구분 기능 추가</span>
+              <span class="font-bold text-white text-xs">v1.0.12-dev - 고스펙 캐릭터 하위 레이드 골드 오탐지 문제 해결</span>
               <span class="text-[11px] text-gray-500">2026.08.30</span>
             </div>
             <ul class="text-xs text-gray-400 mt-1 space-y-0.5 list-disc pl-3">
-              <li>캐릭터 현황판에서 완료된 숙제가 골드 획득 대상인지 여부에 따라 초록색(골드O) vs 회색톤(골드X/배럭)으로 디자인 분기</li>
+              <li>레벨별 최상위 골드 레이드 판별 시 실제 보상 순위(벨가 ➔ 세르카 ➔ 성당/종막 ➔ 4막)를 명시적 기준으로 고정하여 고스펙 배럭의 4막/종막 골드 오인식 원천 차단</li>
             </ul>
           </div>
 
           <!-- 이전 버전 누적 이력 -->
+          <div class="border-l-2 border-gray-700 pl-3 py-1 mb-3">
+            <div class="flex items-center justify-between">
+              <span class="font-bold text-gray-300 text-xs">v1.0.11-dev - 골드 획득 여부에 따른 체크 뱃지 시각적 구분 기능 추가</span>
+              <span class="text-[11px] text-gray-500">2026.08.30</span>
+            </div>
+            <ul class="text-xs text-gray-500 mt-1 space-y-0.5 list-disc pl-3">
+              <li>캐릭터 현황판에서 완료된 숙제가 골드 획득 대상인지 여부에 따라 초록색(골드O) vs 회색톤(골드X/배럭)으로 디자인 분기</li>
+            </ul>
+          </div>
+
           <div class="border-l-2 border-gray-700 pl-3 py-1 mb-3">
             <div class="flex items-center justify-between">
               <span class="font-bold text-gray-300 text-xs">v1.0.10-dev - 캐릭터 현황 유저 필터 기본값 '내 캐릭터 강조' 연동</span>
@@ -333,7 +343,7 @@
       </div>
 
       <div class="mt-4 pt-3 border-t border-gray-800 flex justify-end">
-        <button onclick="closeInfoModal()" class="px-4 py-2 rounded-lg text-xs font-semibold text-black bg-yellow-400 hover:bg-yellow-300 transition">닫기</button>
+        <button onclick="openInfoModal()" class="px-4 py-2 rounded-lg text-xs font-semibold text-black bg-yellow-400 hover:bg-yellow-300 transition">닫기</button>
       </div>
     </div>
   </div>
@@ -622,20 +632,23 @@
       }
     }
 
+    // ★ 로스트아크 실제 골드 보상 순위(벨가 > 세르카 > 성당/종막 > 4막) 기반 엄격한 상위 3개 판별
     function calculateGoldEligibilities(instances) {
       slotGoldStatusMap = {};
 
-      const charTop3Weights = {};
+      const charTop3Keys = {};
       characterPoolData.forEach(c => {
-        const possibleRaids = [
-          { name: '벨가', weight: getRaidGoldWeight('벨가르딘 나이트메어'), min: 1750 },
-          { name: '세르카', weight: getRaidGoldWeight('세르카 나이트메어'), min: 1710 },
-          { name: '성당', weight: getRaidGoldWeight('지평의 성당 3단계'), min: 1700 },
-          { name: '종막', weight: getRaidGoldWeight('종막 하드'), min: 1710 },
-          { name: '4막', weight: getRaidGoldWeight('4막 하드'), min: 1700 }
-        ].filter(r => c.level >= r.min).sort((a, b) => b.weight - a.weight);
+        // 레벨별 갈 수 있는 레이드 중 실제 골드 가치가 높은 최상위 3개 키 확정
+        const available = [];
+        if (c.level >= 1750) available.push({ key: 'belga', payout: 75000 });
+        if (c.level >= 1710) available.push({ key: 'serka', payout: 54000 });
+        if (c.level >= 1700) available.push({ key: 'cathedral', payout: 50000 });
+        if (c.level >= 1710) available.push({ key: 'final', payout: 48000 });
+        if (c.level >= 1700) available.push({ key: 'act4', payout: 38000 });
 
-        charTop3Weights[c.name] = possibleRaids.slice(0, 3).map(r => r.weight);
+        // 보상금액 기준 내림차순 정렬 후 상위 3개 키 추출
+        available.sort((a, b) => b.payout - a.payout);
+        charTop3Keys[c.name] = available.slice(0, 3).map(x => x.key);
       });
 
       instances.forEach(inst => {
@@ -645,13 +658,22 @@
           return;
         }
 
-        const top3Weights = charTop3Weights[inst.charName] || [];
-        const hasAct4Hard = inst.raidTitle.includes('4막') && inst.raidTitle.includes('하드');
-        const hasCathedral2 = inst.raidTitle.includes('성당') && (inst.raidTitle.includes('2단') || inst.raidTitle.includes('2단계'));
+        const top3Keys = charTop3Keys[inst.charName] || [];
+        const title = inst.raidTitle;
 
-        const isTop3 = top3Weights.some(w => Math.abs(w - inst.weight) < 5);
+        let instKey = '';
+        if (title.includes('벨가')) instKey = 'belga';
+        else if (title.includes('세르카')) instKey = 'serka';
+        else if (title.includes('성당')) instKey = 'cathedral';
+        else if (title.includes('종막')) instKey = 'final';
+        else if (title.includes('4막')) instKey = 'act4';
 
-        if (hasAct4Hard && hasCathedral2) {
+        const isAct4Hard = title.includes('4막') && title.includes('하드');
+        const isCathedral2 = title.includes('성당') && (title.includes('2단') || title.includes('2단계'));
+
+        const isTop3 = top3Keys.includes(instKey);
+
+        if (isAct4Hard && isCathedral2) {
           slotGoldStatusMap[inst.slotUid] = 'MAYBE';
         } else if (isTop3) {
           slotGoldStatusMap[inst.slotUid] = 'EARN';
@@ -1038,7 +1060,7 @@
       }
 
       document.body.style.overflow = 'hidden';
-      document.getElementById('quickSwapModal').classList.add('hidden');
+      document.getElementById('quickSwapModal').classList.remove('hidden');
       lucide.createIcons();
     }
 
@@ -1127,14 +1149,12 @@
       }
     }
 
-    // ★ 캐릭터 현황 탭에서 골드 획득 여부에 따라 체크(✓) 스타일 분기
     function renderRaidTagWithToggle(c, def, isTopGoldRaid) {
-      const status = c.raids[def.key]; // 'V' or 'W' or ''
+      const status = c.raids[def.key];
       const isEnterable = c.level >= def.minLevel;
 
       if (status === 'V') {
         if (isTopGoldRaid) {
-          // 공대 완료 + 골드 획득 대상 (초록색 선명)
           return `
             <span class="px-2 py-1 bg-emerald-950 border border-emerald-600 text-emerald-400 font-bold rounded text-[11px] flex items-center space-x-1 cursor-default select-none shadow-sm" title="공대 일정 완료 (골드 획득)">
               <span>${def.label}</span>
@@ -1142,7 +1162,6 @@
             </span>
           `;
         } else {
-          // 공대 완료 + 골드 제외 (배럭/하위 레이드) -> 회색빛 톤다운
           return `
             <span class="px-2 py-1 bg-gray-900 border border-gray-700 text-gray-400 rounded text-[11px] flex items-center space-x-1 cursor-default select-none opacity-80" title="공대 일정 완료 (골드 미포함/하위 레이드)">
               <span>${def.label}</span>
@@ -1162,7 +1181,6 @@
 
       if (status === 'W') {
         if (isTopGoldRaid) {
-          // 개별 완료 + 골드 획득 대상 (보라색 선명)
           return `
             <button onclick="toggleSheetWildClear('${c.name}', '${def.key}')" class="px-2 py-1 bg-purple-950 border border-purple-500 text-purple-300 font-bold rounded text-[11px] flex items-center space-x-1 hover:bg-purple-900 transition shadow-sm" title="개별 완료 - 골드 획득 (클릭 시 취소)">
               <span>${def.label}</span>
@@ -1170,7 +1188,6 @@
             </button>
           `;
         } else {
-          // 개별 완료 + 골드 제외 (배럭/하위 레이드) -> 어두운 회보라톤
           return `
             <button onclick="toggleSheetWildClear('${c.name}', '${def.key}')" class="px-2 py-1 bg-gray-900 border border-gray-700 text-gray-400 hover:text-gray-200 rounded text-[11px] flex items-center space-x-1 transition opacity-80" title="개별 완료 - 골드 미포함 (클릭 시 취소)">
               <span>${def.label}</span>
@@ -1225,7 +1242,7 @@
         const isMe = selectedUser && c.user.startsWith(selectedUser);
         let posBadge = `<span class="badge-dealer text-[11px] font-semibold px-2 py-0.5 rounded">딜러</span>`;
         if (c.pos === '서포터') posBadge = `<span class="badge-supporter text-[11px] font-semibold px-2 py-0.5 rounded">서포터</span>`;
-        else if (c.pos === '스왑가능') posBadge = `<span class="badge-swap text-[11px] font-semibold px-2 py-0.5 rounded">스왑가능</span>`;
+        else if (c.pos === '스왑가능') posBadge = `<span class="badge-swap text-[11px] font-semibold px-2 py-0.5 rounded">스왑</span>`;
 
         const isGoldEligibleChar = goldEligibleCharNames.has(c.name);
 
@@ -1239,7 +1256,6 @@
         let completedCount = 0;
         RAID_DEFINITIONS.forEach(def => {
           const st = c.raids[def.key];
-          // ★ 골드 획득 대상(top3Keys)에 포함된 숙제만 완료 카운트에 반영
           if ((st === 'V' || st === 'W') && top3Keys.includes(def.key)) completedCount++;
         });
 
