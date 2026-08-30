@@ -74,7 +74,7 @@
           <i data-lucide="shield" class="w-6 h-6 text-yellow-500"></i>
           <span class="font-bold text-lg text-white tracking-wide">LOA RAID SCHEDULE</span>
           <button onclick="openInfoModal('changelog')" class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-yellow-500/10 text-yellow-400 border border-yellow-500/30 hover:bg-yellow-500/20 transition cursor-pointer" title="클릭하여 업데이트 이력 확인">
-            v1.3.4
+            v1.3.5
           </button>
         </div>
 
@@ -307,12 +307,12 @@
         <div id="infoContentChangelog" class="space-y-3 hidden">
           <div class="border-l-2 border-yellow-500 pl-3 py-1">
             <div class="flex items-center justify-between">
-              <span class="font-bold text-white text-xs">v1.3.4 - 서포터 상단 배치 & 파티 라벨 간소화</span>
+              <span class="font-bold text-white text-xs">v1.3.5 - 2열 균등 배치 & 서포터 최상단 정렬</span>
               <span class="text-[11px] text-gray-500">2026.08.30</span>
             </div>
             <ul class="text-xs text-gray-400 mt-1 space-y-0.5 list-disc pl-3">
-              <li>화면 표시 시 서포터 슬롯을 맨 위칸에 우선 정렬</li>
-              <li>불필요한 1파티 / 2파티 텍스트 라벨 제거로 가독성 향상</li>
+              <li>서포터 및 스왑가능 캐릭터를 양쪽 2열의 최상단에 우선 배치</li>
+              <li>출전 캐릭터들을 좌/우 2열에 지그재그 균등 분배하여 비대칭/공백 현상 완전 해소</li>
             </ul>
           </div>
         </div>
@@ -753,22 +753,35 @@
       });
     }
 
-    // ★ 화면 렌더링 시 서포터를 맨 위칸으로 정렬
-    function sortSlotsForDisplay(slots) {
-      return [...slots].sort((a, b) => {
-        const isSuppA = (a.pos === '서포터' || a.pos === '스왑가능');
-        const isSuppB = (b.pos === '서포터' || b.pos === '스왑가능');
-
-        // 순수 서포터를 최상단에 우선 배치
-        if (a.pos === '서포터' && b.pos !== '서포터') return -1;
-        if (b.pos === '서포터' && a.pos !== '서포터') return 1;
-
-        // 스왑가능을 다음 우선순위로 배치
-        if (isSuppA && !isSuppB) return -1;
-        if (isSuppB && !isSuppA) return 1;
-
+    /**
+     * 서포터 최우선 + 2열 지그재그 균등 분배 알고리즘
+     */
+    function balanceSlotsFor8Man(slots) {
+      // 1. 서포터/스왑 최우선 정렬
+      const sorted = [...slots].sort((a, b) => {
+        const getPriority = (item) => {
+          if (item.pos === '서포터') return 3;
+          if (item.pos === '스왑가능') return 2;
+          return 1;
+        };
+        const pDiff = getPriority(b) - getPriority(a);
+        if (pDiff !== 0) return pDiff;
         return parseFloat(b.level) - parseFloat(a.level);
       });
+
+      // 2. 좌측 열(colLeft), 우측 열(colRight)에 번갈아가며 1명씩 배치
+      const colLeft = [];
+      const colRight = [];
+
+      sorted.forEach((slot, idx) => {
+        if (idx % 2 === 0) {
+          colLeft.push(slot);
+        } else {
+          colRight.push(slot);
+        }
+      });
+
+      return { colLeft, colRight };
     }
 
     function renderActiveTabContent() {
@@ -797,18 +810,23 @@
         `;
 
         if (block.is8Man) {
-          const p1Slots = sortSlotsForDisplay(block.slots.filter(s => s.party === 1));
-          const p2Slots = sortSlotsForDisplay(block.slots.filter(s => s.party === 2));
+          const { colLeft, colRight } = balanceSlotsFor8Man(block.slots);
 
-          // 1파티/2파티 라벨 제거 및 깔끔한 2열 나열
           innerHTML += `
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div class="space-y-1.5">${renderPartySlots(p1Slots)}</div>
-              <div class="space-y-1.5">${renderPartySlots(p2Slots)}</div>
+              <div class="space-y-1.5">${renderPartySlots(colLeft)}</div>
+              <div class="space-y-1.5">${renderPartySlots(colRight)}</div>
             </div>
           `;
         } else {
-          const sortedSlots = sortSlotsForDisplay(block.slots);
+          const sortedSlots = [...block.slots].sort((a, b) => {
+            const isSuppA = (a.pos === '서포터' || a.pos === '스왑가능');
+            const isSuppB = (b.pos === '서포터' || b.pos === '스왑가능');
+            if (isSuppA && !isSuppB) return -1;
+            if (isSuppB && !isSuppA) return 1;
+            return parseFloat(b.level) - parseFloat(a.level);
+          });
+
           innerHTML += `
             <div class="space-y-1.5 max-w-2xl">
               ${renderPartySlots(sortedSlots)}
