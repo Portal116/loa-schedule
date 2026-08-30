@@ -66,6 +66,7 @@
   </style>
 </head>
 <body class="min-h-screen pb-16">
+  <!-- 상단 헤더 -->
   <header class="border-b border-gray-800 bg-[#161b22]/90 sticky top-0 z-50 backdrop-blur">
     <div class="max-w-7xl mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-4">
       <div class="flex items-center space-x-3">
@@ -104,6 +105,7 @@
   </header>
 
   <main class="max-w-7xl mx-auto px-4 mt-6">
+    <!-- 1. 일정표 뷰 -->
     <div id="sectionSchedule">
       <div class="flex items-center justify-between flex-wrap gap-3 border-b border-gray-800 pb-2">
         <nav class="flex space-x-2 overflow-x-auto" id="tabNav"></nav>
@@ -119,6 +121,7 @@
         </div>
       </div>
 
+      <!-- 골드 범례 안내 바 -->
       <div class="mt-4 px-3 py-2 bg-[#161b22] border border-gray-800 rounded-lg flex flex-wrap items-center gap-4 text-xs text-gray-400">
         <span class="font-semibold text-gray-300">골드 획득 범례:</span>
         <div class="flex items-center space-x-1.5">
@@ -138,6 +141,7 @@
       <section id="raidContainer" class="mt-6 grid grid-cols-1 gap-6"></section>
     </div>
 
+    <!-- 2. 캐릭터 현황 뷰 -->
     <div id="sectionPool" class="hidden">
       <div class="card-bg p-4 rounded-xl mb-4 flex flex-wrap items-center justify-between gap-4">
         <div class="flex flex-wrap items-center gap-3">
@@ -192,6 +196,7 @@
       <div id="poolGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
     </div>
 
+    <!-- 3. 레이드 골드 정보 뷰 -->
     <div id="sectionGold" class="hidden">
       <div class="card-bg rounded-xl overflow-hidden shadow-lg border border-gray-800">
         <div class="p-4 border-b border-gray-800 flex items-center justify-between">
@@ -299,12 +304,11 @@
         <div id="infoContentChangelog" class="space-y-3 hidden">
           <div class="border-l-2 border-yellow-500 pl-3 py-1">
             <div class="flex items-center justify-between">
-              <span class="font-bold text-white text-xs">v1.3.2 - 슬롯 덮어쓰기 안전장치 강화</span>
+              <span class="font-bold text-white text-xs">v1.3.3 - 3번째 슬롯(불균형 행) 파서 완전 보정</span>
               <span class="text-[11px] text-gray-500">2026.08.30</span>
             </div>
             <ul class="text-xs text-gray-400 mt-1 space-y-0.5 list-disc pl-3">
-              <li>슬롯 정확한 행 번호 전달 및 기존 캐릭터명 완전 일치 검증 강화</li>
-              <li>다른 캐릭터(AP포탈 등)가 덮어씌워지는 오류 원천 차단</li>
+              <li>1파티 공란 시 2파티 캐릭터(나리월드, 민정월드)가 100% 온전하게 읽히도록 고정 4슬롯 스캔 알고리즘 적용</li>
             </ul>
           </div>
         </div>
@@ -581,71 +585,76 @@
       return rawTitle.replace(/(유저명|캐릭터명|직업|레벨|포지션)/g, '').trim();
     }
 
+    // ★ 3번째 줄(불균형 슬롯)까지 완벽 스캔하는 고정 4행 파서
     function parseRaidBlocksRobust(rows, is8Man, sheetId) {
       const blocks = [];
-      let i = 0;
+      let r = 0;
       let blockIdx = 0;
 
-      while (i < rows.length) {
-        const rawCellA = (rows[i][0] || '').toString().trim();
+      while (r < rows.length) {
+        const rawCellA = (rows[r][0] || '').toString().trim();
         
         if (rawCellA.startsWith('[') && rawCellA.includes(']')) {
           const cleanTitle = sanitizeTitle(rawCellA);
           const rawTitle = rawCellA;
           const slots = [];
-          i++;
+          
+          // 헤더 행 건너뛰기 (유저명 / 캐릭터명...)
+          r++;
+          if (r < rows.length && isHeaderWord((rows[r][0] || '').toString())) {
+            r++;
+          }
 
-          let collectedSlots = 0;
-          while (i < rows.length && collectedSlots < 4) {
-            const row = rows[i] || [];
-            const actualSheetRow = i + 1;
+          // 정확히 4개의 슬롯 데이터 행을 고정 스캔
+          for (let slotIdx = 0; slotIdx < 4 && r < rows.length; slotIdx++, r++) {
+            const row = rows[r] || [];
+            const actualSheetRow = r + 1;
 
             const user1 = (row[0] || '').toString().trim();
             const char1 = (row[1] || '').toString().trim();
+            const job1  = (row[2] || '').toString().trim();
+            const lvl1  = (row[3] || '').toString().trim();
+            const pos1  = (row[4] || '').toString().trim();
+
             const user2 = (row[5] || '').toString().trim();
             const char2 = (row[6] || '').toString().trim();
+            const job2  = (row[7] || '').toString().trim();
+            const lvl2  = (row[8] || '').toString().trim();
+            const pos2  = (row[9] || '').toString().trim();
 
-            if (user1.startsWith('[') && user1.includes(']')) break;
-
-            if (isHeaderWord(user1) || isHeaderWord(char1)) {
-              i++;
-              continue;
-            }
-
+            // 1파티 슬롯 파싱
             if (char1 && !isHeaderWord(char1)) {
               slots.push({
-                slotUid: `${sheetId}_b${blockIdx}_p1_s${collectedSlots}_${char1}`,
+                slotUid: `${sheetId}_b${blockIdx}_p1_s${slotIdx}_${char1}`,
                 sheetId: sheetId,
                 sheetRow: actualSheetRow,
                 party: 1,
                 user: user1,
                 name: char1,
-                job: (row[2] || '').toString().trim(),
-                level: (row[3] || '').toString().trim(),
-                pos: (row[4] || '').toString().trim() || (collectedSlots === 3 ? '서포터' : '딜러'),
+                job: job1,
+                level: lvl1,
+                pos: pos1 || (slotIdx === 3 ? '서포터' : '딜러'),
                 raidTitle: cleanTitle,
                 rawRaidTitle: rawTitle
               });
             }
 
+            // 2파티 슬롯 파싱 (1파티가 비어있어도 독립적으로 100% 수집)
             if (is8Man && char2 && !isHeaderWord(char2)) {
               slots.push({
-                slotUid: `${sheetId}_b${blockIdx}_p2_s${collectedSlots}_${char2}`,
+                slotUid: `${sheetId}_b${blockIdx}_p2_s${slotIdx}_${char2}`,
                 sheetId: sheetId,
                 sheetRow: actualSheetRow,
                 party: 2,
                 user: user2,
                 name: char2,
-                job: (row[7] || '').toString().trim(),
-                level: (row[8] || '').toString().trim(),
-                pos: (row[9] || '').toString().trim() || (collectedSlots === 3 ? '서포터' : '딜러'),
+                job: job2,
+                level: lvl2,
+                pos: pos2 || (slotIdx === 3 ? '서포터' : '딜러'),
                 raidTitle: cleanTitle,
                 rawRaidTitle: rawTitle
               });
             }
-
-            collectedSlots++;
-            i++;
           }
 
           if (slots.length > 0) {
@@ -653,7 +662,7 @@
             blockIdx++;
           }
         } else {
-          i++;
+          r++;
         }
       }
       return blocks;
@@ -908,7 +917,7 @@
       const target = activeSwapTarget;
       closeQuickSwapModal();
 
-      // 화면 UI 즉시 갱신
+      // UI 즉시 반영
       const curSheet = sheetsDataStore[target.sheetId];
       if (curSheet) {
         curSheet.blocks.forEach(b => {
@@ -924,10 +933,10 @@
         renderActiveTabContent();
       }
 
-      // 백엔드 Apps Script 호출
+      // Apps Script API 호출
       const payload = {
         sheetId: target.sheetId,
-        sheetRow: target.sheetRow, // ★ 정확한 시트 행 번호 전달
+        sheetRow: target.sheetRow,
         party: target.party,
         user: target.user,
         targetRaid: `[${target.sheetId}] ${target.raidTitle}`,
