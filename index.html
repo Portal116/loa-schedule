@@ -218,7 +218,7 @@
         <h3 class="text-lg font-bold text-white">공대 편성 변경 요청</h3>
       </div>
       <p class="text-xs text-gray-400 mb-5 leading-relaxed">
-        변경 요청 내용을 입력 후 복사하여 공대 디스코드나 카카오톡에 전달해 주세요.
+        변경 요청 내용을 입력 후 제출하시면 공대장 구글 시트에 자동 기록되고 디스코드 알림이 전송됩니다.
       </p>
 
       <div class="space-y-4 text-sm">
@@ -245,9 +245,9 @@
 
       <div class="mt-6 flex items-center justify-end space-x-3">
         <button onclick="closeChangeRequestModal()" class="px-4 py-2 rounded-lg text-xs font-semibold text-gray-400 hover:text-white bg-gray-800 transition">취소</button>
-        <button onclick="copyChangeRequestText()" class="px-4 py-2 rounded-lg text-xs font-semibold text-black bg-yellow-400 hover:bg-yellow-300 transition flex items-center space-x-1.5">
-          <i data-lucide="copy" class="w-4 h-4"></i>
-          <span>디스코드 양식 복사</span>
+        <button onclick="submitChangeRequest()" id="submitBtn" class="px-4 py-2 rounded-lg text-xs font-semibold text-black bg-yellow-400 hover:bg-yellow-300 transition flex items-center space-x-1.5">
+          <i data-lucide="send" class="w-4 h-4" id="submitIcon"></i>
+          <span id="submitText">변경 요청 제출</span>
         </button>
       </div>
     </div>
@@ -255,6 +255,9 @@
 
   <script>
     const SPREADSHEET_ID = '1dDM5LoLM75hhojd8p1vA-095J-HcOgFQPTQiaErXHi0';
+    
+    // Apps Script 배포 URL 연동 완료
+    const APPS_SCRIPT_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbwM4McotA-ZAQkfQGzP4572om4cJQkTp0-eyLPVOOPRSUeMdB0RMx23qZxcVBht4RYV/exec';
     
     const SHEET_CONFIG = [
       { id: 'Main_8Man', fixedTitle: '[토요일 고정]', is8Man: true },
@@ -264,13 +267,12 @@
       { id: 'Sub_Group4', is8Man: false },
     ];
 
-    // 레이드별 최소 입장 레벨 기준
     const RAID_MIN_LEVELS = {
-      final: 1710,      // 종막 (노말 1710 / 하드 1730)
-      act4: 1700,       // 4막 (노말 1700 / 하드 1720)
-      cathedral: 1700,  // 성당 (1단 1700 / 2단 1720 / 3단 1750)
-      serka: 1710,      // 세르카 (노말 1710 / 하드 1730 / 나메 1740)
-      belga: 1750       // 벨가르딘 (노말 1750 / 하드 1770 / 나메 1780)
+      final: 1710,
+      act4: 1700,
+      cathedral: 1700,
+      serka: 1710,
+      belga: 1750
     };
 
     let currentMainView = 'schedule';
@@ -786,19 +788,15 @@
       }).join('');
     }
 
-    // ★ 3단계 레이드 뱃지 렌더링 (출전완료 / 미배치숙제 / 레벨미달 입장불가)
     function renderRaidTagByLevel(label, isDone, charLevel, raidKey) {
       const minCut = RAID_MIN_LEVELS[raidKey] || 1700;
       const canEnter = (charLevel >= minCut);
 
       if (isDone) {
-        // 1. 출전 완료 (초록색 체크)
         return `<span class="px-1.5 py-0.5 bg-emerald-950/80 border border-emerald-700/60 text-emerald-400 font-bold rounded text-[10px] flex items-center space-x-0.5" title="이번 주 출전 완료"><span>${label}</span><span>✓</span></span>`;
       } else if (canEnter) {
-        // 2. 입장 가능 (미배치 숙제 - 선명한 회색)
         return `<span class="px-1.5 py-0.5 bg-gray-800 border border-gray-700 text-gray-300 font-medium rounded text-[10px] hover:border-gray-500 transition" title="입장 가능 (미배치 숙제)">${label}</span>`;
       } else {
-        // 3. 레벨 미달 (입장 불가 - 어두운 배경 + 취소선)
         return `<span class="px-1.5 py-0.5 bg-[#0d1117] border border-gray-900 text-gray-600 line-through rounded text-[10px] opacity-60 cursor-not-allowed select-none" title="입장 불가 (최소 레벨 ${minCut} 미달)">${label}</span>`;
       }
     }
@@ -957,7 +955,7 @@
       }
     }
 
-    function copyChangeRequestText() {
+    async function submitChangeRequest() {
       const user = document.getElementById('modalUserSelect').value;
       const targetVal = document.getElementById('modalTargetRaidSelect').value;
       const newVal = document.getElementById('modalNewCharSelect').value;
@@ -971,20 +969,50 @@
       const targetObj = JSON.parse(targetVal);
       const newObj = JSON.parse(newVal);
 
-      const discordText = `📢 **[공대 편성 변경 요청]**
-• **요청자**: ${user}
-• **대상 일정**: [${targetObj.sheetTitle}] ${targetObj.raidTitle}
-• **기존 캐릭터**: ${targetObj.charName} (${targetObj.job} / ${targetObj.level})
-• **변경 희망 캐릭터**: ${newObj.name} (${newObj.job} / ${newObj.level.toFixed(2)} / ${newObj.pos})
-• **사유**: ${reason}`;
+      if (!APPS_SCRIPT_WEB_APP_URL) {
+        alert('Apps Script Web App URL이 설정되지 않았습니다.');
+        return;
+      }
 
-      navigator.clipboard.writeText(discordText).then(() => {
-        alert('디스코드용 변경 요청 양식이 클립보드에 복사되었습니다!\n디스코드나 단톡방에 붙여넣어 주세요.');
+      const submitBtn = document.getElementById('submitBtn');
+      const submitText = document.getElementById('submitText');
+      const submitIcon = document.getElementById('submitIcon');
+
+      submitBtn.disabled = true;
+      submitText.textContent = '전송 중...';
+      submitIcon.setAttribute('data-lucide', 'loader');
+      submitIcon.classList.add('animate-spin');
+      lucide.createIcons();
+
+      const payload = {
+        user: user,
+        targetRaid: `[${targetObj.sheetTitle}] ${targetObj.raidTitle}`,
+        oldChar: `${targetObj.charName} (${targetObj.job} / ${targetObj.level})`,
+        newChar: `${newObj.name} (${newObj.job} / ${newObj.level.toFixed(2)} / ${newObj.pos})`,
+        reason: reason
+      };
+
+      try {
+        await fetch(APPS_SCRIPT_WEB_APP_URL, {
+          method: 'POST',
+          mode: 'no-cors',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        alert('✅ 편성 변경 요청이 정상적으로 접수되었습니다!\n공대장 시트(Change_Logs)에 기록되었으며 알림이 전송되었습니다.');
         closeChangeRequestModal();
-      }).catch(err => {
+        document.getElementById('modalReasonInput').value = '';
+      } catch (err) {
         console.error(err);
-        prompt('아래 내용을 복사해 주세요:', discordText);
-      });
+        alert('전송 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.');
+      } finally {
+        submitBtn.disabled = false;
+        submitText.textContent = '변경 요청 제출';
+        submitIcon.setAttribute('data-lucide', 'send');
+        submitIcon.classList.remove('animate-spin');
+        lucide.createIcons();
+      }
     }
   </script>
 </body>
