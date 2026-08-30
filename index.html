@@ -73,6 +73,10 @@
         <div class="flex items-center space-x-2">
           <i data-lucide="shield" class="w-6 h-6 text-yellow-500"></i>
           <span class="font-bold text-lg text-white tracking-wide">LOA RAID SCHEDULE</span>
+          <!-- 화면 상단 작게 표시되는 버전 뱃지 (클릭 시 패치노트 열림) -->
+          <button onclick="openInfoModal('changelog')" class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-yellow-500/10 text-yellow-400 border border-yellow-500/30 hover:bg-yellow-500/20 transition cursor-pointer" title="클릭하여 업데이트 이력 확인">
+            v1.3.3
+          </button>
         </div>
 
         <div class="flex bg-[#0d1117] p-1 rounded-lg border border-gray-800 text-xs">
@@ -91,7 +95,7 @@
           </select>
         </div>
 
-        <button onclick="openInfoModal()" class="flex items-center space-x-1 bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white border border-gray-700 text-xs font-semibold px-3 py-2 rounded-lg transition" title="도움말 및 패치노트">
+        <button onclick="openInfoModal('guide')" class="flex items-center space-x-1 bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white border border-gray-700 text-xs font-semibold px-3 py-2 rounded-lg transition" title="도움말 및 패치노트">
           <i data-lucide="help-circle" class="w-3.5 h-3.5 text-yellow-400"></i>
           <span>도움말</span>
         </button>
@@ -304,11 +308,12 @@
         <div id="infoContentChangelog" class="space-y-3 hidden">
           <div class="border-l-2 border-yellow-500 pl-3 py-1">
             <div class="flex items-center justify-between">
-              <span class="font-bold text-white text-xs">v1.3.3 - 3번째 슬롯(불균형 행) 파서 완전 보정</span>
+              <span class="font-bold text-white text-xs">v1.3.3 - 3번째 슬롯 파서 보정 및 버전 표시</span>
               <span class="text-[11px] text-gray-500">2026.08.30</span>
             </div>
             <ul class="text-xs text-gray-400 mt-1 space-y-0.5 list-disc pl-3">
-              <li>1파티 공란 시 2파티 캐릭터(나리월드, 민정월드)가 100% 온전하게 읽히도록 고정 4슬롯 스캔 알고리즘 적용</li>
+              <li>상단 타이틀 옆 버전 뱃지(`v1.3.3`) 추가 및 바로가기 연동</li>
+              <li>1파티 공란 시 2파티 캐릭터가 100% 온전하게 읽히도록 고정 4슬롯 스캔 알고리즘 적용</li>
             </ul>
           </div>
         </div>
@@ -585,7 +590,6 @@
       return rawTitle.replace(/(유저명|캐릭터명|직업|레벨|포지션)/g, '').trim();
     }
 
-    // ★ 3번째 줄(불균형 슬롯)까지 완벽 스캔하는 고정 4행 파서
     function parseRaidBlocksRobust(rows, is8Man, sheetId) {
       const blocks = [];
       let r = 0;
@@ -599,13 +603,11 @@
           const rawTitle = rawCellA;
           const slots = [];
           
-          // 헤더 행 건너뛰기 (유저명 / 캐릭터명...)
           r++;
           if (r < rows.length && isHeaderWord((rows[r][0] || '').toString())) {
             r++;
           }
 
-          // 정확히 4개의 슬롯 데이터 행을 고정 스캔
           for (let slotIdx = 0; slotIdx < 4 && r < rows.length; slotIdx++, r++) {
             const row = rows[r] || [];
             const actualSheetRow = r + 1;
@@ -622,7 +624,6 @@
             const lvl2  = (row[8] || '').toString().trim();
             const pos2  = (row[9] || '').toString().trim();
 
-            // 1파티 슬롯 파싱
             if (char1 && !isHeaderWord(char1)) {
               slots.push({
                 slotUid: `${sheetId}_b${blockIdx}_p1_s${slotIdx}_${char1}`,
@@ -639,7 +640,6 @@
               });
             }
 
-            // 2파티 슬롯 파싱 (1파티가 비어있어도 독립적으로 100% 수집)
             if (is8Man && char2 && !isHeaderWord(char2)) {
               slots.push({
                 slotUid: `${sheetId}_b${blockIdx}_p2_s${slotIdx}_${char2}`,
@@ -1064,10 +1064,10 @@
       `).join('');
     }
 
-    function openInfoModal() {
+    function openInfoModal(defaultTab = 'guide') {
       document.body.style.overflow = 'hidden';
       document.getElementById('infoModal').classList.remove('hidden');
-      switchInfoTab('guide');
+      switchInfoTab(defaultTab);
       lucide.createIcons();
     }
 
