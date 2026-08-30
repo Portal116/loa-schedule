@@ -4,11 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>로스트아크 공대 레이드 대시보드</title>
-  <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
-  <!-- PapaParse for CSV Parsing -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
-  <!-- Lucide Icons -->
   <script src="https://unpkg.com/lucide@latest"></script>
   <style>
     body {
@@ -69,7 +66,6 @@
   </style>
 </head>
 <body class="min-h-screen pb-16">
-  <!-- 상단 헤더 -->
   <header class="border-b border-gray-800 bg-[#161b22]/90 sticky top-0 z-50 backdrop-blur">
     <div class="max-w-7xl mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-4">
       <div class="flex items-center space-x-3">
@@ -107,10 +103,7 @@
     </div>
   </header>
 
-  <!-- 메인 컨텐츠 영역 -->
   <main class="max-w-7xl mx-auto px-4 mt-6">
-    
-    <!-- 1. 일정표 뷰 (Schedule View) -->
     <div id="sectionSchedule">
       <div class="flex items-center justify-between flex-wrap gap-3 border-b border-gray-800 pb-2">
         <nav class="flex space-x-2 overflow-x-auto" id="tabNav"></nav>
@@ -126,7 +119,6 @@
         </div>
       </div>
 
-      <!-- 골드 범례 안내 바 -->
       <div class="mt-4 px-3 py-2 bg-[#161b22] border border-gray-800 rounded-lg flex flex-wrap items-center gap-4 text-xs text-gray-400">
         <span class="font-semibold text-gray-300">골드 획득 범례:</span>
         <div class="flex items-center space-x-1.5">
@@ -146,7 +138,6 @@
       <section id="raidContainer" class="mt-6 grid grid-cols-1 gap-6"></section>
     </div>
 
-    <!-- 2. 캐릭터 현황 뷰 (Character Pool View) -->
     <div id="sectionPool" class="hidden">
       <div class="card-bg p-4 rounded-xl mb-4 flex flex-wrap items-center justify-between gap-4">
         <div class="flex flex-wrap items-center gap-3">
@@ -201,7 +192,6 @@
       <div id="poolGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
     </div>
 
-    <!-- 3. 레이드 골드 정보 뷰 (Raid Info View) -->
     <div id="sectionGold" class="hidden">
       <div class="card-bg rounded-xl overflow-hidden shadow-lg border border-gray-800">
         <div class="p-4 border-b border-gray-800 flex items-center justify-between">
@@ -228,10 +218,9 @@
         </div>
       </div>
     </div>
-
   </main>
 
-  <!-- 4. 원클릭 캐릭터 즉시 변경 모달 -->
+  <!-- 원클릭 캐릭터 즉시 변경 모달 -->
   <div id="quickSwapModal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-4">
     <div class="card-bg w-full max-w-lg rounded-2xl p-6 border border-gray-700 shadow-2xl relative">
       <button onclick="closeQuickSwapModal()" class="absolute top-4 right-4 text-gray-400 hover:text-white">
@@ -265,7 +254,7 @@
     </div>
   </div>
 
-  <!-- 5. 도움말 및 패치노트 모달 -->
+  <!-- 도움말 및 패치노트 모달 -->
   <div id="infoModal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-4">
     <div class="card-bg w-full max-w-2xl max-h-[85vh] rounded-2xl p-6 border border-gray-700 shadow-2xl relative flex flex-col">
       <button onclick="closeInfoModal()" class="absolute top-4 right-4 text-gray-400 hover:text-white">
@@ -290,7 +279,7 @@
               <span>원클릭 캐릭터 즉시 변경 시스템</span>
             </h4>
             <p class="text-xs text-gray-400 leading-relaxed">
-              일정표의 캐릭터 슬롯을 클릭하면 같은 유저의 원정대 전체 캐릭터 목록이 표시됩니다. 원하는 캐릭터를 선택하면 <strong>구글 시트의 해당 슬롯이 실시간으로 덮어쓰기 변경</strong>되며, <code class="text-yellow-500">Change_Logs</code>에 변경 이력이 기록됩니다. (교차 스왑 지원)
+              일정표의 캐릭터 슬롯을 클릭하면 같은 유저의 원정대 전체 캐릭터 목록이 표시됩니다. 원하는 캐릭터를 선택하면 <strong>구글 시트의 해당 슬롯이 실시간으로 덮어쓰기 변경</strong>되며, <code class="text-yellow-500">Change_Logs</code>에 변경 이력이 기록됩니다.
             </p>
           </div>
 
@@ -301,20 +290,8 @@
             </h4>
             <ul class="text-xs text-gray-400 space-y-1 pl-3.5 list-disc">
               <li><strong class="text-amber-300">🟡 G 코인</strong>: 캐릭터별 주간 상위 3개 레이드로 골드를 정상 획득합니다.</li>
-              <li><strong class="text-cyan-300">🟡+? 물음표 코인</strong>: 4막 하드(3.8만 일반)와 성당 2단계(4.0만 귀속)를 모두 뛰는 경우, 취향에 따른 선택 구간입니다.</li>
-              <li><strong class="text-red-400">🟡+✕ 빨간X 코인</strong>: 주간 3회를 초과 출전한 레이드로 골드가 미획득(더보기/카드작)됩니다.</li>
-            </ul>
-          </div>
-
-          <div class="bg-[#0d1117] p-3.5 rounded-xl border border-gray-800">
-            <h4 class="font-bold text-white text-sm mb-1.5 flex items-center space-x-1.5">
-              <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
-              <span>캐릭터 현황 3단계 상태 뱃지</span>
-            </h4>
-            <ul class="text-xs text-gray-400 space-y-1 pl-3.5 list-disc">
-              <li><strong class="text-emerald-400">레이드 ✓</strong>: 이번 주 공대 일정표에 배치가 완료된 상태입니다.</li>
-              <li><strong class="text-gray-300">레이드 (회색)</strong>: 입장 레벨을 만족하지만 아직 일정에 배치되지 않은 잔여 숙제입니다.</li>
-              <li><strong class="text-gray-600 line-through">레이드 (취소선)</strong>: 캐릭터 레벨이 레이드 최소 입장 컷에 미달하여 입장할 수 없습니다.</li>
+              <li><strong class="text-cyan-300">🟡+? 물음표 코인</strong>: 4막 하드(3.8만 일반)와 성당 2단계(4.0만 귀속)를 모두 뛰는 경우 선택 구간입니다.</li>
+              <li><strong class="text-red-400">🟡+✕ 빨간X 코인</strong>: 주간 3회를 초과 출전한 레이드로 골드가 미획득됩니다.</li>
             </ul>
           </div>
         </div>
@@ -322,12 +299,12 @@
         <div id="infoContentChangelog" class="space-y-3 hidden">
           <div class="border-l-2 border-yellow-500 pl-3 py-1">
             <div class="flex items-center justify-between">
-              <span class="font-bold text-white text-xs">v1.3.1 - 시트 타겟팅 매칭 알고리즘 고도화</span>
+              <span class="font-bold text-white text-xs">v1.3.2 - 슬롯 덮어쓰기 안전장치 강화</span>
               <span class="text-[11px] text-gray-500">2026.08.30</span>
             </div>
             <ul class="text-xs text-gray-400 mt-1 space-y-0.5 list-disc pl-3">
-              <li>행 번호 오차를 제거하고 레이드 타이틀 + 기존 캐릭터명을 기반으로 정확한 셀 덮어쓰기</li>
-              <li>Change_Logs 시트의 열 너비 및 가운데 정렬 자동 서식 적용</li>
+              <li>슬롯 정확한 행 번호 전달 및 기존 캐릭터명 완전 일치 검증 강화</li>
+              <li>다른 캐릭터(AP포탈 등)가 덮어씌워지는 오류 원천 차단</li>
             </ul>
           </div>
         </div>
@@ -457,6 +434,7 @@
                   raidTitle: b.title,
                   sheetTitle: config.fixedTitle || config.id,
                   sheetId: config.id,
+                  sheetRow: s.sheetRow,
                   party: s.party,
                   user: s.user,
                   job: s.job,
@@ -497,12 +475,6 @@
         if (currentMainView === 'gold') renderGoldTableView();
       } catch (err) {
         console.error(err);
-        document.getElementById('raidContainer').innerHTML = `
-          <div class="text-center py-20 text-red-400">
-            <i data-lucide="alert-circle" class="w-8 h-8 mx-auto mb-2"></i>
-            데이터를 불러오는 데 실패했습니다. 시트 공유 권한을 확인해주세요.
-          </div>
-        `;
       } finally {
         if (refreshIcon) refreshIcon.classList.remove('animate-spin');
         lucide.createIcons();
@@ -606,9 +578,7 @@
 
     function sanitizeTitle(rawTitle) {
       if (!rawTitle) return '';
-      let title = rawTitle.trim();
-      title = title.replace(/(유저명|캐릭터명|직업|레벨|포지션)/g, '').trim();
-      return title;
+      return rawTitle.replace(/(유저명|캐릭터명|직업|레벨|포지션)/g, '').trim();
     }
 
     function parseRaidBlocksRobust(rows, is8Man, sheetId) {
@@ -628,6 +598,7 @@
           let collectedSlots = 0;
           while (i < rows.length && collectedSlots < 4) {
             const row = rows[i] || [];
+            const actualSheetRow = i + 1;
 
             const user1 = (row[0] || '').toString().trim();
             const char1 = (row[1] || '').toString().trim();
@@ -645,6 +616,7 @@
               slots.push({
                 slotUid: `${sheetId}_b${blockIdx}_p1_s${collectedSlots}_${char1}`,
                 sheetId: sheetId,
+                sheetRow: actualSheetRow,
                 party: 1,
                 user: user1,
                 name: char1,
@@ -660,6 +632,7 @@
               slots.push({
                 slotUid: `${sheetId}_b${blockIdx}_p2_s${collectedSlots}_${char2}`,
                 sheetId: sheetId,
+                sheetRow: actualSheetRow,
                 party: 2,
                 user: user2,
                 name: char2,
@@ -935,7 +908,7 @@
       const target = activeSwapTarget;
       closeQuickSwapModal();
 
-      // 1) 화면 UI 즉시 갱신
+      // 화면 UI 즉시 갱신
       const curSheet = sheetsDataStore[target.sheetId];
       if (curSheet) {
         curSheet.blocks.forEach(b => {
@@ -951,9 +924,10 @@
         renderActiveTabContent();
       }
 
-      // 2) 백엔드 Apps Script 호출 (정확한 레이드 블록 + 기존 캐릭터 매칭으로 덮어쓰기)
+      // 백엔드 Apps Script 호출
       const payload = {
         sheetId: target.sheetId,
+        sheetRow: target.sheetRow, // ★ 정확한 시트 행 번호 전달
         party: target.party,
         user: target.user,
         targetRaid: `[${target.sheetId}] ${target.raidTitle}`,
@@ -975,7 +949,7 @@
           body: JSON.stringify(payload)
         });
       } catch (err) {
-        console.error('시트 저장 중 오류:', err);
+        console.error('시트 저장 오류:', err);
       }
     }
 
