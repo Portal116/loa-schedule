@@ -81,7 +81,7 @@
   <!-- 메인 탭 메뉴 -->
   <main class="max-w-7xl mx-auto px-4 mt-6">
     <nav class="flex space-x-2 border-b border-gray-800 pb-2 overflow-x-auto" id="tabNav">
-      <!-- 탭이 동적으로 렌더링됩니다 -->
+      <!-- 탭 목록 -->
     </nav>
 
     <!-- 레이드 카드 컨테이너 -->
@@ -189,6 +189,15 @@
       return w === '유저명' || w === '캐릭터명' || w === '직업' || w === '레벨' || w === '포지션';
     }
 
+    // 타이틀 정제 (불필요한 '유저명', '캐릭터명' 등 완벽 제거)
+    function sanitizeTitle(rawTitle) {
+      if (!rawTitle) return '';
+      let title = rawTitle.trim();
+      // 뒷부분에 붙은 헤더 단어들 제거
+      title = title.replace(/(유저명|캐릭터명|직업|레벨|포지션)/g, '').trim();
+      return title;
+    }
+
     // 병합 셀 및 헤더 완벽 처리 파서
     function parseRaidBlocksRobust(rows, is8Man) {
       const blocks = [];
@@ -197,15 +206,11 @@
       while (i < rows.length) {
         const rawCellA = (rows[i][0] || '').toString().trim();
         
-        // 타이틀 행 탐지 (예: [1회차] 종막하드)
+        // 타이틀 행 탐지 (예: [1회차] 종막하드, [성당 3단] 1세트)
         if (rawCellA.startsWith('[') && rawCellA.includes(']')) {
-          // 타이틀에서 불필요한 옆 텍스트 제거
-          let cleanTitle = rawCellA;
-          const match = rawCellA.match(/^\[[^\]]+\]\s*[^,]*/);
-          if (match) cleanTitle = match[0].trim();
-
+          const cleanTitle = sanitizeTitle(rawCellA);
           const slots = [];
-          i++; // 헤더 또는 데이터 행으로 이동
+          i++;
 
           let collectedCount = 0;
           while (i < rows.length && collectedCount < 4) {
@@ -234,7 +239,7 @@
               });
             }
 
-            // 8인 시트 2파티 슬롯 파싱 (F~J열 / 인덱스 5~9)
+            // 8인 시트 2파티 슬롯 파싱 (F~J열)
             if (is8Man) {
               const user2 = (row[5] || '').toString().trim();
               const char2 = (row[6] || '').toString().trim();
