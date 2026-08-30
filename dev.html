@@ -73,7 +73,7 @@
           <i data-lucide="flask-conical" class="w-6 h-6 text-purple-400"></i>
           <span class="font-bold text-lg text-white tracking-wide">LOA RAID [DEV]</span>
           <button onclick="openInfoModal('changelog')" class="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/30 hover:bg-purple-500/20 transition cursor-pointer" title="클릭하여 업데이트 이력 확인">
-            v1.0.26-dev
+            v1.0.27-dev
           </button>
         </div>
 
@@ -312,7 +312,7 @@
       <div class="overflow-y-auto modal-scroll pr-2 space-y-4 text-sm text-gray-300 flex-1">
         <div id="infoContentGuide" class="space-y-3">
           <div class="bg-[#0d1117] p-3.5 rounded-xl border border-gray-800">
-            <h4 class="font-bold text-white text-xs mb-1 text-yellow-400">Q. 동적 골드 판별 엔진이란 무엇인가요?</h4>
+            <h4 class="font-bold text-white text-xs mb-1 text-yellow-400">Q. 동적 골드 판별 엔진이 어떻게 동작하나요?</h4>
             <p class="text-xs text-gray-300 leading-relaxed">
               Raid_Info 시트의 실시간 보상 데이터를 바탕으로 각 캐릭터 레벨에서 가장 효율적인 상위 레이드 3개를 동적으로 연산하여 공대 일정표 및 숙제 체크에 반영하는 엔진입니다.
             </p>
@@ -322,11 +322,11 @@
         <div id="infoContentChangelog" class="space-y-3 hidden">
           <div class="border-l-2 border-purple-500 pl-3 py-1 mb-3">
             <div class="flex items-center justify-between">
-              <span class="font-bold text-white text-xs">v1.0.26-dev - 누락된 fetchSheetData 함수 정의 복구 및 안정화</span>
+              <span class="font-bold text-white text-xs">v1.0.27-dev - 누락된 parseRaidBlocksRobust 파싱 함수 복구</span>
               <span class="text-[11px] text-gray-500">2026.08.30</span>
             </div>
             <ul class="text-xs text-gray-400 mt-1 space-y-0.5 list-disc pl-3">
-              <li>코드 통합 과정에서 누락되었던 데이터 로드 핵심 함수(fetchSheetData) 복구 완료</li>
+              <li>시트 일정 블록을 안전하게 파싱하는 핵심 함수(parseRaidBlocksRobust) 누락 오류 수정</li>
             </ul>
           </div>
         </div>
@@ -477,7 +477,6 @@
       return 0;
     }
 
-    // ★ 누락되었던 핵심 데이터 로드 함수 복구
     async function fetchSheetData() {
       const refreshIcon = document.getElementById('refreshIcon');
       if (refreshIcon) refreshIcon.classList.add('animate-spin');
@@ -628,6 +627,110 @@
           });
         }
       }
+    }
+
+    // ★ 누락되었던 시트 블록 파싱 함수 복구
+    function parseRaidBlocksRobust(rows, is8Man, sheetId) {
+      const blocks = [];
+      let r = 0;
+      let blockIdx = 0;
+
+      while (r < rows.length) {
+        const row = rows[r] || [];
+        
+        let foundTitle = '';
+        for (let col = 0; col < (is8Man ? 10 : 5); col++) {
+          const val = (row[col] || '').toString().trim();
+          if (val.startsWith('[') && val.includes(']')) {
+            foundTitle = val;
+            break;
+          }
+        }
+
+        if (foundTitle) {
+          const cleanTitle = sanitizeTitle(foundTitle);
+          const rawTitle = foundTitle;
+          const slots = [];
+          
+          r++;
+
+          if (r < rows.length) {
+            const checkRow = rows[r] || [];
+            const isHeader = isHeaderWord((checkRow[0] || '').toString()) || isHeaderWord((checkRow[1] || '').toString());
+            if (isHeader) r++;
+          }
+
+          for (let slotIdx = 0; slotIdx < 4 && r < rows.length; slotIdx++, r++) {
+            const curRow = rows[r] || [];
+            const actualSheetRow = r + 1;
+
+            let nextTitleCheck = '';
+            for (let col = 0; col < (is8Man ? 10 : 5); col++) {
+              const val = (curRow[col] || '').toString().trim();
+              if (val.startsWith('[') && val.includes(']')) {
+                nextTitleCheck = val;
+                break;
+              }
+            }
+            if (nextTitleCheck) {
+              r--;
+              break;
+            }
+
+            const user1 = (curRow[0] || '').toString().trim();
+            const char1 = (curRow[1] || '').toString().trim();
+            const job1  = (curRow[2] || '').toString().trim();
+            const lvl1  = (curRow[3] || '').toString().trim();
+            const pos1  = (curRow[4] || '').toString().trim();
+
+            const user2 = (curRow[5] || '').toString().trim();
+            const char2 = (curRow[6] || '').toString().trim();
+            const job2  = (curRow[7] || '').toString().trim();
+            const lvl2  = (curRow[8] || '').toString().trim();
+            const pos2  = (curRow[9] || '').toString().trim();
+
+            if (char1 && !isHeaderWord(char1)) {
+              slots.push({
+                slotUid: `${sheetId}_b${blockIdx}_p1_s${slotIdx}_${char1}`,
+                sheetId: sheetId,
+                sheetRow: actualSheetRow,
+                party: 1,
+                user: user1,
+                name: char1,
+                job: job1,
+                level: lvl1,
+                pos: pos1 || (slotIdx === 3 ? '서포터' : '딜러'),
+                raidTitle: cleanTitle,
+                rawRaidTitle: rawTitle
+              });
+            }
+
+            if (is8Man && char2 && !isHeaderWord(char2)) {
+              slots.push({
+                slotUid: `${sheetId}_b${blockIdx}_p2_s${slotIdx}_${char2}`,
+                sheetId: sheetId,
+                sheetRow: actualSheetRow,
+                party: 2,
+                user: user2,
+                name: char2,
+                job: job2,
+                level: lvl2,
+                pos: pos2 || (slotIdx === 3 ? '서포터' : '딜러'),
+                raidTitle: cleanTitle,
+                rawRaidTitle: rawTitle
+              });
+            }
+          }
+
+          if (slots.length > 0) {
+            blocks.push({ title: cleanTitle, rawTitle, slots, is8Man, sheetId: sheetId });
+            blockIdx++;
+          }
+        } else {
+          r++;
+        }
+      }
+      return blocks;
     }
 
     function getCharTop3Raids(charLevel) {
