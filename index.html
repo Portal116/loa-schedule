@@ -122,7 +122,7 @@
 
     <!-- 2. 캐릭터 현황 뷰 (Character Pool View) -->
     <div id="sectionPool" class="hidden">
-      <div class="card-bg p-4 rounded-xl mb-6 flex flex-wrap items-center justify-between gap-4">
+      <div class="card-bg p-4 rounded-xl mb-4 flex flex-wrap items-center justify-between gap-4">
         <div class="flex flex-wrap items-center gap-3">
           <div class="flex items-center space-x-2 bg-[#0d1117] px-3 py-1.5 rounded-lg border border-gray-700">
             <span class="text-xs text-gray-400">유저:</span>
@@ -146,13 +146,30 @@
               <option value="0" class="bg-[#161b22]">전체 레벨</option>
               <option value="1720" class="bg-[#161b22]">1720+ (4막/성당)</option>
               <option value="1730" class="bg-[#161b22]">1730+ (종막/세르카)</option>
-              <option value="1750" class="bg-[#161b22]">1750+ (성당3단/세르카나메)</option>
+              <option value="1750" class="bg-[#161b22]">1750+ (성당3단/세르카나메/벨가)</option>
             </select>
           </div>
         </div>
 
         <div class="text-xs text-gray-400">
           조회된 캐릭터: <span id="poolCount" class="text-yellow-400 font-bold">0</span>개
+        </div>
+      </div>
+
+      <!-- 캐릭터 현황 뱃지 안내 바 -->
+      <div class="mb-6 px-3 py-2 bg-[#161b22] border border-gray-800 rounded-lg flex flex-wrap items-center gap-4 text-xs text-gray-400">
+        <span class="font-semibold text-gray-300">상태 안내:</span>
+        <div class="flex items-center space-x-1.5">
+          <span class="px-1.5 py-0.5 bg-emerald-950 border border-emerald-700 text-emerald-400 font-bold rounded text-[10px]">레이드 ✓</span>
+          <span>출전 완료</span>
+        </div>
+        <div class="flex items-center space-x-1.5">
+          <span class="px-1.5 py-0.5 bg-gray-800 border border-gray-700 text-gray-300 rounded text-[10px]">레이드</span>
+          <span>입장 가능 (미배치 숙제)</span>
+        </div>
+        <div class="flex items-center space-x-1.5">
+          <span class="px-1.5 py-0.5 bg-[#0d1117] border border-gray-900 text-gray-600 line-through rounded text-[10px]">레이드</span>
+          <span>입장 불가 (레벨 미달)</span>
         </div>
       </div>
 
@@ -177,11 +194,10 @@
                 <th class="px-4 py-3 text-right text-amber-400">일반 골드</th>
                 <th class="px-4 py-3 text-right text-emerald-400">귀속 골드</th>
                 <th class="px-4 py-3 text-right text-yellow-300 font-bold">총 획득 골드</th>
-                <th class="px-4 py-3 text-right text-red-400">더보기 비용</th>
               </tr>
             </thead>
             <tbody id="goldTableBody" class="divide-y divide-gray-800">
-              <tr><td colspan="8" class="text-center py-8 text-gray-500">데이터를 불러오는 중입니다...</td></tr>
+              <tr><td colspan="7" class="text-center py-8 text-gray-500">데이터를 불러오는 중입니다...</td></tr>
             </tbody>
           </table>
         </div>
@@ -247,6 +263,15 @@
       { id: 'Sub_Group3', is8Man: false },
       { id: 'Sub_Group4', is8Man: false },
     ];
+
+    // 레이드별 최소 입장 레벨 기준
+    const RAID_MIN_LEVELS = {
+      final: 1710,      // 종막 (노말 1710 / 하드 1730)
+      act4: 1700,       // 4막 (노말 1700 / 하드 1720)
+      cathedral: 1700,  // 성당 (1단 1700 / 2단 1720 / 3단 1750)
+      serka: 1710,      // 세르카 (노말 1710 / 하드 1730 / 나메 1740)
+      belga: 1750       // 벨가르딘 (노말 1750 / 하드 1770 / 나메 1780)
+    };
 
     let currentMainView = 'schedule';
     let currentActiveTab = 'Main_8Man';
@@ -320,7 +345,6 @@
       const allRaidInstances = [];
 
       try {
-        // 1) 일정표 시트 Fetch
         for (const config of SHEET_CONFIG) {
           const url = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURI(config.id)}&t=${new Date().getTime()}`;
           const response = await fetch(url);
@@ -362,13 +386,11 @@
           };
         }
 
-        // 2) Character_Pool 시트 Fetch (수정: 실제 레벨 파싱 보정)
         const poolUrl = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=out:csv&sheet=Character_Pool&t=${new Date().getTime()}`;
         const poolRes = await fetch(poolUrl);
         const poolCsv = await poolRes.text();
         parseCharacterPool(Papa.parse(poolCsv, { skipEmptyLines: false }).data);
 
-        // 3) Raid_Info 시트 Fetch (수정: 8개 열 구조 1:1 매핑)
         try {
           const goldUrl = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=out:csv&sheet=Raid_Info&t=${new Date().getTime()}`;
           const goldRes = await fetch(goldUrl);
@@ -398,7 +420,6 @@
       }
     }
 
-    // 캐릭터 풀 데이터 파싱 (1.00 오류 수정: E/F/G열의 실제 1700대 레벨 추출)
     function parseCharacterPool(rows) {
       characterPoolData = [];
       for (let r = 1; r < rows.length; r++) {
@@ -408,7 +429,6 @@
         const name = (row[2] || '').toString().trim();
         const job = (row[3] || '').toString().trim();
 
-        // 레벨 추출 보정: F열(목표), E열(현재), G열(최종) 순으로 1000 이상의 정상 레벨값 탐색
         const valE = parseFloat(String(row[4]).replace(/,/g, '')) || 0;
         const valF = parseFloat(String(row[5]).replace(/,/g, '')) || 0;
         const valG = parseFloat(String(row[6]).replace(/,/g, '')) || 0;
@@ -438,8 +458,6 @@
       }
     }
 
-    // Raid_Info 데이터 파싱 (열 밀림 완전 해결: 8개 컬럼 정확 매핑)
-    // 열 구조: [0:레이드명, 1:구분뱃지, 2:난이도, 3:입장레벨, 4:일반골드, 5:귀속골드, 6:총획득골드, 7:더보기비용]
     function parseRaidInfo(rows) {
       raidInfoData = [];
       for (let r = 1; r < rows.length; r++) {
@@ -453,8 +471,7 @@
             level: (row[3] || '').toString().trim(),
             goldTrade: (row[4] || '0').toString().trim(),
             goldBound: (row[5] || '0').toString().trim(),
-            goldTotal: (row[6] || '0').toString().trim(),
-            moreCost: (row[7] || '0').toString().trim(),
+            goldTotal: (row[6] || '0').toString().trim()
           });
         }
       }
@@ -769,7 +786,23 @@
       }).join('');
     }
 
-    // 캐릭터 풀 렌더링
+    // ★ 3단계 레이드 뱃지 렌더링 (출전완료 / 미배치숙제 / 레벨미달 입장불가)
+    function renderRaidTagByLevel(label, isDone, charLevel, raidKey) {
+      const minCut = RAID_MIN_LEVELS[raidKey] || 1700;
+      const canEnter = (charLevel >= minCut);
+
+      if (isDone) {
+        // 1. 출전 완료 (초록색 체크)
+        return `<span class="px-1.5 py-0.5 bg-emerald-950/80 border border-emerald-700/60 text-emerald-400 font-bold rounded text-[10px] flex items-center space-x-0.5" title="이번 주 출전 완료"><span>${label}</span><span>✓</span></span>`;
+      } else if (canEnter) {
+        // 2. 입장 가능 (미배치 숙제 - 선명한 회색)
+        return `<span class="px-1.5 py-0.5 bg-gray-800 border border-gray-700 text-gray-300 font-medium rounded text-[10px] hover:border-gray-500 transition" title="입장 가능 (미배치 숙제)">${label}</span>`;
+      } else {
+        // 3. 레벨 미달 (입장 불가 - 어두운 배경 + 취소선)
+        return `<span class="px-1.5 py-0.5 bg-[#0d1117] border border-gray-900 text-gray-600 line-through rounded text-[10px] opacity-60 cursor-not-allowed select-none" title="입장 불가 (최소 레벨 ${minCut} 미달)">${label}</span>`;
+      }
+    }
+
     function renderPoolView() {
       const grid = document.getElementById('poolGrid');
       const uFilter = document.getElementById('poolUserFilter').value;
@@ -801,12 +834,6 @@
         if (c.pos === '서포터') posBadge = `<span class="badge-supporter text-[11px] font-semibold px-2 py-0.5 rounded">서포터</span>`;
         else if (c.pos === '스왑가능') posBadge = `<span class="badge-swap text-[11px] font-semibold px-2 py-0.5 rounded">스왑가능</span>`;
 
-        const renderRaidTag = (label, isDone) => {
-          return isDone
-            ? `<span class="px-1.5 py-0.5 bg-emerald-950/80 border border-emerald-700/60 text-emerald-400 font-bold rounded text-[10px] flex items-center space-x-0.5"><span>${label}</span><span>✓</span></span>`
-            : `<span class="px-1.5 py-0.5 bg-gray-900 border border-gray-800 text-gray-500 rounded text-[10px]">${label}</span>`;
-        };
-
         return `
           <div class="card-bg p-4 rounded-xl border border-gray-800 flex flex-col justify-between space-y-3 ${isMe ? 'border-yellow-500/50 bg-yellow-950/10' : ''}">
             <div class="flex items-start justify-between">
@@ -823,11 +850,11 @@
             <div class="flex items-center justify-between border-t border-gray-800/60 pt-2.5">
               <span class="text-sm font-mono font-bold text-yellow-500/90">${c.level.toLocaleString('ko-KR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
               <div class="flex items-center space-x-1">
-                ${renderRaidTag('종막', c.raids.final)}
-                ${renderRaidTag('4막', c.raids.act4)}
-                ${renderRaidTag('성당', c.raids.cathedral)}
-                ${renderRaidTag('세르카', c.raids.serka)}
-                ${renderRaidTag('벨가', c.raids.belga)}
+                ${renderRaidTagByLevel('종막', c.raids.final, c.level, 'final')}
+                ${renderRaidTagByLevel('4막', c.raids.act4, c.level, 'act4')}
+                ${renderRaidTagByLevel('성당', c.raids.cathedral, c.level, 'cathedral')}
+                ${renderRaidTagByLevel('세르카', c.raids.serka, c.level, 'serka')}
+                ${renderRaidTagByLevel('벨가', c.raids.belga, c.level, 'belga')}
               </div>
             </div>
           </div>
@@ -835,11 +862,20 @@
       }).join('');
     }
 
-    // 레이드 골드 표 렌더링 (8개 열 매핑 보정)
+    function getDifficultyBadge(diff) {
+      if (diff.includes('나이트메어') || diff.includes('3단')) {
+        return `<span class="px-2 py-0.5 rounded text-xs bg-purple-950 text-purple-400 border border-purple-800 font-medium">${diff}</span>`;
+      } else if (diff.includes('하드') || diff.includes('2단')) {
+        return `<span class="px-2 py-0.5 rounded text-xs bg-red-950 text-red-400 border border-red-800 font-medium">${diff}</span>`;
+      } else {
+        return `<span class="px-2 py-0.5 rounded text-xs bg-gray-800 text-gray-300 font-medium">${diff}</span>`;
+      }
+    }
+
     function renderGoldTableView() {
       const tbody = document.getElementById('goldTableBody');
       if (raidInfoData.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="8" class="text-center py-8 text-gray-500">Raid_Info 시트 데이터를 가져오지 못했습니다.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="7" class="text-center py-8 text-gray-500">Raid_Info 시트 데이터를 가져오지 못했습니다.</td></tr>`;
         return;
       }
 
@@ -847,17 +883,15 @@
         <tr class="hover:bg-gray-800/40 transition">
           <td class="px-4 py-3 font-semibold text-white">${r.name}</td>
           <td class="px-4 py-3"><span class="px-2 py-0.5 rounded text-xs bg-blue-950 text-blue-400 border border-blue-800">${r.category}</span></td>
-          <td class="px-4 py-3"><span class="px-2 py-0.5 rounded text-xs ${r.diff.includes('하드') || r.diff.includes('3단') || r.diff.includes('나메') ? 'bg-red-950 text-red-400 border border-red-800' : 'bg-gray-800 text-gray-300'}">${r.diff}</span></td>
+          <td class="px-4 py-3">${getDifficultyBadge(r.diff)}</td>
           <td class="px-4 py-3 text-right font-mono">${r.level}</td>
           <td class="px-4 py-3 text-right font-mono text-amber-400">${r.goldTrade} G</td>
           <td class="px-4 py-3 text-right font-mono text-emerald-400">${r.goldBound} G</td>
           <td class="px-4 py-3 text-right font-mono font-bold text-yellow-300">${r.goldTotal} G</td>
-          <td class="px-4 py-3 text-right font-mono text-red-400">${r.moreCost} G</td>
         </tr>
       `).join('');
     }
 
-    // 캐릭터 변경 요청 모달 컨트롤
     function openChangeRequestModal() {
       const modal = document.getElementById('changeModal');
       const userSelect = document.getElementById('modalUserSelect');
