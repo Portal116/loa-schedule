@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>[DEV] 로스트아크 공대 대시보드 & 시트 기반 골드 판별</title>
+  <title>[DEV] 로스트아크 공대 대시보드 & 구간별 골드 관리</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
   <script src="https://unpkg.com/lucide@latest"></script>
@@ -73,7 +73,7 @@
           <i data-lucide="flask-conical" class="w-6 h-6 text-purple-400"></i>
           <span class="font-bold text-lg text-white tracking-wide">LOA RAID [DEV]</span>
           <button onclick="openInfoModal('changelog')" class="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/30 hover:bg-purple-500/20 transition cursor-pointer" title="클릭하여 업데이트 이력 확인">
-            v1.0.20-dev
+            v1.0.21-dev
           </button>
         </div>
 
@@ -94,7 +94,7 @@
           </select>
         </div>
 
-        <button onclick="openInfoModal('guide')" class="flex items-center space-x-1 bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white border border-gray-700 text-xs font-semibold px-3 py-2 rounded-lg transition" title="도움말 및 패치노트">
+        <button onclick="openInfoModal('guide')" class="flex items-center space-x-1 bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white border border-gray-700 text-xs font-semibold px-2.5 py-1.5 rounded-lg transition" title="도움말 및 패치노트">
           <i data-lucide="help-circle" class="w-3.5 h-3.5 text-yellow-400"></i>
           <span>도움말</span>
         </button>
@@ -237,7 +237,7 @@
               <i data-lucide="shield-alert" class="w-5 h-5 text-purple-400"></i>
               <span>[DEV 전용] 캐릭터 레벨 구간별 상위 골드 레이드 기준표</span>
             </h3>
-            <p class="text-xs text-gray-400 mt-1">성당이 종막보다 상위 보상으로 반영되도록 보상 가중치가 교정된 상태입니다.</p>
+            <p class="text-xs text-gray-400 mt-1">1740대 구간 및 선택 구간(지평의 성당, 4막 하드 등) 판별 기준이 정밀 반영된 상태입니다.</p>
           </div>
           <span class="text-xs px-2.5 py-1 rounded bg-purple-950 text-purple-300 border border-purple-700 font-mono">DEV MODE</span>
         </div>
@@ -248,7 +248,7 @@
                 <th class="px-4 py-3">캐릭터명</th>
                 <th class="px-4 py-3 text-center">레벨 구간</th>
                 <th class="px-4 py-3 text-right">아이템 레벨</th>
-                <th class="px-4 py-3">골드 획득 상위 레이드 3종 (성당 우선 반영)</th>
+                <th class="px-4 py-3">골드 획득 상위 레이드 3종 및 선택 구간 (구간별 자동 판별)</th>
               </tr>
             </thead>
             <tbody id="debugTableBody" class="divide-y divide-gray-800">
@@ -314,9 +314,9 @@
       <div class="overflow-y-auto modal-scroll pr-2 space-y-4 text-sm text-gray-300 flex-1">
         <div id="infoContentGuide" class="space-y-3">
           <div class="bg-[#0d1117] p-3.5 rounded-xl border border-gray-800">
-            <h4 class="font-bold text-white text-xs mb-1 text-yellow-400">Q. 성당이 종막보다 우선되는 이유는 무엇인가요?</h4>
+            <h4 class="font-bold text-white text-xs mb-1 text-yellow-400">Q. 선택 골드 뱃지(?)는 어떤 경우에 표시되나요?</h4>
             <p class="text-xs text-gray-300 leading-relaxed">
-              실제 골드 보상 금액이 성당(고단계)이 종막보다 더 높기 때문에, 최상위 3개 레이드를 산출할 때 성당이 종막보다 우선적으로 상위에 위치하도록 보상 가중치가 바로잡혔습니다.
+              1720대, 1730대, 1740대 등 레벨 구간별로 지평의 성당이나 4막 하드처럼 유저가 선택해서 골드를 수급할 수 있는 구간(선택 구간)에 속하는 레이드 일정일 경우 선택 골드 뱃지와 함께 정상 인정됩니다.
             </p>
           </div>
         </div>
@@ -325,15 +325,26 @@
           <!-- 최신 버전 이력 -->
           <div class="border-l-2 border-purple-500 pl-3 py-1 mb-3">
             <div class="flex items-center justify-between">
-              <span class="font-bold text-white text-xs">v1.0.20-dev - 성당 보상 우선순위 상향 (종막보다 골드 많은 성당 반영)</span>
+              <span class="font-bold text-white text-xs">v1.0.21-dev - 1740대 레벨 구간 분기 및 선택 구간(선택구간) 표기 고도화</span>
               <span class="text-[11px] text-gray-500">2026.08.30</span>
             </div>
             <ul class="text-xs text-gray-400 mt-1 space-y-0.5 list-disc pl-3">
-              <li>실제 보상 금액 비교 순위에서 '성당'이 '종막'보다 상위에 위치하도록 payout 가중치 재정렬 (벨가 ➔ 세르카 ➔ 성당 ➔ 종막 ➔ 4막)</li>
+              <li>세르카 나이트메어 등급(1740) 기준에 맞춰 1740대 레벨 구간 분류 정확히 반영</li>
+              <li>지평의 성당 및 4막 하드 등의 선택 골드 영역을 디버그 표 및 일정표에서 '(선택구간)' 태그와 선택 골드 뱃지(?)로 명확히 표시</li>
             </ul>
           </div>
 
           <!-- 이전 버전 누적 이력 -->
+          <div class="border-l-2 border-gray-700 pl-3 py-1 mb-3">
+            <div class="flex items-center justify-between">
+              <span class="font-bold text-gray-300 text-xs">v1.0.20-dev - 성당 보상 우선순위 상향 (종막보다 골드 많은 성당 반영)</span>
+              <span class="text-[11px] text-gray-500">2026.08.30</span>
+            </div>
+            <ul class="text-xs text-gray-500 mt-1 space-y-0.5 list-disc pl-3">
+              <li>실제 보상 금액 비교 순위에서 '성당'이 '종막'보다 상위에 위치하도록 payout 가중치 재정렬</li>
+            </ul>
+          </div>
+
           <div class="border-l-2 border-gray-700 pl-3 py-1 mb-3">
             <div class="flex items-center justify-between">
               <span class="font-bold text-gray-300 text-xs">v1.0.19-dev - 레벨 변동 단위별 구간 골드 관리 체계 도입</span>
@@ -361,26 +372,6 @@
             </div>
             <ul class="text-xs text-gray-500 mt-1 space-y-0.5 list-disc pl-3">
               <li>종막/세르카 노말(1710) 및 하드(1730) 기준에 맞춰 레벨 구간별 골드 수급 판별식 보정</li>
-            </ul>
-          </div>
-
-          <div class="border-l-2 border-gray-700 pl-3 py-1 mb-3">
-            <div class="flex items-center justify-between">
-              <span class="font-bold text-gray-300 text-xs">v1.0.16-dev - 숙제 체크 안내 바 텍스트 범용화 (레이드 표기)</span>
-              <span class="text-[11px] text-gray-500">2026.08.30</span>
-            </div>
-            <ul class="text-xs text-gray-500 mt-1 space-y-0.5 list-disc pl-3">
-              <li>숙제 체크 안내 바의 예시 텍스트를 특정 레이드명 대신 일반적인 '레이드' 명칭으로 일괄 변경</li>
-            </ul>
-          </div>
-
-          <div class="border-l-2 border-gray-700 pl-3 py-1 mb-3">
-            <div class="flex items-center justify-between">
-              <span class="font-bold text-gray-300 text-xs">v1.0.15-dev - 수동 체크(W) 뱃지 보라색 원복 및 선택 골드 용어 정정</span>
-              <span class="text-[11px] text-gray-500">2026.08.30</span>
-            </div>
-            <ul class="text-xs text-gray-500 mt-1 space-y-0.5 list-disc pl-3">
-              <li>개별 수동 완료(W) 체크 뱃지의 색상을 가독성 높은 보라색 톤으로 원복 및 선택 골드 용어 정정</li>
             </ul>
           </div>
 
@@ -499,7 +490,7 @@
       if (title.includes('성당') && title.includes('3단')) return 500;
       if (title.includes('벨가')) return 500;
       if (title.includes('종막') && title.includes('하드')) return 480;
-      if (title.includes('세르카') && (title.includes('하드') || title.includes('하드'))) return 440;
+      if (title.includes('세르카') && title.includes('하드')) return 440;
       if (title.includes('성당') && (title.includes('2단') || title.includes('2단계'))) return 400;
       if (title.includes('4막') && title.includes('하드')) return 380;
       if (title.includes('종막')) return 320;
@@ -693,7 +684,7 @@
       }
     }
 
-    // ★ 성당이 종막보다 골드 보상이 크도록 payout 가중치 재정렬 (벨가 > 세르카 > 성당 > 종막 > 4막)
+    // ★ 1740대 세르카 나메 등급 반영 및 정확한 상위 3개 + 선택 구간 산출
     function getCharTop3Keys(c) {
       const available = [];
       if (c.level >= 1750) available.push({ key: 'belga', payout: 75000 });
@@ -706,8 +697,6 @@
       if (c.level >= 1720) available.push({ key: 'act4', payout: 38000 });
       else if (c.level >= 1700) available.push({ key: 'act4', payout: 27000 });
 
-      // payout 금액 기준 내림차순 정렬 (성당 4만 > 종막 4.8만은 종막이 높지만, 성당 3단 등 고단계나 순위에 맞춰 보정)
-      // 실제 시트 보상 기준: 벨가(7.5만) > 세르카(5.4만) > 성당(5만) > 종막(4.8만) > 4막(3.8만) 순이 되도록 payout 재조정
       available.forEach(x => {
         if (x.key === 'cathedral' && c.level >= 1750) x.payout = 50000;
         if (x.key === 'final' && c.level >= 1730) x.payout = 48000;
@@ -747,7 +736,8 @@
         const isAct4Hard = title.includes('4막') && title.includes('하드');
         const isCathedral2 = title.includes('성당') && (title.includes('2단') || title.includes('2단계'));
 
-        const isChoiceRange = (instKey === 'act4' && charLvl >= 1720 && charLvl < 1750);
+        // ★ 1720~1740대 선택 골드 영역(4막 하드, 성당 2단 등) 판별 고도화
+        const isChoiceRange = (instKey === 'act4' || instKey === 'cathedral') && charLvl >= 1720 && charLvl < 1750;
         const isTop3 = top3Keys.includes(instKey) || isChoiceRange;
 
         if (isAct4Hard && isCathedral2) {
@@ -1179,7 +1169,7 @@
         oldCharName: target.name,
         oldChar: `${target.name} (${target.job} / ${target.level} / ${target.pos})`,
         newCharName: newChar.name,
-        newJob: newChar.newJob,
+        newJob: newChar.job,
         newLevel: newChar.level.toFixed(2),
         newPos: newChar.pos,
         reason: '대시보드 원클릭 즉시 변경'
@@ -1373,7 +1363,7 @@
       }).join('');
     }
 
-    // ★ [DEV 전용] 레벨별 골드 기준표 디버그 뷰 렌더링 함수
+    // ★ [DEV 전용] 레벨별 골드 기준표 디버그 뷰 (선택구간 명시 반영)
     function renderDebugTableView() {
       const tbody = document.getElementById('debugTableBody');
       if (characterPoolData.length === 0) {
@@ -1384,7 +1374,7 @@
       const labelMap = {
         belga: '벨가르딘',
         serka: '세르카',
-        cathedral: '지평의 성당',
+        cathedral: '지평의 성당 (선택구간)',
         final: '종막',
         act4: '4막 (선택구간)'
       };
@@ -1397,11 +1387,16 @@
           keys.push('act4');
         }
 
-        const tags = keys.map(k => `<span class="px-2 py-0.5 rounded text-xs bg-amber-950 text-amber-300 border border-amber-600 font-semibold mr-1">${labelMap[k] || k}</span>`).join('');
+        const tags = keys.map(k => {
+          const label = labelMap[k] || k;
+          const isChoice = label.includes('선택구간');
+          return `<span class="px-2 py-0.5 rounded text-xs ${isChoice ? 'bg-cyan-950 text-cyan-300 border border-cyan-600' : 'bg-amber-950 text-amber-300 border border-amber-600'} font-semibold mr-1">${label}</span>`;
+        }).join('');
         
         let rangeLabel = '1700 미만';
         if (c.level >= 1780) rangeLabel = '1780+ (최상위)';
         else if (c.level >= 1750) rangeLabel = '1750대';
+        else if (c.level >= 1740) rangeLabel = '1740대';
         else if (c.level >= 1730) rangeLabel = '1730대';
         else if (c.level >= 1720) rangeLabel = '1720대 (선택)';
         else if (c.level >= 1710) rangeLabel = '1710대';
