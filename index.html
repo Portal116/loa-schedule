@@ -73,8 +73,8 @@
         <div class="flex items-center space-x-2">
           <i data-lucide="shield" class="w-6 h-6 text-yellow-500"></i>
           <span class="font-bold text-lg text-white tracking-wide">LOA RAID SCHEDULE</span>
-          <button onclick="openInfoModal('changelog')" class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-yellow-500/10 text-yellow-400 border border-yellow-500/30 hover:bg-yellow-500/20 transition cursor-pointer" title="클릭하여 업데이트 이력 확인">
-            v1.3.5
+          <button onclick="openInfoModal('changelog')" class="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-yellow-500/10 text-yellow-400 border border-yellow-500/30 hover:bg-yellow-500/20 transition cursor-pointer" title="클릭하여 업데이트 이력 확인">
+            v1.0.0
           </button>
         </div>
 
@@ -271,48 +271,62 @@
 
       <div class="flex items-center space-x-2 text-yellow-400 mb-4">
         <i data-lucide="book-open" class="w-5 h-5"></i>
-        <h3 class="text-lg font-bold text-white">대시보드 도움말 및 패치노트</h3>
+        <h3 class="text-lg font-bold text-white">대시보드 이용 안내</h3>
       </div>
 
       <div class="flex border-b border-gray-800 mb-4">
-        <button onclick="switchInfoTab('guide')" id="infoTabBtnGuide" class="px-4 py-2 text-sm font-semibold border-b-2 border-yellow-500 text-yellow-400 transition">기능 도움말</button>
+        <button onclick="switchInfoTab('guide')" id="infoTabBtnGuide" class="px-4 py-2 text-sm font-semibold border-b-2 border-yellow-500 text-yellow-400 transition">자주 묻는 질문</button>
         <button onclick="switchInfoTab('changelog')" id="infoTabBtnChangelog" class="px-4 py-2 text-sm font-semibold text-gray-400 hover:text-white transition">업데이트 이력</button>
       </div>
 
       <div class="overflow-y-auto modal-scroll pr-2 space-y-4 text-sm text-gray-300 flex-1">
-        <div id="infoContentGuide" class="space-y-4">
+        <!-- 1. 실사용자 맞춤형 도움말 (FAQ) -->
+        <div id="infoContentGuide" class="space-y-3">
           <div class="bg-[#0d1117] p-3.5 rounded-xl border border-gray-800">
-            <h4 class="font-bold text-white text-sm mb-1.5 flex items-center space-x-1.5">
-              <span class="w-2 h-2 rounded-full bg-amber-400"></span>
-              <span>원클릭 캐릭터 즉시 변경 시스템</span>
-            </h4>
-            <p class="text-xs text-gray-400 leading-relaxed">
-              일정표의 캐릭터 슬롯을 클릭하면 같은 유저의 원정대 전체 캐릭터 목록이 표시됩니다. 원하는 캐릭터를 선택하면 <strong>구글 시트의 해당 슬롯이 실시간으로 덮어쓰기 변경</strong>되며, <code class="text-yellow-500">Change_Logs</code>에 변경 이력이 기록됩니다.
+            <h4 class="font-bold text-white text-xs mb-1 text-yellow-400">Q. 내가 출전하는 일정만 모아보고 싶어요!</h4>
+            <p class="text-xs text-gray-300 leading-relaxed">
+              상단 우측의 <strong>[내 캐릭터 강조]</strong>에서 본인 닉네임을 선택하면 내 캐릭터가 노란색으로 강조됩니다. 추가로 <strong>[내 서브 조만 보기]</strong>를 체크하면 내가 참여하는 조의 탭만 깔끔하게 필터링됩니다.
             </p>
           </div>
 
           <div class="bg-[#0d1117] p-3.5 rounded-xl border border-gray-800">
-            <h4 class="font-bold text-white text-sm mb-1.5 flex items-center space-x-1.5">
-              <span class="w-2 h-2 rounded-full bg-amber-400"></span>
-              <span>골드 획득 3단계 판별 시스템</span>
-            </h4>
-            <ul class="text-xs text-gray-400 space-y-1 pl-3.5 list-disc">
-              <li><strong class="text-amber-300">🟡 G 코인</strong>: 캐릭터별 주간 상위 3개 레이드로 골드를 정상 획득합니다.</li>
-              <li><strong class="text-cyan-300">🟡+? 물음표 코인</strong>: 4막 하드(3.8만 일반)와 성당 2단계(4.0만 귀속)를 모두 뛰는 경우 선택 구간입니다.</li>
-              <li><strong class="text-red-400">🟡+✕ 빨간X 코인</strong>: 주간 3회를 초과 출전한 레이드로 골드가 미획득됩니다.</li>
+            <h4 class="font-bold text-white text-xs mb-1 text-yellow-400">Q. 출전할 캐릭터를 다른 캐릭터로 바꾸고 싶어요!</h4>
+            <p class="text-xs text-gray-300 leading-relaxed">
+              일정표에서 <strong>내 캐릭터 슬롯을 클릭</strong>하면 본인 원정대의 캐릭터 목록이 뜹니다. 바꾸고 싶은 캐릭터를 누르면 구글 시트에 즉시 반영되며, 디스코드 공지 채널로 변경 알림이 자동 전송됩니다.
+            </p>
+          </div>
+
+          <div class="bg-[#0d1117] p-3.5 rounded-xl border border-gray-800">
+            <h4 class="font-bold text-white text-xs mb-1 text-yellow-400">Q. 캐릭터 옆에 붙은 골드 아이콘은 무엇인가요?</h4>
+            <ul class="text-xs text-gray-300 space-y-1.5 list-disc pl-4 mt-1">
+              <li><span class="inline-block px-1.5 py-0.2 rounded bg-amber-500 text-amber-950 font-bold text-[10px]">G</span> : 주간 상위 3회 레이드로 <strong>골드를 정상 획득</strong>하는 일정입니다.</li>
+              <li><span class="inline-block px-1.5 py-0.2 rounded bg-cyan-600 text-white font-bold text-[10px]">?</span> : <strong>선택 구간</strong>입니다. (4막 하드의 일반골드 3.8만 vs 성당 2단계의 귀속골드 4.0만 중 본인 필요에 맞게 선택)</li>
+              <li><span class="inline-block px-1.5 py-0.2 rounded bg-gray-700 text-red-500 font-bold text-[10px]">✕</span> : 주간 3회를 초과 출전하여 <strong>골드가 나오지 않는 일정</strong>입니다.</li>
+            </ul>
+          </div>
+
+          <div class="bg-[#0d1117] p-3.5 rounded-xl border border-gray-800">
+            <h4 class="font-bold text-white text-xs mb-1 text-yellow-400">Q. [캐릭터 현황] 탭의 레이드 뱃지는 무슨 의미인가요?</h4>
+            <ul class="text-xs text-gray-300 space-y-1 list-disc pl-4 mt-1">
+              <li><span class="text-emerald-400 font-bold">초록색 ✓</span> : 이번 주 일정표에 출전 배치가 완료된 레이드</li>
+              <li><span class="text-gray-300">회색 뱃지</span> : 레벨은 만족하지만 아직 일정표에 안 들어간 숙제</li>
+              <li><span class="text-gray-600 line-through">취소선</span> : 캐릭터 레벨이 부족하여 입장할 수 없는 레이드</li>
             </ul>
           </div>
         </div>
 
+        <!-- 2. 패치노트 -->
         <div id="infoContentChangelog" class="space-y-3 hidden">
           <div class="border-l-2 border-yellow-500 pl-3 py-1">
             <div class="flex items-center justify-between">
-              <span class="font-bold text-white text-xs">v1.3.5 - 2열 균등 배치 & 서포터 최상단 정렬</span>
+              <span class="font-bold text-white text-xs">v1.0.0 - 정식 버전 릴리즈 (Official Release)</span>
               <span class="text-[11px] text-gray-500">2026.08.30</span>
             </div>
             <ul class="text-xs text-gray-400 mt-1 space-y-0.5 list-disc pl-3">
-              <li>서포터 및 스왑가능 캐릭터를 양쪽 2열의 최상단에 우선 배치</li>
-              <li>출전 캐릭터들을 좌/우 2열에 지그재그 균등 분배하여 비대칭/공백 현상 완전 해소</li>
+              <li>로스트아크 레이드 공대 관리 웹 대시보드 정식 출시</li>
+              <li>원클릭 실시간 슬롯 덮어쓰기, 디스코드 웹훅 알림, 변경 이력 로그 연동</li>
+              <li>8인 레이드 서포터 최상단 고정 및 2열 균등 밸런스 배치 적용</li>
+              <li>내 캐릭터 강조, 서브 조 필터링, 원정대 캐릭터 현황 및 골드표 탭 탑재</li>
             </ul>
           </div>
         </div>
@@ -753,11 +767,7 @@
       });
     }
 
-    /**
-     * 서포터 최우선 + 2열 지그재그 균등 분배 알고리즘
-     */
     function balanceSlotsFor8Man(slots) {
-      // 1. 서포터/스왑 최우선 정렬
       const sorted = [...slots].sort((a, b) => {
         const getPriority = (item) => {
           if (item.pos === '서포터') return 3;
@@ -769,7 +779,6 @@
         return parseFloat(b.level) - parseFloat(a.level);
       });
 
-      // 2. 좌측 열(colLeft), 우측 열(colRight)에 번갈아가며 1명씩 배치
       const colLeft = [];
       const colRight = [];
 
