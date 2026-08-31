@@ -73,7 +73,7 @@
           <i data-lucide="flask-conical" class="w-6 h-6 text-purple-400"></i>
           <span class="font-bold text-lg text-white tracking-wide">LOA RAID [DEV]</span>
           <button onclick="openInfoModal('changelog')" class="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/30 hover:bg-purple-500/20 transition cursor-pointer" title="클릭하여 업데이트 이력 확인">
-            v1.0.38-dev
+            v1.0.41-dev
           </button>
         </div>
 
@@ -1116,9 +1116,6 @@
         else if (c.pos === '스왑가능') posBadge = `<span class="badge-swap text-[11px] font-semibold px-2 py-0.5 rounded">스왑가능</span>`;
 
         const isGoldChar = goldEligibleCharNames.has(c.name);
-        const goldTag = isGoldChar
-          ? `<span class="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 border border-amber-600/40 font-semibold">골드권</span>`
-          : `<span class="text-[10px] px-1.5 py-0.5 rounded bg-gray-800 text-gray-500 border border-gray-700">골드권 외</span>`;
 
         // 주간 골드 진행도.
         // 확정(EARN)은 각각 한 칸씩 차지하고, 선택 구간(MAYBE)은 여러 개를 돌아도
@@ -1136,9 +1133,11 @@
 
         const isFull = totalSlots > 0 && doneCount >= totalSlots;
         const progressColor = isFull ? 'bg-emerald-500' : (doneCount > 0 ? 'bg-yellow-500' : 'bg-gray-700');
+        // 캐릭터명 옆 한 자리에 둘 중 하나만 표시한다.
+        // 골드 획득 대상 -> 진행도 (n/m) / 대상 밖 -> '골드 제외'. 뱃지로 따로 표기하면 같은 정보가 두 번 나온다.
         const counterHtml = isGoldChar
           ? `<span class="text-[11px] font-mono font-normal ${isFull ? 'text-emerald-400' : 'text-gray-400'}" title="주간 골드 획득 ${totalSlots}칸 중 완료한 수${maybeKeys.length ? ' (선택 구간은 ' + maybeSlots + '칸만 인정)' : ''}">(${doneCount}/${totalSlots})</span>`
-          : '';
+          : `<span class="text-[11px] font-normal text-gray-500" title="원정대 레벨 상위 6개 밖으로 추정되어 주간 골드를 받지 않습니다 (실제 인게임 골드 획득 캐릭터 지정과 다를 수 있음)">골드 제외</span>`;
         const progressHtml = isGoldChar
           ? `<div class="w-full bg-[#0d1117] h-1.5 rounded-full overflow-hidden border border-gray-800">
                <div class="${progressColor} h-full transition-all duration-300" style="width: ${totalSlots ? (doneCount / totalSlots) * 100 : 0}%"></div>
@@ -1158,7 +1157,6 @@
               <div class="text-right space-y-1">
                 ${posBadge}
                 <div class="text-xs text-gray-400">${c.job}</div>
-                ${goldTag}
               </div>
             </div>
 
