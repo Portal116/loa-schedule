@@ -73,7 +73,7 @@
           <i data-lucide="flask-conical" class="w-6 h-6 text-purple-400"></i>
           <span class="font-bold text-lg text-white tracking-wide">LOA RAID [DEV]</span>
           <button onclick="openInfoModal('changelog')" class="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/30 hover:bg-purple-500/20 transition cursor-pointer" title="클릭하여 업데이트 이력 확인">
-            v1.0.42-dev
+            v1.0.43-dev
           </button>
         </div>
 
@@ -132,7 +132,7 @@
         </div>
         <div class="flex items-center space-x-1.5">
           <span class="inline-block w-4 h-4 rounded-full bg-cyan-600 text-[10px] text-white font-bold text-center leading-4">?</span>
-          <span title="선택 구간 — 둘 중 하나만 골드 획득" class="cursor-help border-b border-dotted border-gray-600">선택 구간 (표시된 것 중 하나만 골드 획득)</span>
+          <span>선택 구간 (둘 중 하나만 골드 획득)</span>
         </div>
         <div class="flex items-center space-x-1.5">
           <span class="inline-block w-4 h-4 rounded-full bg-gray-700 text-[10px] text-red-500 font-bold text-center leading-4">✕</span>
@@ -938,7 +938,7 @@
     function renderGoldBadge(status, maybeDesc) {
       if (status === 'EARN') {
         return `
-          <div class="relative flex items-center justify-center w-5 h-5 cursor-help" title="골드 획득 — 주간 상위 3개 레이드에 확실히 포함됩니다">
+          <div class="relative flex items-center justify-center w-5 h-5">
             <svg class="w-5 h-5" viewBox="0 0 24 24">
               <circle cx="12" cy="12" r="9.5" fill="#D97706" stroke="#B45309" stroke-width="1" />
               <circle cx="12" cy="12" r="7.5" fill="#FBBF24" stroke="#FDE68A" stroke-width="0.8" />
@@ -961,7 +961,7 @@
         `;
       } else {
         return `
-          <div class="relative flex items-center justify-center w-5 h-5 cursor-help opacity-75 hover:opacity-100 transition" title="골드 미획득 — 주간 상위 3개 레이드 밖입니다">
+          <div class="relative flex items-center justify-center w-5 h-5 opacity-75 hover:opacity-100 transition">
             <svg class="w-5 h-5" viewBox="0 0 24 24">
               <circle cx="12" cy="12" r="9.5" fill="#78716C" stroke="#57534E" stroke-width="1" />
               <circle cx="12" cy="12" r="7.5" fill="#A8A29E" stroke="#D6D3D1" stroke-width="0.8" />
@@ -1041,29 +1041,35 @@
 
       // 입장 불가는 골드/출처와 무관하게 하나로 처리
       if (!canEnter) {
-        return `<span class="${base} bg-[#0d1117] border border-gray-900 text-gray-600 line-through opacity-60 cursor-not-allowed" title="입장 불가 (최소 레벨 ${minCut} 미달)">${label}</span>`;
+        return `<span class="${base} bg-[#0d1117] border border-gray-900 text-gray-600 line-through opacity-60 cursor-not-allowed">${label}</span>`;
       }
 
       const tone = goldTier === 'EARN'
-        ? { fill: 'bg-amber-500/20 text-amber-300', hollow: 'text-amber-400/70', border: 'border-amber-500/70', name: '골드 확정' }
+        ? { fill: 'bg-amber-500/20 text-amber-300', hollow: 'text-amber-400/70', border: 'border-amber-500/70' }
         : (goldTier === 'MAYBE'
-          ? { fill: 'bg-cyan-500/20 text-cyan-300', hollow: 'text-cyan-400/70', border: 'border-cyan-500/70', name: maybeDesc || MAYBE_GOLD_DESC }
-          : { fill: 'bg-gray-800 text-gray-400', hollow: 'text-gray-500', border: 'border-gray-700', name: '골드 대상 아님' });
+          ? { fill: 'bg-cyan-500/20 text-cyan-300', hollow: 'text-cyan-400/70', border: 'border-cyan-500/70' }
+          : { fill: 'bg-gray-800 text-gray-400', hollow: 'text-gray-500', border: 'border-gray-700' });
+
+      // 툴팁은 선택 구간에만 붙인다. 확정/대상 아님은 색만으로 충분하고,
+      // 판단이 필요한 건 선택 구간뿐이라 여기에만 골드 액수를 보여준다.
+      const isMaybe = goldTier === 'MAYBE';
+      const tip = isMaybe ? ` title="${maybeDesc || MAYBE_GOLD_DESC}"` : '';
+      const help = isMaybe ? ' cursor-help' : '';
 
       const esc = charName.replace(/'/g, "\\'");
 
       // 1) 일정표 자동 등록(V) — 실선 테두리, 웹에서 해제 불가
       if (status === 'V') {
-        return `<span class="${base} ${tone.fill} border ${tone.border} cursor-not-allowed" title="일정표 자동 등록 — ${tone.name} (해제하려면 일정표에서 수정)">${label} ✓</span>`;
+        return `<span class="${base} ${tone.fill} border ${tone.border} cursor-not-allowed"${tip}>${label} ✓</span>`;
       }
 
       // 2) 개별 수동 완료(W) — 점선 테두리, 클릭 시 취소
       if (status === 'W') {
-        return `<span onclick="toggleManualHomework('${esc}','${raidKey}')" class="${base} ${tone.fill} border border-dashed ${tone.border} cursor-pointer hover:brightness-125 transition" title="개별 수동 완료 — ${tone.name} (클릭 시 취소)">${label} ✓</span>`;
+        return `<span onclick="toggleManualHomework('${esc}','${raidKey}')" class="${base} ${tone.fill} border border-dashed ${tone.border} cursor-pointer hover:brightness-125 transition"${tip}>${label} ✓</span>`;
       }
 
       // 3) 미완료 — 속이 빈 상태. 골드 대상이면 색으로 남아 우선순위가 보인다.
-      return `<span onclick="toggleManualHomework('${esc}','${raidKey}')" class="${base} bg-transparent border border-dashed ${tone.border} ${tone.hollow} font-medium cursor-pointer hover:brightness-125 transition" title="미완료 — ${tone.name} (클릭하여 수동 완료 처리)">${label}</span>`;
+      return `<span onclick="toggleManualHomework('${esc}','${raidKey}')" class="${base} bg-transparent border border-dashed ${tone.border} ${tone.hollow}${help} font-medium cursor-pointer hover:brightness-125 transition"${tip}>${label}</span>`;
     }
 
     // W(개별 수동 완료) 상태만 웹에서 원클릭 토글 가능. V(일정표 자동 등록)는 해제 불가.
