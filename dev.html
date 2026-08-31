@@ -73,7 +73,7 @@
           <i data-lucide="flask-conical" class="w-6 h-6 text-purple-400"></i>
           <span class="font-bold text-lg text-white tracking-wide whitespace-nowrap">로아 공대</span>
           <button onclick="openInfoModal('changelog')" class="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/30 hover:bg-purple-500/20 transition cursor-pointer" title="클릭하여 업데이트 이력 확인">
-            v0.1.1
+            v0.1.4
           </button>
         </div>
 
@@ -223,9 +223,8 @@
     <!-- 3. 레이드 골드 정보 뷰 -->
     <div id="sectionGold" class="hidden">
       <div class="card-bg rounded-xl overflow-hidden shadow-lg border border-gray-800">
-        <div class="p-4 border-b border-gray-800 flex items-center justify-between">
+        <div class="p-4 border-b border-gray-800">
           <h3 class="font-bold text-white text-base">로스트아크 주요 레이드 골드 및 보상 안내</h3>
-          <span class="text-xs text-gray-400">시트(Raid_Info) 기준 실시간 연동</span>
         </div>
         <div class="overflow-x-auto">
           <table class="w-full text-left text-sm text-gray-300">
@@ -251,15 +250,11 @@
     <!-- 4. [DEV 전용] 레벨 구간별 골드 기준표 디버그 뷰 -->
     <div id="sectionDebug" class="hidden">
       <div class="card-bg rounded-xl p-6 border border-purple-500/40 shadow-xl space-y-4">
-        <div class="flex items-center justify-between border-b border-gray-800 pb-3">
-          <div>
-            <h3 class="font-bold text-white text-base flex items-center space-x-2">
-              <i data-lucide="shield-alert" class="w-5 h-5 text-purple-400"></i>
-              <span>[DEV 전용] 아이템 레벨 구간별 동적 골드 기준표</span>
-            </h3>
-            <p class="text-xs text-gray-400 mt-1">Raid_Info 시트 실시간 연동. 귀속골드 가중치 w = <span id="debugWeightRange" class="text-purple-300 font-mono">-</span> 범위에서 양쪽 다 상위 3개면 확정, 한쪽만이면 선택 구간.</p>
-          </div>
-          <span class="text-xs px-2.5 py-1 rounded bg-purple-950 text-purple-300 border border-purple-700 font-mono">DYNAMIC ENGINE</span>
+        <div class="border-b border-gray-800 pb-3">
+          <h3 class="font-bold text-white text-base flex items-center space-x-2">
+            <i data-lucide="shield-alert" class="w-5 h-5 text-purple-400"></i>
+            <span>[DEV 전용] 레벨 구간별 골드 기준표</span>
+          </h3>
         </div>
         <div class="overflow-x-auto">
           <table class="w-full text-left text-sm text-gray-300">
@@ -280,7 +275,7 @@
   </main>
 
   <!-- 원클릭 캐릭터 즉시 변경 모달 -->
-  <div id="quickSwapModal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-4">
+  <div id="quickSwapModal" onclick="if (event.target === this) closeQuickSwapModal()" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-4">
     <div class="card-bg w-full max-w-lg rounded-2xl p-6 border border-gray-700 shadow-2xl relative">
       <button onclick="closeQuickSwapModal()" class="absolute top-4 right-4 text-gray-400 hover:text-white">
         <i data-lucide="x" class="w-5 h-5"></i>
@@ -315,7 +310,7 @@
   </div>
 
   <!-- 도움말 및 패치노트 모달 -->
-  <div id="infoModal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-4">
+  <div id="infoModal" onclick="if (event.target === this) closeInfoModal()" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-4">
     <div class="card-bg w-full max-w-2xl max-h-[85vh] rounded-2xl p-6 border border-gray-700 shadow-2xl relative flex flex-col">
       <button onclick="closeInfoModal()" class="absolute top-4 right-4 text-gray-400 hover:text-white">
         <i data-lucide="x" class="w-5 h-5"></i>
@@ -381,11 +376,11 @@
         <div id="infoContentChangelog" class="space-y-3 hidden">
           <div class="border-l-2 border-yellow-500 pl-3 py-1">
             <div class="flex items-center justify-between">
-              <span class="font-bold text-white text-xs">v0.1 - 첫 릴리즈</span>
+              <span class="font-bold text-white text-xs">v1.0 - 정식 버전 릴리즈 (Official Release)</span>
               <span class="text-[11px] text-gray-500">2026.08.31</span>
             </div>
             <ul class="text-xs text-gray-400 mt-1 space-y-0.5 list-disc pl-3">
-              <li>로스트아크 레이드 공대 관리 웹 대시보드 출시</li>
+              <li>로스트아크 레이드 공대 관리 웹 대시보드 정식 출시</li>
               <li>조별 레이드 일정표, 내 캐릭터 강조 및 내 서브 조만 보기 필터</li>
               <li>일정표에서 본인 슬롯의 캐릭터 교체 (선택 후 확정)</li>
               <li>주간 골드 3칸 자동 판별 및 선택 구간 표시</li>
@@ -1548,9 +1543,6 @@
 
     function renderDebugTableView() {
       const tbody = document.getElementById('debugTableBody');
-      const rangeEl = document.getElementById('debugWeightRange');
-      if (rangeEl) rangeEl.textContent = `${BOUND_GOLD_WEIGHT_LOW} ~ ${BOUND_GOLD_WEIGHT_HIGH}`;
-
       const brackets = [
         { label: '1780.00 이상', lvl: 1785 },
         { label: '1770.00 ~ 1779.99', lvl: 1775 },
