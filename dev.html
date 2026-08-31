@@ -6,7 +6,7 @@
   <title>[DEV] 로아 공대 - 로스트아크 레이드 대시보드</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
-  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/lucide/0.469.0/lucide.min.js"></script>
   <style>
     body {
       background-color: #0d1117;
@@ -73,7 +73,7 @@
           <i data-lucide="flask-conical" class="w-6 h-6 text-purple-400"></i>
           <span class="font-bold text-lg text-white tracking-wide whitespace-nowrap">로아 공대</span>
           <button onclick="openInfoModal('changelog')" class="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/30 hover:bg-purple-500/20 transition cursor-pointer" title="클릭하여 업데이트 이력 확인">
-            v1.0.4
+            v1.0.5
           </button>
         </div>
 
@@ -145,7 +145,23 @@
         </div>
       </div>
 
-      <section id="raidContainer" class="mt-6 grid grid-cols-1 gap-6"></section>
+      <section id="raidContainer" class="mt-6 grid grid-cols-1 gap-6">
+        <div class="card-bg rounded-xl p-5 shadow-lg animate-pulse space-y-3">
+          <div class="h-5 w-40 bg-gray-800 rounded"></div>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="space-y-1.5">
+              <div class="h-10 bg-gray-800/60 rounded-lg"></div>
+              <div class="h-10 bg-gray-800/60 rounded-lg"></div>
+              <div class="h-10 bg-gray-800/60 rounded-lg"></div>
+            </div>
+            <div class="space-y-1.5">
+              <div class="h-10 bg-gray-800/60 rounded-lg"></div>
+              <div class="h-10 bg-gray-800/60 rounded-lg"></div>
+              <div class="h-10 bg-gray-800/60 rounded-lg"></div>
+            </div>
+          </div>
+        </div>
+      </section>
     </div>
 
     <!-- 2. 캐릭터 현황 & 숙제 체크 뷰 -->
@@ -574,6 +590,14 @@
       return null;
     }
 
+    // 시트 CSV 하나를 받아 파싱까지 끝낸다. 실패 시 null.
+    async function fetchSheetCsv(sheetName, bust) {
+      const url = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURI(sheetName)}&t=${bust}`;
+      const res = await fetch(url);
+      const text = await res.text();
+      return Papa.parse(text, { skipEmptyLines: false }).data;
+    }
+
     async function fetchSheetData() {
       const refreshIcon = document.getElementById('refreshIcon');
       if (refreshIcon) refreshIcon.classList.add('animate-spin');
@@ -583,14 +607,18 @@
       const allRaidInstances = [];
 
       try {
-        for (const config of SHEET_CONFIG) {
-          const url = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURI(config.id)}&t=${new Date().getTime()}`;
-          const response = await fetch(url);
-          const csvText = await response.text();
-          
-          const parsed = Papa.parse(csvText, { skipEmptyLines: false });
-          const blocks = parseRaidBlocksRobust(parsed.data, config.is8Man, config.id);
-          
+        // 시트를 순차로 받으면 왕복 8번이 그대로 더해진다. 서로 의존하지 않으므로 전부 병렬로 받는다.
+        const bust = Date.now();
+        const [sheetRows, poolRows, attRows, raidRows] = await Promise.all([
+          Promise.all(SHEET_CONFIG.map(cfg => fetchSheetCsv(cfg.id, bust))),
+          fetchSheetCsv('Character_Pool', bust),
+          fetchSheetCsv('Attendance', bust).catch(() => null),
+          fetchSheetCsv('Raid_Info', bust).catch(() => null)
+        ]);
+
+        SHEET_CONFIG.forEach((config, idx) => {
+          const blocks = parseRaidBlocksRobust(sheetRows[idx], config.is8Man, config.id);
+
           const groupUsers = new Set();
           blocks.forEach(b => {
             b.slots.forEach(s => {
@@ -624,30 +652,13 @@
             users: Array.from(groupUsers),
             title: config.fixedTitle || (groupUsers.size > 0 ? Array.from(groupUsers).join(', ') : config.id)
           };
-        }
+        });
 
-        const poolUrl = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=out:csv&sheet=Character_Pool&t=${new Date().getTime()}`;
-        const poolRes = await fetch(poolUrl);
-        const poolCsv = await poolRes.text();
-        parseCharacterPool(Papa.parse(poolCsv, { skipEmptyLines: false }).data);
+        parseCharacterPool(poolRows);
 
-        try {
-          const attUrl = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=out:csv&sheet=Attendance&t=${new Date().getTime()}`;
-          const attRes = await fetch(attUrl);
-          const attCsv = await attRes.text();
-          parseAttendance(Papa.parse(attCsv, { skipEmptyLines: false }).data);
-        } catch (e) {
-          // 시트가 아직 없으면 기능만 비활성 상태로 둔다
-          attendanceData = [];
-          console.log('Attendance 시트 없음 (선택)', e);
-        }
-
-        try {
-          const goldUrl = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=out:csv&sheet=Raid_Info&t=${new Date().getTime()}`;
-          const goldRes = await fetch(goldUrl);
-          const goldCsv = await goldRes.text();
-          parseRaidInfo(Papa.parse(goldCsv, { skipEmptyLines: false }).data);
-        } catch (e) { console.log('Raid_Info optional', e); }
+        // Attendance / Raid_Info 는 없어도 나머지 기능이 동작해야 한다
+        if (attRows) parseAttendance(attRows); else attendanceData = [];
+        if (raidRows) parseRaidInfo(raidRows);
 
         calculateGoldEligibilities(allRaidInstances);
         window.allRaidInstancesStore = allRaidInstances;
