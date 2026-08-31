@@ -94,7 +94,7 @@
           <i data-lucide="flask-conical" class="w-6 h-6 text-purple-400"></i>
           <span class="font-bold text-lg text-white tracking-wide whitespace-nowrap">로아 공대</span>
           <button onclick="openInfoModal('changelog')" class="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/30 hover:bg-purple-500/20 transition cursor-pointer" title="클릭하여 업데이트 이력 확인">
-            v1.0.12
+            v1.0.13
           </button>
         </div>
 
@@ -2248,11 +2248,52 @@
         <div class="bg-[#0d1117] border border-gray-800 rounded-lg px-2.5 py-2">
           <div class="flex items-center justify-between gap-2 mb-1">
             <div class="text-[11px] text-gray-500 font-mono">${x.at ? x.at.split(' ')[0] : ''} · ${x.category || '기타'}</div>
-            <span class="px-1.5 py-0.5 rounded border text-[10px] font-bold whitespace-nowrap ${tone(x.state)}">${x.state || '접수'}</span>
+            <div class="flex items-center gap-1.5">
+              <span class="px-1.5 py-0.5 rounded border text-[10px] font-bold whitespace-nowrap ${tone(x.state)}">${x.state || '접수'}</span>
+              ${(x.state || '접수') === '접수'
+                ? `<button onclick="deleteSuggestion('${encodeURIComponent(x.content)}')" class="text-[11px] text-gray-500 hover:text-red-400 transition">삭제</button>`
+                : ''}
+            </div>
           </div>
           <div class="text-xs text-gray-300 leading-relaxed whitespace-pre-wrap">${x.content}</div>
         </div>
       `).join('');
+    }
+
+    // 접수 상태인 본인 건의만 삭제할 수 있다.
+    // 전송 직후 낙관적으로 추가된 항목은 접수일시가 실제 시트값과 다를 수 있으므로
+    // 내용으로 대상을 특정한다.
+    async function deleteSuggestion(contentEncoded) {
+      const content = decodeURIComponent(contentEncoded);
+      if (!confirm('이 건의를 삭제할까요?')) return;
+
+      const base = selectedUser.split('(')[0].trim();
+      let removedOne = false;
+      suggestionsData = suggestionsData.filter(x => {
+        if (removedOne) return true;
+        const mine = x.user.split('(')[0].trim() === base;
+        if (mine && x.content === content && (x.state || '접수') === '접수') {
+          removedOne = true;
+          return false;
+        }
+        return true;
+      });
+      renderSuggestMyList();
+
+      try {
+        await fetch(APPS_SCRIPT_WEB_APP_URL, {
+          method: 'POST',
+          mode: 'no-cors',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'deleteSuggestion',
+            user: selectedUser,
+            content: content
+          })
+        });
+      } catch (err) {
+        console.error('건의 삭제 오류:', err);
+      }
     }
 
     function selectSuggestCategory(cat) {
