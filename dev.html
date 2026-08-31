@@ -73,7 +73,7 @@
           <i data-lucide="flask-conical" class="w-6 h-6 text-purple-400"></i>
           <span class="font-bold text-lg text-white tracking-wide">LOA RAID [DEV]</span>
           <button onclick="openInfoModal('changelog')" class="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/30 hover:bg-purple-500/20 transition cursor-pointer" title="클릭하여 업데이트 이력 확인">
-            v1.0.34-dev
+            v1.0.36-dev
           </button>
         </div>
 
@@ -128,11 +128,11 @@
         <span class="font-semibold text-gray-300">골드 획득 범례:</span>
         <div class="flex items-center space-x-1.5">
           <span class="inline-block w-4 h-4 rounded-full bg-amber-500 text-[10px] text-amber-950 font-bold text-center leading-4">G</span>
-          <span>골드 획득 (상위 3개 레이드)</span>
+          <span>골드 획득 (주간 상위 3개 레이드)</span>
         </div>
         <div class="flex items-center space-x-1.5">
           <span class="inline-block w-4 h-4 rounded-full bg-cyan-600 text-[10px] text-white font-bold text-center leading-4">?</span>
-          <span>선택 골드 뱃지 (선택 구간)</span>
+          <span title="선택 구간 — 유통골드와 귀속골드 중 무엇을 더 쳐주느냐에 따라 갈리는 레이드입니다. 표시된 것 중 하나에서만 골드를 받습니다." class="cursor-help border-b border-dotted border-gray-600">선택 구간 (표시된 것 중 하나만 골드 획득)</span>
         </div>
         <div class="flex items-center space-x-1.5">
           <span class="inline-block w-4 h-4 rounded-full bg-gray-700 text-[10px] text-red-500 font-bold text-center leading-4">✕</span>
@@ -212,7 +212,7 @@
             <thead class="bg-[#0d1117] text-xs uppercase text-gray-400 border-b border-gray-800">
               <tr>
                 <th class="px-4 py-3">레이드명</th>
-                <th class="px-4 py-3">구분</th>
+                <th class="px-4 py-3">파티</th>
                 <th class="px-4 py-3">난이도</th>
                 <th class="px-4 py-3 text-right">입장 레벨</th>
                 <th class="px-4 py-3 text-right text-amber-400">일반 골드</th>
@@ -237,7 +237,7 @@
               <i data-lucide="shield-alert" class="w-5 h-5 text-purple-400"></i>
               <span>[DEV 전용] 아이템 레벨 구간별 동적 골드 기준표</span>
             </h3>
-            <p class="text-xs text-gray-400 mt-1">시트 실시간 연동 및 동적 산출 엔진 기준표입니다.</p>
+            <p class="text-xs text-gray-400 mt-1">Raid_Info 시트 실시간 연동. 귀속골드 가중치 w = <span id="debugWeightRange" class="text-purple-300 font-mono">-</span> 범위에서 양쪽 다 상위 3개면 확정, 한쪽만이면 선택 구간.</p>
           </div>
           <span class="text-xs px-2.5 py-1 rounded bg-purple-950 text-purple-300 border border-purple-700 font-mono">DYNAMIC ENGINE</span>
         </div>
@@ -245,8 +245,10 @@
           <table class="w-full text-left text-sm text-gray-300">
             <thead class="bg-[#0d1117] text-xs uppercase text-gray-400 border-b border-gray-800">
               <tr>
-                <th class="px-4 py-3">레벨 구간 (범위)</th>
-                <th class="px-4 py-3">골드 획득 상위 레이드 3종 및 선택 구간 (동적 산출)</th>
+                <th class="px-4 py-3">레벨 구간</th>
+                <th class="px-4 py-3">확정 / 선택 구간 (동적 산출)</th>
+                <th class="px-4 py-3">환산 점수 (유통 + 귀속×w)</th>
+                <th class="px-4 py-3">역전 w</th>
               </tr>
             </thead>
             <tbody id="debugTableBody" class="divide-y divide-gray-800">
@@ -388,6 +390,18 @@
       { key: 'belga', label: '벨가', minLevel: 1750 }
     ];
 
+    // ─── 골드 판별 엔진 설정 ───────────────────────────────────
+    // 주간 골드 획득 가능 레이드 수
+    const GOLD_SLOT_LIMIT = 3;
+    // 귀속골드를 유통골드 대비 몇 배로 칠 것인가(가중치 w).
+    // 사람마다 판단이 달라서 하나로 못 정하므로 범위로 다룬다.
+    // 두 끝값 모두에서 상위 3개에 들면 '확정', 한쪽에서만 들면 '선택 구간'.
+    // 값을 조정하려면 [DEV] 기준표의 '역전 w' 컬럼을 보고 판단할 것.
+    const BOUND_GOLD_WEIGHT_LOW = 0.8;
+    const BOUND_GOLD_WEIGHT_HIGH = 1.0;
+    // 선택 구간 공통 안내 문구 (범례/툴팁에서 공용)
+    const MAYBE_GOLD_DESC = '선택 구간 — 유통골드와 귀속골드 중 무엇을 더 쳐주느냐에 따라 갈리는 레이드입니다. 표시된 것 중 하나에서만 골드를 받습니다.';
+
     let currentMainView = 'schedule';
     let currentActiveTab = 'Main_8Man';
     let selectedUser = localStorage.getItem('loa_selected_user') || '';
@@ -459,53 +473,22 @@
       lucide.createIcons();
     }
 
-    function getRaidGoldWeight(title) {
-      if (title.includes('벨가') && (title.includes('나메') || title.includes('나이트메어'))) return 750;
-      if (title.includes('벨가') && title.includes('하드')) return 620;
-      if (title.includes('세르카') && (title.includes('나메') || title.includes('3단'))) return 540;
-      if (title.includes('성당') && title.includes('3단')) return 500;
-      if (title.includes('벨가')) return 500;
-      if (title.includes('종막') && title.includes('하드')) return 480;
-      if (title.includes('세르카') && title.includes('하드')) return 440;
-      if (title.includes('성당') && (title.includes('2단') || title.includes('2단계'))) return 400;
-      if (title.includes('4막') && title.includes('하드')) return 380;
-      if (title.includes('종막')) return 320;
-      if (title.includes('세르카')) return 320;
-      if (title.includes('성당')) return 300;
-      if (title.includes('4막')) return 270;
-      return 50;
+    // 콤마 포함 문자열/공백/undefined를 안전하게 숫자로 변환
+    function parseGoldNum(v) {
+      if (v === undefined || v === null || v === '') return 0;
+      const n = parseFloat(String(v).replace(/,/g, ''));
+      return isNaN(n) ? 0 : n;
     }
 
-    function getExpectedMaxGold(charLevel, raidKey) {
-      if (raidKey === 'belga') {
-        if (charLevel >= 1780) return 75000;
-        if (charLevel >= 1770) return 62000;
-        if (charLevel >= 1750) return 50000;
-        return 0;
-      }
-      if (raidKey === 'serka') {
-        if (charLevel >= 1740) return 54000;
-        if (charLevel >= 1730) return 44000;
-        if (charLevel >= 1710) return 32000;
-        return 0;
-      }
-      if (raidKey === 'cathedral') {
-        if (charLevel >= 1750) return 50000;
-        if (charLevel >= 1720) return 40000;
-        if (charLevel >= 1700) return 30000;
-        return 0;
-      }
-      if (raidKey === 'final') {
-        if (charLevel >= 1730) return 48000;
-        if (charLevel >= 1710) return 32000;
-        return 0;
-      }
-      if (raidKey === 'act4') {
-        if (charLevel >= 1720) return 38000;
-        if (charLevel >= 1700) return 27000;
-        return 0;
-      }
-      return 0;
+    // 슬롯 제목/Raid_Info 이름에서 레이드 계열 키를 추출 (일정표 슬롯 매칭과 동일한 키워드 기준)
+    function getRaidFamilyKey(name) {
+      if (!name) return null;
+      if (name.includes('벨가')) return 'belga';
+      if (name.includes('세르카')) return 'serka';
+      if (name.includes('성당')) return 'cathedral';
+      if (name.includes('종막')) return 'final';
+      if (name.includes('4막')) return 'act4';
+      return null;
     }
 
     async function fetchSheetData() {
@@ -546,8 +529,7 @@
                   party: s.party,
                   user: s.user,
                   job: s.job,
-                  level: s.level,
-                  weight: getRaidGoldWeight(b.title)
+                  level: s.level
                 });
               }
             });
@@ -646,15 +628,17 @@
       for (let r = 1; r < rows.length; r++) {
         const row = rows[r] || [];
         const name = (row[0] || '').toString().trim();
-        if (name && !name.includes('레이드')) {
+        // 헤더는 r=1부터 순회하므로 이미 제외됨. 이름에 '레이드'가 들어간 정상 행을 버리지 않도록 필터 없음.
+        if (name) {
           raidInfoData.push({
             name: name,
-            category: (row[1] || '').toString().trim(),
+            abbr: (row[1] || '').toString().trim(),        // B열: 축약어
             diff: (row[2] || '').toString().trim(),
             level: (row[3] || '').toString().trim(),
             goldTrade: (row[4] || '0').toString().trim(),
             goldBound: (row[5] || '0').toString().trim(),
-            goldTotal: (row[6] || '0').toString().trim()
+            goldTotal: (row[6] || '0').toString().trim(),
+            partyType: (row[7] || '').toString().trim()    // H열: 파티유형(8인/4인)
           });
         }
       }
@@ -933,7 +917,7 @@
     function renderGoldBadge(status) {
       if (status === 'EARN') {
         return `
-          <div class="relative flex items-center justify-center w-5 h-5 cursor-help" title="골드 획득 (레벨 기준 상위 3개 레이드)">
+          <div class="relative flex items-center justify-center w-5 h-5 cursor-help" title="골드 획득 — 주간 상위 3개 레이드에 확실히 포함됩니다">
             <svg class="w-5 h-5" viewBox="0 0 24 24">
               <circle cx="12" cy="12" r="9.5" fill="#D97706" stroke="#B45309" stroke-width="1" />
               <circle cx="12" cy="12" r="7.5" fill="#FBBF24" stroke="#FDE68A" stroke-width="0.8" />
@@ -943,7 +927,7 @@
         `;
       } else if (status === 'MAYBE') {
         return `
-          <div class="relative flex items-center justify-center w-5 h-5 cursor-help" title="선택 골드 구간 (레벨 구간에 따라 상위 3개 중 하나로 취급될 수 있는 일정)">
+          <div class="relative flex items-center justify-center w-5 h-5 cursor-help" title="${MAYBE_GOLD_DESC}">
             <svg class="w-5 h-5" viewBox="0 0 24 24">
               <circle cx="12" cy="12" r="9.5" fill="#D97706" stroke="#B45309" stroke-width="1" />
               <circle cx="12" cy="12" r="7.5" fill="#FBBF24" stroke="#FDE68A" stroke-width="0.8" />
@@ -956,7 +940,7 @@
         `;
       } else {
         return `
-          <div class="relative flex items-center justify-center w-5 h-5 cursor-help opacity-75 hover:opacity-100 transition" title="골드 미획득 (상위 3개 레이드 외 일정)">
+          <div class="relative flex items-center justify-center w-5 h-5 cursor-help opacity-75 hover:opacity-100 transition" title="골드 미획득 — 주간 상위 3개 레이드 밖입니다">
             <svg class="w-5 h-5" viewBox="0 0 24 24">
               <circle cx="12" cy="12" r="9.5" fill="#78716C" stroke="#57534E" stroke-width="1" />
               <circle cx="12" cy="12" r="7.5" fill="#A8A29E" stroke="#D6D3D1" stroke-width="0.8" />
@@ -1156,7 +1140,7 @@
       tbody.innerHTML = raidInfoData.map(r => `
         <tr class="hover:bg-gray-800/40 transition">
           <td class="px-4 py-3 font-semibold text-white">${r.name}</td>
-          <td class="px-4 py-3"><span class="px-2 py-0.5 rounded text-xs bg-blue-950 text-blue-400 border border-blue-800">${r.category}</span></td>
+          <td class="px-4 py-3"><span class="px-2 py-0.5 rounded text-xs bg-blue-950 text-blue-400 border border-blue-800">${r.partyType || '-'}</span></td>
           <td class="px-4 py-3">${getDifficultyBadge(r.diff)}</td>
           <td class="px-4 py-3 text-right font-mono">${r.level}</td>
           <td class="px-4 py-3 text-right font-mono text-amber-400">${r.goldTrade} G</td>
@@ -1166,27 +1150,112 @@
       `).join('');
     }
 
+    // Raid_Info 시트를 기반으로, 해당 레벨의 캐릭터가 각 레이드 계열에서
+    // 입장 가능한 최고 난이도를 하나씩 뽑아 총골드 내림차순으로 반환한다.
+    // 같은 계열의 두 난이도를 동시에 갈 일은 없으므로 계열당 1개만 남긴다.
     function getCharTop3Raids(charLevel) {
-      const pool = [
-        { key: 'belga', name: '벨가르딘', min: 1750, payout: 75000 },
-        { key: 'serka', name: '세르카', min: 1710, payout: charLevel >= 1730 ? 54000 : 32000 },
-        { key: 'cathedral', name: '지평의 성당', min: 1700, payout: charLevel >= 1750 ? 50000 : (charLevel >= 1720 ? 40000 : 30000) },
-        { key: 'final', name: '종막', min: 1710, payout: charLevel >= 1730 ? 48000 : 32000 },
-        { key: 'act4', name: '4막', min: 1700, payout: charLevel >= 1720 ? 38000 : 27000 }
-      ];
+      const familyGroups = {};
+      raidInfoData.forEach(r => {
+        const key = getRaidFamilyKey(r.name);
+        if (!key) return;
+        if (!familyGroups[key]) familyGroups[key] = [];
+        familyGroups[key].push(r);
+      });
 
-      const enterable = pool.filter(r => charLevel >= r.min);
-      enterable.sort((a, b) => b.payout - a.payout);
-      return enterable;
+      const candidates = [];
+      Object.keys(familyGroups).forEach(key => {
+        const entries = familyGroups[key]
+          .map(r => ({
+            key: key,
+            name: r.name,
+            diff: r.diff,
+            levelNum: parseGoldNum(r.level),
+            tradeNum: parseGoldNum(r.goldTrade),
+            boundNum: parseGoldNum(r.goldBound),
+            totalNum: parseGoldNum(r.goldTotal)
+          }))
+          .filter(r => charLevel >= r.levelNum)
+          // 요구 레벨이 가장 높은(=가장 좋은) 난이도 우선.
+          // 요구 레벨이 같은 행이 있으면 총골드가 큰 쪽을 채택(시트 행 순서에 좌우되지 않도록).
+          .sort((a, b) => (b.levelNum - a.levelNum) || (b.totalNum - a.totalNum));
+
+        if (entries.length > 0) {
+          const best = entries[0];
+          candidates.push({
+            key: best.key,
+            name: best.name,
+            diff: best.diff,
+            payout: best.totalNum,
+            trade: best.tradeNum,
+            bound: best.boundNum
+          });
+        }
+      });
+
+      candidates.sort((a, b) => b.payout - a.payout);
+      return candidates;
+    }
+
+    // 귀속골드 가중치 w를 적용한 환산 점수
+    function goldScore(raid, w) {
+      return raid.trade + raid.bound * w;
+    }
+
+    // 특정 w에서 각 레이드가 상위 GOLD_SLOT_LIMIT개 안에 드는지 판정.
+    // 'in'     : 나보다 점수가 높은 것 + 나와 동점인 것을 다 합쳐도 골드칸에 들어감 (확실히 획득)
+    // 'out'    : 나보다 점수가 높은 것만 이미 골드칸을 다 채움 (확실히 미획득)
+    // 'border' : 동점 그룹이 남은 칸을 넘침 (그 중 일부만 받을 수 있음)
+    // 점수가 완전히 같은 레이드는 항상 같은 판정을 받는다.
+    function goldStatusAt(candidates, w) {
+      const statusMap = {};
+      candidates.forEach(r => {
+        const my = goldScore(r, w);
+        const higher = candidates.filter(o => goldScore(o, w) > my).length;
+        const atLeast = candidates.filter(o => goldScore(o, w) >= my).length;
+
+        if (higher >= GOLD_SLOT_LIMIT) statusMap[r.key] = 'out';
+        else if (atLeast <= GOLD_SLOT_LIMIT) statusMap[r.key] = 'in';
+        else statusMap[r.key] = 'border';
+      });
+      return statusMap;
+    }
+
+    // 귀속골드 가중치 w의 양 끝값에서 각각 순위를 매기고 결과를 합친다.
+    //   양쪽 다 획득  -> EARN  (확정)
+    //   양쪽 다 미획득 -> NONE
+    //   한쪽만 획득   -> MAYBE (선택 구간: w를 어떻게 보느냐에 따라 갈림)
+    function computeGoldTiers(charLevel) {
+      const candidates = getCharTop3Raids(charLevel);
+      const atLow = goldStatusAt(candidates, BOUND_GOLD_WEIGHT_LOW);
+      const atHigh = goldStatusAt(candidates, BOUND_GOLD_WEIGHT_HIGH);
+
+      const tierMap = {};
+      candidates.forEach(r => {
+        const lo = atLow[r.key];
+        const hi = atHigh[r.key];
+        if (lo === 'in' && hi === 'in') tierMap[r.key] = 'EARN';
+        else if (lo === 'out' && hi === 'out') tierMap[r.key] = 'NONE';
+        else tierMap[r.key] = 'MAYBE';
+      });
+
+      return tierMap;
+    }
+
+    // 두 레이드의 점수가 같아지는 w(손익분기). 순위가 뒤집히는 지점이라 [DEV] 기준표에서 튜닝 근거로 쓴다.
+    function goldBreakEvenW(a, b) {
+      const db = a.bound - b.bound;
+      if (db === 0) return null;
+      return (b.trade - a.trade) / db;
     }
 
     function calculateGoldEligibilities(instances) {
       slotGoldStatusMap = {};
 
-      const charTop3Map = {};
-      characterPoolData.forEach(c => {
-        charTop3Map[c.name] = getCharTop3Raids(c.level);
-      });
+      const tierMapCache = {};
+      function getTierMapForLevel(lvl) {
+        if (!tierMapCache[lvl]) tierMapCache[lvl] = computeGoldTiers(lvl);
+        return tierMapCache[lvl];
+      }
 
       instances.forEach(inst => {
         const isGoldChar = goldEligibleCharNames.has(inst.charName);
@@ -1197,32 +1266,10 @@
 
         const charObj = characterPoolData.find(c => c.name === inst.charName);
         const charLvl = charObj ? charObj.level : 0;
-        const sortedRaids = charTop3Map[inst.charName] || [];
-        const top3Keys = sortedRaids.slice(0, 3).map(r => r.key);
+        const tierMap = getTierMapForLevel(charLvl);
 
-        const title = inst.raidTitle;
-        let instKey = '';
-        if (title.includes('벨가')) instKey = 'belga';
-        else if (title.includes('세르카')) instKey = 'serka';
-        else if (title.includes('성당')) instKey = 'cathedral';
-        else if (title.includes('종막')) instKey = 'final';
-        else if (title.includes('4막')) instKey = 'act4';
-
-        const isAct4Hard = title.includes('4막') && title.includes('하드');
-        const isCathedral2 = title.includes('성당') && (title.includes('2단') || title.includes('2단계'));
-
-        const isTop3 = top3Keys.includes(instKey);
-        const isChoiceRange = !isTop3 && sortedRaids.some((r, idx) => idx >= 3 && r.key === instKey && (charLvl >= 1720 && charLvl < 1750));
-
-        if (isAct4Hard && isCathedral2) {
-          slotGoldStatusMap[inst.slotUid] = 'MAYBE';
-        } else if (isTop3) {
-          slotGoldStatusMap[inst.slotUid] = 'EARN';
-        } else if (isChoiceRange) {
-          slotGoldStatusMap[inst.slotUid] = 'MAYBE';
-        } else {
-          slotGoldStatusMap[inst.slotUid] = 'NONE';
-        }
+        const instKey = getRaidFamilyKey(inst.raidTitle);
+        slotGoldStatusMap[inst.slotUid] = instKey ? (tierMap[instKey] || 'NONE') : 'NONE';
       });
     }
 
@@ -1378,10 +1425,14 @@
 
     function renderDebugTableView() {
       const tbody = document.getElementById('debugTableBody');
+      const rangeEl = document.getElementById('debugWeightRange');
+      if (rangeEl) rangeEl.textContent = `${BOUND_GOLD_WEIGHT_LOW} ~ ${BOUND_GOLD_WEIGHT_HIGH}`;
+
       const brackets = [
         { label: '1780.00 이상 (최상위)', lvl: 1785 },
-        { label: '1750.00 ~ 1779.99', lvl: 1760 },
-        { label: '1740.00 ~ 1749.99', lvl: 1743 },
+        { label: '1770.00 ~ 1779.99', lvl: 1775 },
+        { label: '1750.00 ~ 1769.99', lvl: 1755 },
+        { label: '1740.00 ~ 1749.99', lvl: 1745 },
         { label: '1730.00 ~ 1739.99', lvl: 1735 },
         { label: '1720.00 ~ 1729.99', lvl: 1725 },
         { label: '1710.00 ~ 1719.99', lvl: 1715 },
@@ -1396,18 +1447,56 @@
         act4: '4막'
       };
 
-      tbody.innerHTML = brackets.map(b => {
-        const sorted = getCharTop3Raids(b.lvl);
-        const top3 = sorted.slice(0, 3);
-        const choice = sorted.slice(3);
+      if (raidInfoData.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="4" class="text-center py-8 text-gray-500">Raid_Info 시트 데이터를 가져오지 못했습니다.</td></tr>`;
+        return;
+      }
 
-        const topTags = top3.map(r => `<span class="px-2 py-0.5 rounded text-xs bg-amber-950 text-amber-300 border border-amber-600 font-semibold mr-1">${nameMap[r.key] || r.key}</span>`).join('');
-        const choiceTags = choice.map(r => `<span class="px-2 py-0.5 rounded text-xs bg-cyan-950 text-cyan-300 border border-cyan-600 font-semibold mr-1">${nameMap[r.key] || r.key} (선택구간)</span>`).join('');
+      const shortG = v => (v / 10000).toFixed(1) + '만';
+
+      tbody.innerHTML = brackets.map(b => {
+        const ranked = getCharTop3Raids(b.lvl);
+        const tierMap = computeGoldTiers(b.lvl);
+
+        const earnList = ranked.filter(r => tierMap[r.key] === 'EARN');
+        const choiceList = ranked.filter(r => tierMap[r.key] === 'MAYBE');
+
+        const topTags = earnList.map(r => `<span class="px-2 py-0.5 rounded text-xs bg-amber-950 text-amber-300 border border-amber-600 font-semibold mr-1">${nameMap[r.key] || r.key} ${r.diff}</span>`).join('');
+        const choiceTags = choiceList.map(r => `<span class="px-2 py-0.5 rounded text-xs bg-cyan-950 text-cyan-300 border border-cyan-600 font-semibold mr-1" title="${MAYBE_GOLD_DESC}">${nameMap[r.key] || r.key} ${r.diff} (선택)</span>`).join('');
+
+        // 환산 점수: w 양 끝값에서의 점수를 같이 보여준다 (귀속 있는 레이드만 값이 변한다)
+        const scoreRows = ranked.map(r => {
+          const sLo = goldScore(r, BOUND_GOLD_WEIGHT_LOW);
+          const sHi = goldScore(r, BOUND_GOLD_WEIGHT_HIGH);
+          const varies = r.bound > 0;
+          const tone = tierMap[r.key] === 'EARN' ? 'text-amber-300'
+            : (tierMap[r.key] === 'MAYBE' ? 'text-cyan-300' : 'text-gray-500');
+          return `<div class="${tone} font-mono text-[11px] leading-5">`
+            + `${(nameMap[r.key] || r.key).padEnd(6)} `
+            + `유통 ${shortG(r.trade)} + 귀속 ${shortG(r.bound)} = `
+            + (varies ? `${shortG(sLo)} ~ ${shortG(sHi)}` : `${shortG(sHi)}`)
+            + `</div>`;
+        }).join('');
+
+        // 역전 w: 선택 구간이 생긴 원인이 되는 쌍의 손익분기점
+        const flips = [];
+        for (let i = 0; i < ranked.length; i++) {
+          for (let j = i + 1; j < ranked.length; j++) {
+            const w = goldBreakEvenW(ranked[i], ranked[j]);
+            if (w === null || w <= 0 || w > 1.5) continue;
+            const inBand = w >= BOUND_GOLD_WEIGHT_LOW && w <= BOUND_GOLD_WEIGHT_HIGH;
+            flips.push(`<div class="font-mono text-[11px] leading-5 ${inBand ? 'text-cyan-300' : 'text-gray-600'}">`
+              + `${nameMap[ranked[i].key] || ranked[i].key} ↔ ${nameMap[ranked[j].key] || ranked[j].key} : `
+              + `w=${w.toFixed(3)}${inBand ? ' ←' : ''}</div>`);
+          }
+        }
 
         return `
-          <tr class="hover:bg-gray-800/40 transition">
-            <td class="px-4 py-3 font-semibold text-white font-mono">${b.label}</td>
+          <tr class="hover:bg-gray-800/40 transition align-top">
+            <td class="px-4 py-3 font-semibold text-white font-mono whitespace-nowrap">${b.label}</td>
             <td class="px-4 py-3">${topTags} ${choiceTags}</td>
+            <td class="px-4 py-3">${scoreRows}</td>
+            <td class="px-4 py-3">${flips.join('') || '<span class="text-gray-600 text-[11px]">-</span>'}</td>
           </tr>
         `;
       }).join('');
