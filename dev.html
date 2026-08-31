@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>[DEV] 로스트아크 공대 대시보드 & 동적 골드 판별</title>
+  <title>[DEV] 로아 공대 - 로스트아크 레이드 대시보드</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
   <script src="https://unpkg.com/lucide@latest"></script>
@@ -71,9 +71,9 @@
       <div class="flex items-center space-x-3">
         <div class="flex items-center space-x-2">
           <i data-lucide="flask-conical" class="w-6 h-6 text-purple-400"></i>
-          <span class="font-bold text-lg text-white tracking-wide">LOA RAID [DEV]</span>
+          <span class="font-bold text-lg text-white tracking-wide whitespace-nowrap">로아 공대</span>
           <button onclick="openInfoModal('changelog')" class="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/30 hover:bg-purple-500/20 transition cursor-pointer" title="클릭하여 업데이트 이력 확인">
-            v1.0.44-dev
+            v0.1.1
           </button>
         </div>
 
@@ -323,7 +323,7 @@
 
       <div class="flex items-center space-x-2 text-yellow-400 mb-4">
         <i data-lucide="book-open" class="w-5 h-5"></i>
-        <h3 class="text-lg font-bold text-white">대시보드 이용 안내 [DEV]</h3>
+        <h3 class="text-lg font-bold text-white">대시보드 이용 안내</h3>
       </div>
 
       <div class="flex border-b border-gray-800 mb-4">
@@ -334,50 +334,64 @@
       <div class="overflow-y-auto modal-scroll pr-2 space-y-4 text-sm text-gray-300 flex-1">
         <div id="infoContentGuide" class="space-y-3">
           <div class="bg-[#0d1117] p-3.5 rounded-xl border border-gray-800">
-            <h4 class="font-bold text-white text-xs mb-1 text-yellow-400">Q. 일정표 슬롯 수정은 어떻게 하나요?</h4>
+            <h4 class="font-bold text-xs mb-1.5 text-yellow-400">Q. 내가 출전하는 일정만 모아보고 싶어요!</h4>
             <p class="text-xs text-gray-300 leading-relaxed">
-              상단 헤더의 <strong>[내 캐릭터 강조]</strong>에서 본인 계정을 먼저 선택하신 후, 일정표의 슬롯을 클릭하시면 본인 원정대 캐릭터들로만 구성된 교체 창이 열립니다. 목록에서 캐릭터를 <strong>먼저 선택</strong>한 뒤, 하단의 <strong>확정 버튼</strong>을 눌러야 실제로 반영됩니다 (오조작 방지를 위해 클릭 즉시 반영되지 않습니다).
+              상단 우측의 <strong>[내 캐릭터 강조]</strong>에서 본인 닉네임을 선택하면 내 캐릭터가 노란색으로 강조됩니다. 추가로 <strong>[내 서브 조만 보기]</strong>를 체크하면 내가 참여하는 조의 탭만 깔끔하게 필터링됩니다.
             </p>
           </div>
           <div class="bg-[#0d1117] p-3.5 rounded-xl border border-gray-800">
-            <h4 class="font-bold text-white text-xs mb-1 text-yellow-400">Q. [캐릭터 현황] 탭의 V / W 상태는 무엇이 다른가요?</h4>
-            <ul class="text-xs text-gray-300 space-y-1.5 list-disc pl-4 mt-1">
-              <li><span class="text-gray-300 font-bold">V (일정표 자동 등록)</span> : 공대 일정표에 배치되어 자동으로 완료 처리된 숙제입니다. 일정표 종속 상태라 웹에서는 해제할 수 없습니다.</li>
-              <li><span class="text-purple-300 font-bold">W (개별 수동 완료)</span> : 일정표와 무관하게 개인이 직접 완료 처리한 숙제입니다. 뱃지를 클릭하면 원클릭으로 켜고 끌 수 있습니다.</li>
+            <h4 class="font-bold text-xs mb-1.5 text-yellow-400">Q. 출전할 캐릭터를 다른 캐릭터로 바꾸고 싶어요!</h4>
+            <p class="text-xs text-gray-300 leading-relaxed">
+              <strong>[내 캐릭터 강조]</strong>에서 본인 닉네임을 선택하면 내 슬롯만 클릭할 수 있게 됩니다. 슬롯을 누르고 캐릭터를 선택한 뒤 <strong>확정 버튼</strong>을 누르면 반영됩니다.
+            </p>
+          </div>
+          <div class="bg-[#0d1117] p-3.5 rounded-xl border border-gray-800">
+            <h4 class="font-bold text-xs mb-1.5 text-yellow-400">Q. 캐릭터 옆에 붙은 골드 아이콘은 무엇인가요?</h4>
+            <p class="text-xs text-gray-300 leading-relaxed mb-1.5">주간 골드는 캐릭터당 <strong>3개 레이드</strong>까지만 받습니다.</p>
+            <ul class="text-xs text-gray-300 space-y-1 list-disc pl-4">
+              <li><span class="inline-block w-4 h-4 rounded-full bg-amber-500 text-[10px] text-amber-950 font-bold text-center leading-4 align-middle">G</span> : 골드를 획득하는 일정</li>
+              <li><span class="inline-block w-4 h-4 rounded-full bg-cyan-600 text-[10px] text-white font-bold text-center leading-4 align-middle">?</span> : 선택 구간. 짝인 레이드와 1칸을 나눠 <strong>둘 중 하나만</strong> 골드가 나옵니다 (마우스를 올리면 짝과 골드 표시)</li>
+              <li><span class="inline-block w-4 h-4 rounded-full bg-gray-700 text-[10px] text-red-500 font-bold text-center leading-4 align-middle">✕</span> : 골드 3칸 밖이라 골드가 나오지 않는 일정</li>
+            </ul>
+          </div>
+          <div class="bg-[#0d1117] p-3.5 rounded-xl border border-gray-800">
+            <h4 class="font-bold text-xs mb-1.5 text-yellow-400">Q. 선택 구간은 왜 생기나요?</h4>
+            <p class="text-xs text-gray-300 leading-relaxed">
+              유통골드와 귀속골드의 가치가 달라서, 총골드만으로 순위가 안 정해지는 구간이 있습니다. 성당 3단계는 5.0만 전액 귀속, 종막 하드는 4.8만 유통이라 사람마다 유리한 쪽이 갈립니다.
+            </p>
+          </div>
+          <div class="bg-[#0d1117] p-3.5 rounded-xl border border-gray-800">
+            <h4 class="font-bold text-xs mb-1.5 text-yellow-400">Q. [캐릭터 현황] 탭의 레이드 뱃지는 무슨 의미인가요?</h4>
+            <ul class="text-xs text-gray-300 space-y-1 list-disc pl-4">
+              <li><strong>색상 = 골드 여부</strong> : <span class="text-amber-300">호박색</span> 확정 / <span class="text-cyan-300">청록색</span> 선택 구간 / <span class="text-gray-400">회색</span> 골드 대상 아님</li>
+              <li><strong>테두리 = 체크 출처</strong> : 실선은 일정표 자동 (해제 불가) / 점선은 수동 체크 (클릭 시 취소)</li>
+              <li><strong>속이 빈 뱃지</strong> : 미완료</li>
+              <li><strong>취소선</strong> : 레벨 부족으로 입장 불가</li>
+            </ul>
+          </div>
+          <div class="bg-[#0d1117] p-3.5 rounded-xl border border-gray-800">
+            <h4 class="font-bold text-xs mb-1.5 text-yellow-400">Q. 캐릭터 이름 옆의 (2/3)과 '골드 제외'는 무엇인가요?</h4>
+            <ul class="text-xs text-gray-300 space-y-1 list-disc pl-4">
+              <li><strong>(2/3)</strong> : 이번 주 골드 3칸 중 채운 개수입니다. 선택 구간 2개를 다 돌아도 골드는 1칸이라 1로 셉니다.</li>
+              <li><strong>골드 제외</strong> : 골드 획득 캐릭터 6개 밖이라는 뜻입니다. 계정별 최종레벨 상위 6개로 자동 판정하므로 실제 지정과 다를 수 있습니다.</li>
             </ul>
           </div>
         </div>
 
         <div id="infoContentChangelog" class="space-y-3 hidden">
-          <div class="border-l-2 border-purple-500 pl-3 py-1 mb-3">
+          <div class="border-l-2 border-yellow-500 pl-3 py-1">
             <div class="flex items-center justify-between">
-              <span class="font-bold text-white text-xs">v1.0.34-dev - 캐릭터 즉시 변경 UX 개선 및 Apps Script 실배포 코드 대조 완료</span>
+              <span class="font-bold text-white text-xs">v0.1 - 첫 릴리즈</span>
               <span class="text-[11px] text-gray-500">2026.08.31</span>
             </div>
             <ul class="text-xs text-gray-400 mt-1 space-y-0.5 list-disc pl-3">
-              <li>[내 캐릭터 즉시 변경] 모달: 캐릭터 클릭 시 즉시 반영되던 방식을 '선택 → 확정 버튼 클릭' 2단계 방식으로 변경 (오조작 방지)</li>
-              <li>W(개별 수동 완료) 토글 전송 액션명을 실제 Api.gs 기준인 'toggleWildClear'로 일치시킴</li>
-              <li>Config.gs / Menu.gs / Api.gs / Sync.gs 4개 백엔드 스크립트 전수 대조 검토 완료</li>
-            </ul>
-          </div>
-          <div class="border-l-2 border-purple-500 pl-3 py-1 mb-3">
-            <div class="flex items-center justify-between">
-              <span class="font-bold text-white text-xs">v1.0.33-dev - 누락 함수 전수 복구 및 V/W 토글 연동</span>
-              <span class="text-[11px] text-gray-500">2026.08.30</span>
-            </div>
-            <ul class="text-xs text-gray-400 mt-1 space-y-0.5 list-disc pl-3">
-              <li>renderPartySlots / renderGoldBadge / renderPoolView / renderGoldTableView 등 정의 누락으로 발생하던 ReferenceError 전수 수정</li>
-              <li>캐릭터 현황 탭에 V(일정표 종속, 해제 불가) / W(개별 수동 완료, 원클릭 토글) 상태 뱃지 신규 연동</li>
-              <li>일정표 슬롯 즉시 교체(payload)에 action 필드를 추가하여 Apps Script 백엔드에서 스왑/숙제토글 요청을 구분하도록 개선</li>
-            </ul>
-          </div>
-          <div class="border-l-2 border-gray-700 pl-3 py-1 mb-3">
-            <div class="flex items-center justify-between">
-              <span class="font-bold text-white text-xs">v1.0.32-dev - 렌더링 함수(renderTabs 등) 누락 없는 완전체 버전 (시도)</span>
-              <span class="text-[11px] text-gray-500">2026.08.30</span>
-            </div>
-            <ul class="text-xs text-gray-400 mt-1 space-y-0.5 list-disc pl-3">
-              <li>renderTabs 및 관련 UI 렌더링 함수 전수 검수 완료 (일부 함수 누락은 v1.0.33-dev에서 수정됨)</li>
+              <li>로스트아크 레이드 공대 관리 웹 대시보드 출시</li>
+              <li>조별 레이드 일정표, 내 캐릭터 강조 및 내 서브 조만 보기 필터</li>
+              <li>일정표에서 본인 슬롯의 캐릭터 교체 (선택 후 확정)</li>
+              <li>주간 골드 3칸 자동 판별 및 선택 구간 표시</li>
+              <li>캐릭터 현황 &amp; 숙제 체크 - 자동/수동 체크 구분, 골드 여부 병행 표시, 주간 진행도 표시</li>
+              <li>레이드 골드표 (입장 레벨, 유통·귀속·총골드)</li>
+              <li>8인 레이드 서포터 최상단 고정 및 2열 균등 밸런스 배치</li>
             </ul>
           </div>
         </div>
