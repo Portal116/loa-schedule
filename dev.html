@@ -183,16 +183,29 @@
         <div class="flex flex-wrap items-center gap-4">
           <span class="font-semibold text-gray-300">숙제 체크 안내:</span>
           <div class="flex items-center space-x-1.5">
-            <span class="px-1.5 py-0.5 bg-emerald-950 border border-emerald-600 text-emerald-400 font-bold rounded text-[10px]">레이드 ✓</span>
-            <span>골드 획득 숙제 완료</span>
+            <span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-gray-800 text-gray-400 border border-gray-700">레이드 ✓</span>
+            <span>실선 = 일정표 자동 등록 (수정 불가)</span>
           </div>
           <div class="flex items-center space-x-1.5">
-            <span class="px-1.5 py-0.5 bg-gray-900 border border-gray-700 text-gray-400 rounded text-[10px]">레이드 ✓</span>
-            <span>일정표 자동 등록 (수정 불가)</span>
+            <span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-gray-800 text-gray-400 border border-dashed border-gray-700">레이드 ✓</span>
+            <span>점선 = 개별 수동 완료 (클릭 시 취소)</span>
+          </div>
+          <span class="text-gray-700">|</span>
+          <div class="flex items-center space-x-1.5">
+            <span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/70">레이드 ✓</span>
+            <span>골드 확정</span>
           </div>
           <div class="flex items-center space-x-1.5">
-            <span class="px-1.5 py-0.5 bg-purple-950 border border-purple-500 text-purple-300 rounded text-[10px]">레이드 ✓</span>
-            <span>개별 수동 완료 (클릭 시 취소)</span>
+            <span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/70">레이드 ✓</span>
+            <span title="선택 구간 — 유통골드와 귀속골드 중 무엇을 더 쳐주느냐에 따라 갈리는 레이드입니다. 표시된 것 중 하나에서만 골드를 받습니다." class="cursor-help border-b border-dotted border-gray-600">선택 구간 (둘 중 하나만 골드)</span>
+          </div>
+          <div class="flex items-center space-x-1.5">
+            <span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-gray-800 text-gray-400 border border-gray-700">레이드 ✓</span>
+            <span>골드 대상 아님</span>
+          </div>
+          <div class="flex items-center space-x-1.5">
+            <span class="px-1.5 py-0.5 rounded text-[10px] font-medium bg-transparent border border-dashed border-amber-500/70 text-amber-400/70">레이드</span>
+            <span>비어있음 = 미완료</span>
           </div>
         </div>
       </div>
@@ -999,24 +1012,44 @@
     }
 
     // 캐릭터 현황 탭의 레이드별 숙제 뱃지 렌더링
-    // status: 'V' = 일정표 자동 등록(웹에서 해제 불가), 'W' = 개별 수동 완료(원클릭 토글 가능), '' = 미완료
-    function renderRaidTag(label, status, charLevel, raidKey, charName) {
+    //
+    // 두 가지 정보를 서로 겹치지 않는 축으로 표현한다.
+    //   색상   = 골드 여부   호박(확정) / 청록(선택 구간) / 회색(골드 대상 아님)
+    //   테두리 = 체크 출처   실선(V: 일정표 자동, 수정 불가) / 점선(W: 개별 수동, 클릭 시 취소)
+    //   채움   = 완료 여부   채워짐(완료) / 비어있음(미완료)
+    //
+    // status: 'V' = 일정표 자동 등록, 'W' = 개별 수동 완료, '' = 미완료
+    // goldTier: 'EARN' | 'MAYBE' | 'NONE' | undefined
+    function renderRaidTag(label, status, charLevel, raidKey, charName, goldTier) {
       const minCut = getRaidMinLevel(raidKey);
       const canEnter = charLevel >= minCut;
+      const base = 'px-1.5 py-0.5 rounded text-[10px] font-bold select-none';
 
+      // 입장 불가는 골드/출처와 무관하게 하나로 처리
+      if (!canEnter) {
+        return `<span class="${base} bg-[#0d1117] border border-gray-900 text-gray-600 line-through opacity-60 cursor-not-allowed" title="입장 불가 (최소 레벨 ${minCut} 미달)">${label}</span>`;
+      }
+
+      const tone = goldTier === 'EARN'
+        ? { fill: 'bg-amber-500/20 text-amber-300', hollow: 'text-amber-400/70', border: 'border-amber-500/70', name: '골드 확정' }
+        : (goldTier === 'MAYBE'
+          ? { fill: 'bg-cyan-500/20 text-cyan-300', hollow: 'text-cyan-400/70', border: 'border-cyan-500/70', name: '선택 구간 (둘 중 하나만 골드)' }
+          : { fill: 'bg-gray-800 text-gray-400', hollow: 'text-gray-500', border: 'border-gray-700', name: '골드 대상 아님' });
+
+      const esc = charName.replace(/'/g, "\\'");
+
+      // 1) 일정표 자동 등록(V) — 실선 테두리, 웹에서 해제 불가
       if (status === 'V') {
-        return `<span class="px-1.5 py-0.5 bg-gray-900 border border-gray-700 text-gray-400 font-bold rounded text-[10px] cursor-not-allowed select-none" title="일정표에 자동 등록된 숙제입니다 (웹에서는 해제할 수 없습니다)">${label} ✓</span>`;
+        return `<span class="${base} ${tone.fill} border ${tone.border} cursor-not-allowed" title="일정표 자동 등록 — ${tone.name} (해제하려면 일정표에서 수정)">${label} ✓</span>`;
       }
 
+      // 2) 개별 수동 완료(W) — 점선 테두리, 클릭 시 취소
       if (status === 'W') {
-        return `<span onclick="toggleManualHomework('${charName.replace(/'/g, "\\'")}','${raidKey}')" class="px-1.5 py-0.5 bg-purple-950 border border-purple-500 text-purple-300 font-bold rounded text-[10px] cursor-pointer hover:bg-purple-900 transition" title="개별 수동 완료 처리됨 (클릭 시 취소)">${label} ✓</span>`;
+        return `<span onclick="toggleManualHomework('${esc}','${raidKey}')" class="${base} ${tone.fill} border border-dashed ${tone.border} cursor-pointer hover:brightness-125 transition" title="개별 수동 완료 — ${tone.name} (클릭 시 취소)">${label} ✓</span>`;
       }
 
-      if (canEnter) {
-        return `<span onclick="toggleManualHomework('${charName.replace(/'/g, "\\'")}','${raidKey}')" class="px-1.5 py-0.5 bg-gray-800 border border-gray-700 text-gray-300 font-medium rounded text-[10px] hover:border-yellow-500 hover:text-yellow-300 cursor-pointer transition" title="입장 가능 (클릭하여 개별 수동 완료 처리)">${label}</span>`;
-      }
-
-      return `<span class="px-1.5 py-0.5 bg-[#0d1117] border border-gray-900 text-gray-600 line-through rounded text-[10px] opacity-60 cursor-not-allowed select-none" title="입장 불가 (최소 레벨 ${minCut} 미달)">${label}</span>`;
+      // 3) 미완료 — 속이 빈 상태. 골드 대상이면 색으로 남아 우선순위가 보인다.
+      return `<span onclick="toggleManualHomework('${esc}','${raidKey}')" class="${base} bg-transparent border border-dashed ${tone.border} ${tone.hollow} font-medium cursor-pointer hover:brightness-125 transition" title="미완료 — ${tone.name} (클릭하여 수동 완료 처리)">${label}</span>`;
     }
 
     // W(개별 수동 완료) 상태만 웹에서 원클릭 토글 가능. V(일정표 자동 등록)는 해제 불가.
@@ -1082,9 +1115,31 @@
         if (c.pos === '서포터') posBadge = `<span class="badge-supporter text-[11px] font-semibold px-2 py-0.5 rounded">서포터</span>`;
         else if (c.pos === '스왑가능') posBadge = `<span class="badge-swap text-[11px] font-semibold px-2 py-0.5 rounded">스왑가능</span>`;
 
-        const goldTag = goldEligibleCharNames.has(c.name)
+        const isGoldChar = goldEligibleCharNames.has(c.name);
+        const goldTag = isGoldChar
           ? `<span class="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 border border-amber-600/40 font-semibold">골드권</span>`
           : `<span class="text-[10px] px-1.5 py-0.5 rounded bg-gray-800 text-gray-500 border border-gray-700">골드권 외</span>`;
+
+        // 주간 골드 진행도: 확정(EARN) + 선택 구간(MAYBE)을 후보로 보고 완료(V/W)를 센다.
+        // 후보가 3개를 넘을 수 있으므로(확정 2 + 선택 2) 칸 수로 상한을 둔다.
+        const tierMap = isGoldChar ? computeGoldTiers(c.level) : {};
+        const goldKeys = RAID_DEFINITIONS
+          .map(d => d.key)
+          .filter(k => tierMap[k] === 'EARN' || tierMap[k] === 'MAYBE');
+        const doneCount = Math.min(
+          goldKeys.filter(k => c.raids[k] === 'V' || c.raids[k] === 'W').length,
+          GOLD_SLOT_LIMIT
+        );
+        const progressColor = doneCount >= GOLD_SLOT_LIMIT ? 'bg-emerald-500'
+          : (doneCount > 0 ? 'bg-yellow-500' : 'bg-gray-700');
+        const counterHtml = isGoldChar
+          ? `<span class="text-[11px] font-mono font-normal ${doneCount >= GOLD_SLOT_LIMIT ? 'text-emerald-400' : 'text-gray-400'}" title="주간 골드 획득 레이드 ${GOLD_SLOT_LIMIT}개 중 완료한 수">(${doneCount}/${GOLD_SLOT_LIMIT})</span>`
+          : '';
+        const progressHtml = isGoldChar
+          ? `<div class="w-full bg-[#0d1117] h-1.5 rounded-full overflow-hidden border border-gray-800">
+               <div class="${progressColor} h-full transition-all duration-300" style="width: ${(doneCount / GOLD_SLOT_LIMIT) * 100}%"></div>
+             </div>`
+          : `<div class="w-full bg-gray-900/60 h-1.5 rounded-full overflow-hidden"></div>`;
 
         return `
           <div class="card-bg p-4 rounded-xl border border-gray-800 flex flex-col justify-between space-y-3 ${isMe ? 'border-yellow-500/50 bg-yellow-950/10' : ''}">
@@ -1093,6 +1148,7 @@
                 <div class="text-xs text-gray-400 font-medium mb-0.5">${c.user} (${c.server})</div>
                 <div class="text-base font-bold text-white flex items-center space-x-2">
                   <span>${c.name}</span>
+                  ${counterHtml}
                 </div>
               </div>
               <div class="text-right space-y-1">
@@ -1102,14 +1158,16 @@
               </div>
             </div>
 
+            ${progressHtml}
+
             <div class="flex items-center justify-between border-t border-gray-800/60 pt-2.5">
               <span class="text-sm font-mono font-bold text-yellow-500/90">${c.level.toLocaleString('ko-KR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
               <div class="flex items-center flex-wrap justify-end gap-1">
-                ${renderRaidTag('종막', c.raids.final, c.level, 'final', c.name)}
-                ${renderRaidTag('4막', c.raids.act4, c.level, 'act4', c.name)}
-                ${renderRaidTag('성당', c.raids.cathedral, c.level, 'cathedral', c.name)}
-                ${renderRaidTag('세르카', c.raids.serka, c.level, 'serka', c.name)}
-                ${renderRaidTag('벨가', c.raids.belga, c.level, 'belga', c.name)}
+                ${renderRaidTag('종막', c.raids.final, c.level, 'final', c.name, tierMap.final)}
+                ${renderRaidTag('4막', c.raids.act4, c.level, 'act4', c.name, tierMap.act4)}
+                ${renderRaidTag('성당', c.raids.cathedral, c.level, 'cathedral', c.name, tierMap.cathedral)}
+                ${renderRaidTag('세르카', c.raids.serka, c.level, 'serka', c.name, tierMap.serka)}
+                ${renderRaidTag('벨가', c.raids.belga, c.level, 'belga', c.name, tierMap.belga)}
               </div>
             </div>
           </div>
