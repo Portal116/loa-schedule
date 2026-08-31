@@ -73,7 +73,7 @@
           <i data-lucide="flask-conical" class="w-6 h-6 text-purple-400"></i>
           <span class="font-bold text-lg text-white tracking-wide whitespace-nowrap">로아 공대</span>
           <button onclick="openInfoModal('changelog')" class="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/30 hover:bg-purple-500/20 transition cursor-pointer" title="클릭하여 업데이트 이력 확인">
-            v1.0.2
+            v1.0.3
           </button>
         </div>
 
@@ -351,7 +351,7 @@
       </div>
 
       <div class="mt-4 pt-3 border-t border-gray-800 flex items-center justify-end space-x-2">
-        <button onclick="closeAttendanceModal()" class="px-4 py-2 rounded-lg text-xs font-semibold text-gray-400 hover:text-white bg-gray-800 transition">취소</button>
+        <button onclick="closeAttendanceModal()" class="px-4 py-2 rounded-lg text-xs font-semibold text-gray-400 hover:text-white bg-gray-800 transition">닫기</button>
         <button id="attendanceSubmitBtn" onclick="submitAttendance()" disabled
           class="px-4 py-2 rounded-lg text-xs font-bold text-black bg-orange-400 hover:bg-orange-300 disabled:bg-gray-700 disabled:text-gray-500 disabled:cursor-not-allowed transition">날짜와 상태를 선택해 주세요</button>
       </div>
@@ -1839,7 +1839,7 @@
             <span class="${tone} font-bold ml-1.5">${a.status}</span>
             ${a.memo ? `<span class="text-gray-500 ml-1.5">${a.memo}</span>` : ''}
           </div>
-          <button onclick="cancelAttendance('${k}')" class="text-[11px] text-gray-500 hover:text-red-400 transition">취소</button>
+          <button onclick="cancelAttendance('${k}')" class="text-[11px] text-gray-500 hover:text-red-400 transition">삭제</button>
         </div>`;
       });
 
@@ -1912,6 +1912,9 @@
     }
 
     async function cancelAttendance(dateKey) {
+      const label = fmtDateLabel(new Date(dateKey + 'T00:00:00'));
+      if (!confirm(`${label} 참여 상태 등록을 삭제할까요?`)) return;
+
       const base = selectedUser.split('(')[0].trim();
       attendanceData = attendanceData.filter(a =>
         !(a.target === dateKey && a.user.split('(')[0].trim() === base)
