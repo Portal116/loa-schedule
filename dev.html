@@ -94,7 +94,7 @@
           <i data-lucide="flask-conical" class="w-6 h-6 text-purple-400"></i>
           <span class="font-bold text-lg text-white tracking-wide whitespace-nowrap">로아 공대</span>
           <button onclick="openInfoModal('changelog')" class="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/30 hover:bg-purple-500/20 transition cursor-pointer" title="클릭하여 업데이트 이력 확인">
-            v1.0.10
+            v1.0.12
           </button>
         </div>
 
@@ -485,7 +485,7 @@
 
         <div id="infoContentSuggest" class="space-y-3 hidden">
           <p class="text-xs text-gray-400 leading-relaxed">
-            사이트에 있으면 좋겠다 싶은 기능이나, 쓰다가 불편했던 점을 남겨주세요. 공대장이 확인합니다.
+            사이트에 있으면 좋겠다 싶은 기능이나, 쓰다가 불편했던 점을 남겨주세요.
           </p>
 
           <div id="suggestNeedUser" class="hidden bg-[#0d1117] border border-gray-800 rounded-xl p-3.5 text-xs text-gray-400">
@@ -501,7 +501,7 @@
             <div>
               <label class="block text-xs font-semibold text-gray-400 mb-1.5">내용</label>
               <textarea id="suggestContent" rows="5" maxlength="500" oninput="updateSuggestState()"
-                placeholder="예: 서브 조도 불참 신고를 할 수 있으면 좋겠습니다."
+                placeholder="자유롭게 적어주세요"
                 class="w-full bg-[#0d1117] border border-gray-700 rounded-lg px-3 py-2 text-xs text-gray-200 placeholder-gray-600 focus:outline-none focus:border-yellow-500 transition resize-none"></textarea>
               <div class="flex items-center justify-between mt-1">
                 <span id="suggestResult" class="text-[11px] text-emerald-400"></span>
@@ -512,6 +512,11 @@
             <div class="flex justify-end">
               <button id="suggestSubmitBtn" onclick="submitSuggestion()" disabled
                 class="px-4 py-2 rounded-lg text-xs font-bold text-black bg-yellow-400 hover:bg-yellow-300 disabled:bg-gray-700 disabled:text-gray-500 disabled:cursor-not-allowed transition">보내기</button>
+            </div>
+
+            <div class="border-t border-gray-800 pt-3">
+              <div class="text-xs font-semibold text-gray-400 mb-1.5">내가 보낸 건의</div>
+              <div id="suggestMyList" class="space-y-1.5"></div>
             </div>
           </div>
         </div>
@@ -589,6 +594,7 @@
     let pendingSwapChar = null;
     let goldEligibleCharNames = new Set();
     let attendanceData = [];          // Attendance 시트 원본
+    let suggestionsData = [];         // Suggestions 시트 원본
     // 시트별로 편성 인스턴스를 나눠 보관한다. 한 시트만 다시 받아도 골드 재계산이 가능해진다.
     let allRaidInstancesBySheet = {};
     let lastSheetFetchAt = {};        // 시트명 -> 마지막 조회 시각(ms)
@@ -786,6 +792,9 @@
       if (currentMainView === 'pool') renderPoolView();
       if (currentMainView === 'gold') renderGoldTableView();
       if (currentMainView === 'debug') renderDebugTableView();
+      // 도움말 모달의 건의사항 탭이 열려 있으면 목록도 갱신
+      const suggestBox = document.getElementById('infoContentSuggest');
+      if (suggestBox && !suggestBox.classList.contains('hidden')) renderSuggestMyList();
       drawIcons();
     }
 
@@ -816,6 +825,7 @@
           else if (name === 'Character_Pool') parseCharacterPool(rows);
           else if (name === 'Raid_Info') parseRaidInfo(rows);
           else if (name === 'Attendance') parseAttendance(rows);
+          else if (name === 'Suggestions') parseSuggestions(rows);
           changed = true;
         });
 
@@ -1715,6 +1725,28 @@
       }
     }
 
+    // ─── Suggestions 시트 파싱 ────────────────────────────────
+    // 열: A접수일시 B유저명 C분류 D내용 E처리상태
+    function parseSuggestions(rows) {
+      suggestionsData = [];
+      const header = (rows[0] || []).map(c => (c || '').toString().trim());
+      if (!header.includes('유저명')) return;
+
+      for (let r = 1; r < rows.length; r++) {
+        const row = rows[r] || [];
+        const user = (row[1] || '').toString().trim();
+        const content = (row[3] || '').toString().trim();
+        if (!user || !content) continue;
+        suggestionsData.push({
+          at: (row[0] || '').toString().trim(),
+          user,
+          category: (row[2] || '').toString().trim(),
+          content,
+          state: (row[4] || '접수').toString().trim()
+        });
+      }
+    }
+
     // 해당 날짜에 유저가 등록한 상태(가장 최근 것 우선)
     function getAttendanceFor(userName, dateKey) {
       if (!userName || !dateKey) return null;
@@ -2186,6 +2218,41 @@
         }).join('');
       }
       updateSuggestState();
+      renderSuggestMyList();
+    }
+
+    // 본인이 보낸 건의와 처리상태. 최근 것이 위로 온다.
+    function renderSuggestMyList() {
+      const box = document.getElementById('suggestMyList');
+      if (!box) return;
+      if (!selectedUser) { box.innerHTML = ''; return; }
+
+      const base = selectedUser.split('(')[0].trim();
+      const mine = suggestionsData
+        .filter(x => x.user.split('(')[0].trim() === base)
+        .slice()
+        .reverse();
+
+      if (mine.length === 0) {
+        box.innerHTML = `<div class="text-xs text-gray-600">보낸 건의가 없습니다.</div>`;
+        return;
+      }
+
+      const tone = st =>
+        st === '완료' ? 'bg-emerald-500/15 text-emerald-400 border-emerald-600/40'
+        : (st === '검토중' ? 'bg-amber-500/15 text-amber-400 border-amber-600/40'
+        : (st === '보류' ? 'bg-gray-700/40 text-gray-400 border-gray-600'
+        : 'bg-blue-500/15 text-blue-300 border-blue-600/40'));
+
+      box.innerHTML = mine.map(x => `
+        <div class="bg-[#0d1117] border border-gray-800 rounded-lg px-2.5 py-2">
+          <div class="flex items-center justify-between gap-2 mb-1">
+            <div class="text-[11px] text-gray-500 font-mono">${x.at ? x.at.split(' ')[0] : ''} · ${x.category || '기타'}</div>
+            <span class="px-1.5 py-0.5 rounded border text-[10px] font-bold whitespace-nowrap ${tone(x.state)}">${x.state || '접수'}</span>
+          </div>
+          <div class="text-xs text-gray-300 leading-relaxed whitespace-pre-wrap">${x.content}</div>
+        </div>
+      `).join('');
     }
 
     function selectSuggestCategory(cat) {
@@ -2211,6 +2278,16 @@
       // 응답을 읽을 수 없는 no-cors 요청이므로 화면을 먼저 정리한다
       if (ta) ta.value = '';
       updateSuggestState();
+      const p = n => String(n).padStart(2, '0');
+      const d = new Date();
+      suggestionsData.push({
+        at: `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:00`,
+        user: selectedUser,
+        category: pendingSuggestCategory,
+        content: content,
+        state: '접수'
+      });
+      renderSuggestMyList();
       if (result) result.textContent = '접수되었습니다. 감사합니다!';
       setTimeout(() => { if (result) result.textContent = ''; }, 4000);
 
@@ -2245,7 +2322,11 @@
         if (box) box.classList.toggle('hidden', key !== active);
       });
 
-      if (active === 'suggest') renderSuggestForm();
+      if (active === 'suggest') {
+        renderSuggestForm();
+        // 처리상태를 최신으로 보여주기 위해 이 탭을 열 때만 받아온다
+        refreshSheets(['Suggestions']);
+      }
     }
 
   </script>
