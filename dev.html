@@ -246,9 +246,8 @@
             <thead class="bg-[#0d1117] text-xs uppercase text-gray-400 border-b border-gray-800">
               <tr>
                 <th class="px-4 py-3">레벨 구간</th>
-                <th class="px-4 py-3">확정 / 선택 구간 (동적 산출)</th>
-                <th class="px-4 py-3">환산 점수 (유통 + 귀속×w)</th>
-                <th class="px-4 py-3">역전 w</th>
+                <th class="px-4 py-3">확정 (골드 확실히 획득)</th>
+                <th class="px-4 py-3">선택 구간 (둘 중 하나만)</th>
               </tr>
             </thead>
             <tbody id="debugTableBody" class="divide-y divide-gray-800">
@@ -1429,7 +1428,7 @@
       if (rangeEl) rangeEl.textContent = `${BOUND_GOLD_WEIGHT_LOW} ~ ${BOUND_GOLD_WEIGHT_HIGH}`;
 
       const brackets = [
-        { label: '1780.00 이상 (최상위)', lvl: 1785 },
+        { label: '1780.00 이상', lvl: 1785 },
         { label: '1770.00 ~ 1779.99', lvl: 1775 },
         { label: '1750.00 ~ 1769.99', lvl: 1755 },
         { label: '1740.00 ~ 1749.99', lvl: 1745 },
@@ -1439,20 +1438,33 @@
         { label: '1700.00 ~ 1709.99', lvl: 1705 }
       ];
 
-      const nameMap = {
-        belga: '벨가르딘',
-        serka: '세르카',
-        cathedral: '지평의 성당',
-        final: '종막',
-        act4: '4막'
-      };
+      // 표에서는 축약어를 쓴다 (길면 칩이 줄바꿈되어 읽기 어려움)
+      const shortName = { belga: '벨가', serka: '세르카', cathedral: '성당', final: '종막', act4: '4막' };
 
       if (raidInfoData.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="4" class="text-center py-8 text-gray-500">Raid_Info 시트 데이터를 가져오지 못했습니다.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="3" class="text-center py-8 text-gray-500">Raid_Info 시트 데이터를 가져오지 못했습니다.</td></tr>`;
         return;
       }
 
-      const shortG = v => (v / 10000).toFixed(1) + '만';
+      const man = v => (v / 10000).toFixed(1);
+
+      // 칩 하나: 이름 + 난이도 + 골드. 귀속이 섞인 레이드는 환산 점수 범위를 같이 보여준다.
+      const chip = (r, kind) => {
+        const cls = kind === 'earn'
+          ? 'bg-amber-950/60 text-amber-300 border-amber-700'
+          : 'bg-cyan-950/60 text-cyan-300 border-cyan-700';
+        const lo = goldScore(r, BOUND_GOLD_WEIGHT_LOW);
+        const hi = goldScore(r, BOUND_GOLD_WEIGHT_HIGH);
+        const amount = r.bound > 0
+          ? `${man(lo)}~${man(hi)}만`
+          : `${man(hi)}만`;
+        const tag = r.bound > 0 ? (r.trade > 0 ? '반반' : '귀속') : '유통';
+        return `<span class="inline-flex items-baseline gap-1.5 px-2 py-1 rounded border text-xs font-semibold whitespace-nowrap ${cls}">`
+          + `<span>${shortName[r.key] || r.key} ${r.diff}</span>`
+          + `<span class="font-mono font-normal opacity-80">${amount}</span>`
+          + `<span class="text-[10px] opacity-60">${tag}</span>`
+          + `</span>`;
+      };
 
       tbody.innerHTML = brackets.map(b => {
         const ranked = getCharTop3Raids(b.lvl);
@@ -1461,42 +1473,32 @@
         const earnList = ranked.filter(r => tierMap[r.key] === 'EARN');
         const choiceList = ranked.filter(r => tierMap[r.key] === 'MAYBE');
 
-        const topTags = earnList.map(r => `<span class="px-2 py-0.5 rounded text-xs bg-amber-950 text-amber-300 border border-amber-600 font-semibold mr-1">${nameMap[r.key] || r.key} ${r.diff}</span>`).join('');
-        const choiceTags = choiceList.map(r => `<span class="px-2 py-0.5 rounded text-xs bg-cyan-950 text-cyan-300 border border-cyan-600 font-semibold mr-1" title="${MAYBE_GOLD_DESC}">${nameMap[r.key] || r.key} ${r.diff} (선택)</span>`).join('');
+        const earnHtml = earnList.map(r => chip(r, 'earn')).join(' ') || '<span class="text-gray-600 text-xs">-</span>';
 
-        // 환산 점수: w 양 끝값에서의 점수를 같이 보여준다 (귀속 있는 레이드만 값이 변한다)
-        const scoreRows = ranked.map(r => {
-          const sLo = goldScore(r, BOUND_GOLD_WEIGHT_LOW);
-          const sHi = goldScore(r, BOUND_GOLD_WEIGHT_HIGH);
-          const varies = r.bound > 0;
-          const tone = tierMap[r.key] === 'EARN' ? 'text-amber-300'
-            : (tierMap[r.key] === 'MAYBE' ? 'text-cyan-300' : 'text-gray-500');
-          return `<div class="${tone} font-mono text-[11px] leading-5">`
-            + `${(nameMap[r.key] || r.key).padEnd(6)} `
-            + `유통 ${shortG(r.trade)} + 귀속 ${shortG(r.bound)} = `
-            + (varies ? `${shortG(sLo)} ~ ${shortG(sHi)}` : `${shortG(sHi)}`)
-            + `</div>`;
-        }).join('');
-
-        // 역전 w: 선택 구간이 생긴 원인이 되는 쌍의 손익분기점
-        const flips = [];
-        for (let i = 0; i < ranked.length; i++) {
-          for (let j = i + 1; j < ranked.length; j++) {
-            const w = goldBreakEvenW(ranked[i], ranked[j]);
-            if (w === null || w <= 0 || w > 1.5) continue;
-            const inBand = w >= BOUND_GOLD_WEIGHT_LOW && w <= BOUND_GOLD_WEIGHT_HIGH;
-            flips.push(`<div class="font-mono text-[11px] leading-5 ${inBand ? 'text-cyan-300' : 'text-gray-600'}">`
-              + `${nameMap[ranked[i].key] || ranked[i].key} ↔ ${nameMap[ranked[j].key] || ranked[j].key} : `
-              + `w=${w.toFixed(3)}${inBand ? ' ←' : ''}</div>`);
+        let choiceHtml = '<span class="text-gray-600 text-xs">없음 (상위 3개 확정)</span>';
+        if (choiceList.length) {
+          // 선택 구간이 생긴 근거: 밴드 안에 들어오는 역전 w만 표시 (밖은 노이즈라 생략)
+          const flips = [];
+          for (let i = 0; i < choiceList.length; i++) {
+            for (let j = i + 1; j < choiceList.length; j++) {
+              const w = goldBreakEvenW(choiceList[i], choiceList[j]);
+              if (w === null) continue;
+              if (w < BOUND_GOLD_WEIGHT_LOW || w > BOUND_GOLD_WEIGHT_HIGH) continue;
+              flips.push(`${shortName[choiceList[i].key]} ↔ ${shortName[choiceList[j].key]} 역전 w=${w.toFixed(2)}`);
+            }
           }
+          const note = flips.length
+            ? flips.join(', ')
+            : '환산 점수 동일 (완전 교환 가능)';
+          choiceHtml = choiceList.map(r => chip(r, 'maybe')).join(' ')
+            + `<div class="mt-1.5 text-[11px] text-gray-500 font-mono">${note}</div>`;
         }
 
         return `
           <tr class="hover:bg-gray-800/40 transition align-top">
             <td class="px-4 py-3 font-semibold text-white font-mono whitespace-nowrap">${b.label}</td>
-            <td class="px-4 py-3">${topTags} ${choiceTags}</td>
-            <td class="px-4 py-3">${scoreRows}</td>
-            <td class="px-4 py-3">${flips.join('') || '<span class="text-gray-600 text-[11px]">-</span>'}</td>
+            <td class="px-4 py-3"><div class="flex flex-wrap gap-1.5">${earnHtml}</div></td>
+            <td class="px-4 py-3"><div class="flex flex-wrap gap-1.5">${choiceHtml}</div></td>
           </tr>
         `;
       }).join('');
