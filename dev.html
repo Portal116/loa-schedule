@@ -73,7 +73,7 @@
           <i data-lucide="flask-conical" class="w-6 h-6 text-purple-400"></i>
           <span class="font-bold text-lg text-white tracking-wide">LOA RAID [DEV]</span>
           <button onclick="openInfoModal('changelog')" class="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/30 hover:bg-purple-500/20 transition cursor-pointer" title="클릭하여 업데이트 이력 확인">
-            v1.0.43-dev
+            v1.0.44-dev
           </button>
         </div>
 
@@ -115,7 +115,7 @@
         <div class="flex items-center space-x-3">
           <span class="text-[11px] text-gray-400 flex items-center space-x-1">
             <i data-lucide="mouse-pointer-click" class="w-3.5 h-3.5 text-yellow-400"></i>
-            <span>상단에 '내 캐릭터 강조' 지정 후 슬롯 클릭 시 본인 캐릭터로 즉시 교체 가능</span>
+            <span>상단에 '내 캐릭터 강조' 지정 후, 본인 슬롯을 클릭하면 캐릭터 교체</span>
           </span>
           <label class="flex items-center space-x-1.5 text-xs text-gray-300 cursor-pointer bg-[#161b22] px-3 py-1.5 rounded-lg border border-gray-700 hover:border-gray-500 transition">
             <input type="checkbox" id="filterMySubToggle" class="rounded bg-gray-800 border-gray-600 text-yellow-500 focus:ring-0 cursor-pointer" />
@@ -1001,8 +1001,14 @@
 
         const slotJson = encodeURIComponent(JSON.stringify(slot));
 
+        // 남의 슬롯은 클릭 자체를 막는다. 계정 미선택 상태에서는 열어두어
+        // openQuickSwapModal 의 안내 알림이 뜨도록 한다.
+        const canEdit = !selectedUser || isMe;
+        const clickAttr = canEdit ? ` onclick="openQuickSwapModal('${slotJson}')"` : '';
+        const clickCls = canEdit ? ' slot-hover' : ' cursor-default';
+
         return `
-          <div onclick="openQuickSwapModal('${slotJson}')" class="flex items-center justify-between p-2.5 rounded-lg border border-gray-800/80 ${rowStyle} slot-hover transition">
+          <div${clickAttr} class="flex items-center justify-between p-2.5 rounded-lg border border-gray-800/80 ${rowStyle}${clickCls} transition">
             <div class="flex items-center space-x-3">
               ${posBadge}
               <div class="flex flex-col sm:flex-row sm:items-center sm:space-x-2">
@@ -1376,6 +1382,13 @@
       }
 
       const slot = JSON.parse(decodeURIComponent(slotJsonEncoded));
+
+      // 본인 슬롯이 아니면 열지 않는다 (슬롯 클릭이 이미 막혀 있지만 이중 방어)
+      if (!slot.user.startsWith(selectedUser)) {
+        alert(`다른 유저(${slot.user})의 슬롯은 변경할 수 없습니다.`);
+        return;
+      }
+
       activeSwapTarget = slot;
       pendingSwapChar = null;
 
