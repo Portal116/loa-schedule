@@ -1200,14 +1200,6 @@
       drawIcons();
     }
 
-    // ============================================================
-    // [v1.0.33-dev 패치] 누락되어 있던 렌더링/토글 함수 전수 복구
-    // renderPartySlots / renderGoldBadge / renderPoolView /
-    // renderRaidTag / getDifficultyBadge / renderGoldTableView /
-    // toggleManualHomework 가 정의되지 않아 ReferenceError가 발생하던
-    // 부분을 이 블록에서 모두 채워 넣었습니다.
-    // ============================================================
-
     function renderGoldBadge(status, maybeDesc) {
       if (status === 'EARN') {
         return `
