@@ -1043,6 +1043,21 @@
           r++;
         }
       }
+      // 같은 레이드가 한 시트에 여러 번 나오면 등장 순서대로 'N회차'를 붙인다.
+      // 시트에 이미 회차가 적혀 있으면 그대로 두고, 1번만 나오는 레이드에는 붙이지 않는다.
+      // rawTitle(시트 원본 문자열)은 슬롯 덮어쓰기 매칭에 쓰이므로 절대 바꾸지 않는다.
+      const titleCounts = {};
+      blocks.forEach(b => {
+        titleCounts[b.title] = (titleCounts[b.title] || 0) + 1;
+      });
+      const seen = {};
+      blocks.forEach(b => {
+        if (b.title.includes('회차')) return;
+        if (titleCounts[b.title] < 2) return;
+        seen[b.title] = (seen[b.title] || 0) + 1;
+        b.title = `${b.title} ${seen[b.title]}회차`;
+      });
+
       return blocks;
     }
 
