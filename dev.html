@@ -94,7 +94,7 @@
           <i data-lucide="flask-conical" class="w-6 h-6 text-purple-400"></i>
           <span class="font-bold text-lg text-white tracking-wide whitespace-nowrap">로아 공대</span>
           <button onclick="openInfoModal('changelog')" class="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/30 hover:bg-purple-500/20 transition cursor-pointer" title="클릭하여 업데이트 이력 확인">
-            v1.0.8
+            v1.0.10
           </button>
         </div>
 
@@ -125,10 +125,12 @@
           <span>도움말</span>
         </button>
 
-        <button onclick="fetchSheetData()" class="flex items-center space-x-1 bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold px-3 py-2 rounded-lg transition">
-          <i data-lucide="refresh-cw" class="w-3.5 h-3.5" id="refreshIcon"></i>
-          <span>새로고침</span>
-        </button>
+        <div class="flex items-center space-x-2">
+          <span id="lastSyncLabel" class="text-[11px] text-gray-500 hidden sm:inline"></span>
+          <button onclick="fetchSheetData()" title="시트 데이터 다시 받기" class="flex items-center justify-center bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white border border-gray-700 w-8 h-8 rounded-lg transition">
+            <i data-lucide="refresh-cw" class="w-3.5 h-3.5" id="refreshIcon"></i>
+          </button>
+        </div>
       </div>
     </div>
   </header>
@@ -587,6 +589,14 @@
     let pendingSwapChar = null;
     let goldEligibleCharNames = new Set();
     let attendanceData = [];          // Attendance 시트 원본
+    // 시트별로 편성 인스턴스를 나눠 보관한다. 한 시트만 다시 받아도 골드 재계산이 가능해진다.
+    let allRaidInstancesBySheet = {};
+    let lastSheetFetchAt = {};        // 시트명 -> 마지막 조회 시각(ms)
+    let lastFullSyncAt = 0;
+    // 같은 시트를 이 간격 안에 다시 받지 않는다 (탭 왕복 시 낭비 방지)
+    const MIN_REFETCH_MS = 30000;
+    // 브라우저 탭 복귀 시 이 시간이 지났으면 전체를 다시 받는다
+    const FULL_REFRESH_MS = 120000;
     let pendingAttendance = { date: '', status: '', memo: '' };
 
     document.addEventListener('DOMContentLoaded', () => {
@@ -618,6 +628,14 @@
     // lucide 를 defer 로 불러오므로, 렌더가 먼저 끝난 경우 로드 완료 후 한 번 더 그린다
     window.addEventListener('load', drawIcons);
 
+    // 다른 브라우저 탭/앱을 보다가 돌아왔을 때, 마지막 전체 갱신 후 일정 시간이 지났으면 다시 받는다.
+    // 짧게 왕복하는 경우에는 요청이 나가지 않는다.
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState !== 'visible') return;
+      if (Date.now() - lastFullSyncAt < FULL_REFRESH_MS) return;
+      fetchSheetData();
+    });
+
     function switchMainView(view) {
       currentMainView = view;
       ['schedule', 'pool', 'gold', 'debug'].forEach(v => {
@@ -648,6 +666,14 @@
       if (view === 'gold') renderGoldTableView();
       if (view === 'debug') renderDebugTableView();
       drawIcons();
+
+      // 각 뷰가 실제로 쓰는 시트만 뒤에서 갱신한다
+      if (view === 'pool') refreshSheets(['Character_Pool']);
+      if (view === 'gold' || view === 'debug') refreshSheets(['Raid_Info']);
+      if (view === 'schedule') {
+        const targets = currentActiveTab === 'Main_8Man' ? [currentActiveTab, 'Attendance'] : [currentActiveTab];
+        refreshSheets(targets);
+      }
     }
 
     // 콤마 포함 문자열/공백/undefined를 안전하게 숫자로 변환
@@ -686,13 +712,131 @@
       return Papa.parse(text, { skipEmptyLines: false }).data;
     }
 
+    function setRefreshSpinning(on) {
+      const icon = document.getElementById('refreshIcon');
+      if (!icon) return;
+      icon.classList.toggle('animate-spin', on);
+    }
+
+    function updateLastSyncLabel() {
+      const el = document.getElementById('lastSyncLabel');
+      if (!el) return;
+      const d = new Date();
+      const p = n => String(n).padStart(2, '0');
+      el.textContent = `${p(d.getHours())}:${p(d.getMinutes())} 기준`;
+    }
+
+    // 일정표 시트 1개를 파싱해서 저장소에 반영한다.
+    function processScheduleSheet(config, rows) {
+      const blocks = parseRaidBlocksRobust(rows, config.is8Man, config.id);
+      const groupUsers = new Set();
+      const instances = [];
+
+      blocks.forEach(b => {
+        b.slots.forEach(sl => {
+          if (sl.user && !isHeaderWord(sl.user)) {
+            const baseUser = sl.user.split('(')[0].trim();
+            if (baseUser) {
+              groupUsers.add(baseUser);
+              allMemberList.add(baseUser);
+            }
+          }
+          if (sl.name && !isHeaderWord(sl.name)) {
+            instances.push({
+              charName: sl.name,
+              slotUid: sl.slotUid,
+              raidTitle: b.title,
+              sheetTitle: config.fixedTitle || config.id,
+              sheetId: config.id,
+              sheetRow: sl.sheetRow,
+              party: sl.party,
+              user: sl.user,
+              job: sl.job,
+              level: sl.level
+            });
+          }
+        });
+      });
+
+      sheetsDataStore[config.id] = {
+        config: config,
+        blocks: blocks,
+        users: Array.from(groupUsers),
+        title: config.fixedTitle || (groupUsers.size > 0 ? Array.from(groupUsers).join(', ') : config.id)
+      };
+      allRaidInstancesBySheet[config.id] = instances;
+    }
+
+    // 골드 판별은 5개 시트의 편성 전체를 봐야 하므로, 시트 하나만 갱신해도 합쳐서 다시 계산한다.
+    // 순수 연산이라 비용은 무시할 수 있다.
+    function recalcGoldFromStore() {
+      const all = [];
+      SHEET_CONFIG.forEach(cfg => {
+        (allRaidInstancesBySheet[cfg.id] || []).forEach(i => all.push(i));
+      });
+      calculateGoldEligibilities(all);
+      window.allRaidInstancesStore = all;
+    }
+
+    // 현재 보고 있는 화면만 다시 그린다.
+    function renderCurrentViews() {
+      populateUserSelector();
+      renderTabs();
+      renderActiveTabContent();
+      if (currentMainView === 'pool') renderPoolView();
+      if (currentMainView === 'gold') renderGoldTableView();
+      if (currentMainView === 'debug') renderDebugTableView();
+      drawIcons();
+    }
+
+    // 지정한 시트만 다시 받아 조용히 갱신한다.
+    // 화면은 이미 그려진 상태를 유지하고, 응답이 오면 교체한다.
+    async function refreshSheets(names, force = false) {
+      const now = Date.now();
+      const targets = names.filter(n =>
+        force || !lastSheetFetchAt[n] || (now - lastSheetFetchAt[n]) > MIN_REFETCH_MS
+      );
+      if (targets.length === 0) return;
+
+      setRefreshSpinning(true);
+      try {
+        const bust = now;
+        const results = await Promise.all(
+          targets.map(n => fetchSheetCsv(n, bust).catch(() => null))
+        );
+
+        let changed = false;
+        targets.forEach((name, i) => {
+          const rows = results[i];
+          if (!rows) return;
+          lastSheetFetchAt[name] = Date.now();
+
+          const cfg = SHEET_CONFIG.find(c => c.id === name);
+          if (cfg) processScheduleSheet(cfg, rows);
+          else if (name === 'Character_Pool') parseCharacterPool(rows);
+          else if (name === 'Raid_Info') parseRaidInfo(rows);
+          else if (name === 'Attendance') parseAttendance(rows);
+          changed = true;
+        });
+
+        if (!changed) return;
+        recalcGoldFromStore();
+        renderCurrentViews();
+        updateLastSyncLabel();
+      } catch (err) {
+        console.error('부분 갱신 오류:', err);
+      } finally {
+        setRefreshSpinning(false);
+      }
+    }
+
+    // 전체 갱신 (최초 로딩, 새로고침 버튼, 브라우저 탭 복귀)
     async function fetchSheetData() {
-      const refreshIcon = document.getElementById('refreshIcon');
-      if (refreshIcon) refreshIcon.classList.add('animate-spin');
+      setRefreshSpinning(true);
 
       sheetsDataStore = {};
       allMemberList = new Set();
-      const allRaidInstances = [];
+      allRaidInstancesBySheet = {};
 
       try {
         // 시트를 순차로 받으면 왕복 8번이 그대로 더해진다. 서로 의존하지 않으므로 전부 병렬로 받는다.
@@ -704,64 +848,25 @@
           fetchSheetCsv('Raid_Info', bust).catch(() => null)
         ]);
 
-        SHEET_CONFIG.forEach((config, idx) => {
-          const blocks = parseRaidBlocksRobust(sheetRows[idx], config.is8Man, config.id);
-
-          const groupUsers = new Set();
-          blocks.forEach(b => {
-            b.slots.forEach(s => {
-              if (s.user && !isHeaderWord(s.user)) {
-                const baseUser = s.user.split('(')[0].trim();
-                if (baseUser) {
-                  groupUsers.add(baseUser);
-                  allMemberList.add(baseUser);
-                }
-              }
-              if (s.name && !isHeaderWord(s.name)) {
-                allRaidInstances.push({
-                  charName: s.name,
-                  slotUid: s.slotUid,
-                  raidTitle: b.title,
-                  sheetTitle: config.fixedTitle || config.id,
-                  sheetId: config.id,
-                  sheetRow: s.sheetRow,
-                  party: s.party,
-                  user: s.user,
-                  job: s.job,
-                  level: s.level
-                });
-              }
-            });
-          });
-
-          sheetsDataStore[config.id] = {
-            config: config,
-            blocks: blocks,
-            users: Array.from(groupUsers),
-            title: config.fixedTitle || (groupUsers.size > 0 ? Array.from(groupUsers).join(', ') : config.id)
-          };
-        });
-
+        SHEET_CONFIG.forEach((config, idx) => processScheduleSheet(config, sheetRows[idx]));
         parseCharacterPool(poolRows);
 
         // Attendance / Raid_Info 는 없어도 나머지 기능이 동작해야 한다
         if (attRows) parseAttendance(attRows); else attendanceData = [];
         if (raidRows) parseRaidInfo(raidRows);
 
-        calculateGoldEligibilities(allRaidInstances);
-        window.allRaidInstancesStore = allRaidInstances;
+        recalcGoldFromStore();
+        renderCurrentViews();
 
-        populateUserSelector();
-        renderTabs();
-        renderActiveTabContent();
-        if (currentMainView === 'pool') renderPoolView();
-        if (currentMainView === 'gold') renderGoldTableView();
-        if (currentMainView === 'debug') renderDebugTableView();
+        const now = Date.now();
+        lastFullSyncAt = now;
+        SHEET_CONFIG.forEach(cfg => { lastSheetFetchAt[cfg.id] = now; });
+        ['Character_Pool', 'Attendance', 'Raid_Info'].forEach(n => { lastSheetFetchAt[n] = now; });
       } catch (err) {
         console.error(err);
       } finally {
-        if (refreshIcon) refreshIcon.classList.remove('animate-spin');
-        drawIcons();
+        setRefreshSpinning(false);
+        updateLastSyncLabel();
       }
     }
 
@@ -1020,6 +1125,10 @@
           currentActiveTab = cfg.id;
           renderTabs();
           renderActiveTabContent();
+          // 화면을 먼저 그린 뒤 해당 시트만 조용히 갱신한다.
+          // 불참/지각 태그는 토요일 고정에만 쓰이므로 Attendance 도 그때만 함께 받는다.
+          const targets = cfg.id === 'Main_8Man' ? [cfg.id, 'Attendance'] : [cfg.id];
+          refreshSheets(targets);
         };
         nav.appendChild(btn);
       });
