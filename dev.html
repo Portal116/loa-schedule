@@ -73,7 +73,7 @@
           <i data-lucide="flask-conical" class="w-6 h-6 text-purple-400"></i>
           <span class="font-bold text-lg text-white tracking-wide">LOA RAID [DEV]</span>
           <button onclick="openInfoModal('changelog')" class="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/30 hover:bg-purple-500/20 transition cursor-pointer" title="클릭하여 업데이트 이력 확인">
-            v1.0.37-dev
+            v1.0.38-dev
           </button>
         </div>
 
@@ -132,7 +132,7 @@
         </div>
         <div class="flex items-center space-x-1.5">
           <span class="inline-block w-4 h-4 rounded-full bg-cyan-600 text-[10px] text-white font-bold text-center leading-4">?</span>
-          <span title="선택 구간 — 유통골드와 귀속골드 중 무엇을 더 쳐주느냐에 따라 갈리는 레이드입니다. 표시된 것 중 하나에서만 골드를 받습니다." class="cursor-help border-b border-dotted border-gray-600">선택 구간 (표시된 것 중 하나만 골드 획득)</span>
+          <span title="선택 구간 — 둘 중 하나만 골드 획득" class="cursor-help border-b border-dotted border-gray-600">선택 구간 (표시된 것 중 하나만 골드 획득)</span>
         </div>
         <div class="flex items-center space-x-1.5">
           <span class="inline-block w-4 h-4 rounded-full bg-gray-700 text-[10px] text-red-500 font-bold text-center leading-4">✕</span>
@@ -197,7 +197,7 @@
           </div>
           <div class="flex items-center space-x-1.5">
             <span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/70">레이드 ✓</span>
-            <span title="선택 구간 — 유통골드와 귀속골드 중 무엇을 더 쳐주느냐에 따라 갈리는 레이드입니다. 표시된 것 중 하나에서만 골드를 받습니다." class="cursor-help border-b border-dotted border-gray-600">선택 구간 (둘 중 하나만 골드)</span>
+            <span title="선택 구간 — 둘 중 하나만 골드 획득" class="cursor-help border-b border-dotted border-gray-600">선택 구간 (둘 중 하나만 골드)</span>
           </div>
           <div class="flex items-center space-x-1.5">
             <span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-gray-800 text-gray-400 border border-gray-700">레이드 ✓</span>
@@ -412,7 +412,7 @@
     const BOUND_GOLD_WEIGHT_LOW = 0.8;
     const BOUND_GOLD_WEIGHT_HIGH = 1.0;
     // 선택 구간 공통 안내 문구 (범례/툴팁에서 공용)
-    const MAYBE_GOLD_DESC = '선택 구간 — 유통골드와 귀속골드 중 무엇을 더 쳐주느냐에 따라 갈리는 레이드입니다. 표시된 것 중 하나에서만 골드를 받습니다.';
+    const MAYBE_GOLD_DESC = '선택 구간 — 둘 중 하나만 골드 획득';
 
     let currentMainView = 'schedule';
     let currentActiveTab = 'Main_8Man';
@@ -1120,24 +1120,28 @@
           ? `<span class="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 border border-amber-600/40 font-semibold">골드권</span>`
           : `<span class="text-[10px] px-1.5 py-0.5 rounded bg-gray-800 text-gray-500 border border-gray-700">골드권 외</span>`;
 
-        // 주간 골드 진행도: 확정(EARN) + 선택 구간(MAYBE)을 후보로 보고 완료(V/W)를 센다.
-        // 후보가 3개를 넘을 수 있으므로(확정 2 + 선택 2) 칸 수로 상한을 둔다.
+        // 주간 골드 진행도.
+        // 확정(EARN)은 각각 한 칸씩 차지하고, 선택 구간(MAYBE)은 여러 개를 돌아도
+        // 남은 칸 수만큼만 골드가 나온다. (예: 확정 2 + 선택 2 -> 선택은 1칸만 인정)
         const tierMap = isGoldChar ? computeGoldTiers(c.level) : {};
-        const goldKeys = RAID_DEFINITIONS
-          .map(d => d.key)
-          .filter(k => tierMap[k] === 'EARN' || tierMap[k] === 'MAYBE');
-        const doneCount = Math.min(
-          goldKeys.filter(k => c.raids[k] === 'V' || c.raids[k] === 'W').length,
-          GOLD_SLOT_LIMIT
-        );
-        const progressColor = doneCount >= GOLD_SLOT_LIMIT ? 'bg-emerald-500'
-          : (doneCount > 0 ? 'bg-yellow-500' : 'bg-gray-700');
+        const isDone = k => c.raids[k] === 'V' || c.raids[k] === 'W';
+        const earnKeys = RAID_DEFINITIONS.map(d => d.key).filter(k => tierMap[k] === 'EARN');
+        const maybeKeys = RAID_DEFINITIONS.map(d => d.key).filter(k => tierMap[k] === 'MAYBE');
+
+        const maybeSlots = Math.max(0, GOLD_SLOT_LIMIT - earnKeys.length);
+        const doneCount = Math.min(earnKeys.filter(isDone).length, GOLD_SLOT_LIMIT)
+          + Math.min(maybeKeys.filter(isDone).length, maybeSlots);
+        // 입장 가능한 레이드가 3개 미만이면 애초에 3칸을 못 채우므로 분모도 낮춘다
+        const totalSlots = Math.min(GOLD_SLOT_LIMIT, earnKeys.length + Math.min(maybeKeys.length, maybeSlots));
+
+        const isFull = totalSlots > 0 && doneCount >= totalSlots;
+        const progressColor = isFull ? 'bg-emerald-500' : (doneCount > 0 ? 'bg-yellow-500' : 'bg-gray-700');
         const counterHtml = isGoldChar
-          ? `<span class="text-[11px] font-mono font-normal ${doneCount >= GOLD_SLOT_LIMIT ? 'text-emerald-400' : 'text-gray-400'}" title="주간 골드 획득 레이드 ${GOLD_SLOT_LIMIT}개 중 완료한 수">(${doneCount}/${GOLD_SLOT_LIMIT})</span>`
+          ? `<span class="text-[11px] font-mono font-normal ${isFull ? 'text-emerald-400' : 'text-gray-400'}" title="주간 골드 획득 ${totalSlots}칸 중 완료한 수${maybeKeys.length ? ' (선택 구간은 ' + maybeSlots + '칸만 인정)' : ''}">(${doneCount}/${totalSlots})</span>`
           : '';
         const progressHtml = isGoldChar
           ? `<div class="w-full bg-[#0d1117] h-1.5 rounded-full overflow-hidden border border-gray-800">
-               <div class="${progressColor} h-full transition-all duration-300" style="width: ${(doneCount / GOLD_SLOT_LIMIT) * 100}%"></div>
+               <div class="${progressColor} h-full transition-all duration-300" style="width: ${totalSlots ? (doneCount / totalSlots) * 100 : 0}%"></div>
              </div>`
           : `<div class="w-full bg-gray-900/60 h-1.5 rounded-full overflow-hidden"></div>`;
 
