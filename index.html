@@ -4,9 +4,30 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>로아 공대 - 로스트아크 레이드 대시보드</title>
+  <link rel="preconnect" href="https://docs.google.com" crossorigin />
+  <link rel="dns-prefetch" href="https://docs.google.com" />
+
+  <!-- 시트 요청을 최대한 일찍 시작한다.
+       Tailwind 실행과 DOMContentLoaded 를 기다리지 않고 네트워크를 먼저 띄우는 것이 목적.
+       주의: 아래 시트 목록은 SHEET_CONFIG 와 함께 관리해야 한다. -->
+  <script>
+    window.__BOOT = (function () {
+      const ID = '1dDM5LoLM75hhojd8p1vA-095J-HcOgFQPTQiaErXHi0';
+      const bust = Date.now();
+      const names = ['Main_8Man', 'Sub_Group1', 'Sub_Group2', 'Sub_Group3', 'Sub_Group4',
+                     'Character_Pool', 'Attendance', 'Raid_Info'];
+      const map = {};
+      names.forEach(n => {
+        const url = `https://docs.google.com/spreadsheets/d/${ID}/gviz/tq?tqx=out:csv&sheet=${encodeURI(n)}&t=${bust}`;
+        map[n] = fetch(url).then(r => r.text()).catch(() => null);
+      });
+      return { bust: bust, map: map };
+    })();
+  </script>
+
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
-  <script src="https://unpkg.com/lucide@latest"></script>
+  <script defer src="https://unpkg.com/lucide@0.552.0/dist/umd/lucide.min.js"></script>
   <style>
     body {
       background-color: #0d1117;
@@ -93,15 +114,22 @@
           </select>
         </div>
 
+        <button onclick="openAttendanceModal()" class="flex items-center space-x-1 bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white border border-gray-700 text-xs font-semibold px-2.5 py-1.5 rounded-lg transition">
+          <i data-lucide="calendar-x" class="w-3.5 h-3.5 text-orange-400"></i>
+          <span>참여 상태</span>
+        </button>
+
         <button onclick="openInfoModal('guide')" class="flex items-center space-x-1 bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white border border-gray-700 text-xs font-semibold px-2.5 py-1.5 rounded-lg transition" title="도움말 및 패치노트">
           <i data-lucide="help-circle" class="w-3.5 h-3.5 text-yellow-400"></i>
           <span>도움말</span>
         </button>
 
-        <button onclick="fetchSheetData()" class="flex items-center space-x-1 bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold px-3 py-2 rounded-lg transition">
-          <i data-lucide="refresh-cw" class="w-3.5 h-3.5" id="refreshIcon"></i>
-          <span>새로고침</span>
-        </button>
+        <div class="flex items-center space-x-2">
+          <span id="lastSyncLabel" class="text-[11px] text-gray-500 hidden sm:inline"></span>
+          <button onclick="fetchSheetData()" title="시트 데이터 다시 받기" class="flex items-center justify-center bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white border border-gray-700 w-8 h-8 rounded-lg transition">
+            <i data-lucide="refresh-cw" class="w-3.5 h-3.5" id="refreshIcon"></i>
+          </button>
+        </div>
       </div>
     </div>
   </header>
@@ -139,7 +167,23 @@
         </div>
       </div>
 
-      <section id="raidContainer" class="mt-6 grid grid-cols-1 gap-6"></section>
+      <section id="raidContainer" class="mt-6 grid grid-cols-1 gap-6">
+        <div class="card-bg rounded-xl p-5 shadow-lg animate-pulse space-y-3">
+          <div class="h-5 w-40 bg-gray-800 rounded"></div>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="space-y-1.5">
+              <div class="h-10 bg-gray-800/60 rounded-lg"></div>
+              <div class="h-10 bg-gray-800/60 rounded-lg"></div>
+              <div class="h-10 bg-gray-800/60 rounded-lg"></div>
+            </div>
+            <div class="space-y-1.5">
+              <div class="h-10 bg-gray-800/60 rounded-lg"></div>
+              <div class="h-10 bg-gray-800/60 rounded-lg"></div>
+              <div class="h-10 bg-gray-800/60 rounded-lg"></div>
+            </div>
+          </div>
+        </div>
+      </section>
     </div>
 
     <!-- 2. 캐릭터 현황 & 숙제 체크 뷰 -->
@@ -246,6 +290,7 @@
       </div>
     </div>
 
+    <!-- 4. [DEV 전용] 레벨 구간별 골드 기준표 디버그 뷰 -->
   </main>
 
   <!-- 원클릭 캐릭터 즉시 변경 모달 -->
@@ -283,6 +328,50 @@
     </div>
   </div>
 
+  <!-- 참여 상태(불참/지각) 모달 -->
+  <div id="attendanceModal" onclick="if (event.target === this) closeAttendanceModal()" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="card-bg w-full max-w-lg max-h-[85vh] rounded-2xl p-6 border border-gray-700 shadow-2xl relative flex flex-col">
+      <button onclick="closeAttendanceModal()" class="absolute top-4 right-4 text-gray-400 hover:text-white">
+        <i data-lucide="x" class="w-5 h-5"></i>
+      </button>
+
+      <div class="flex items-center space-x-2 text-orange-400 mb-1">
+        <i data-lucide="calendar-x" class="w-5 h-5"></i>
+        <h3 class="text-lg font-bold text-white">참여 상태 알리기</h3>
+      </div>
+      <p class="text-xs text-gray-400 mb-4">토요일 고정 레이드에 불참하거나 늦을 경우 미리 알려주세요.</p>
+
+      <div class="overflow-y-auto modal-scroll pr-1.5 flex-1 space-y-4">
+        <div>
+          <label class="block text-xs font-semibold text-gray-400 mb-1.5">날짜</label>
+          <div id="attendanceDateList" class="flex flex-wrap gap-1.5"></div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-gray-400 mb-1.5">상태</label>
+          <div id="attendanceStatusList" class="flex flex-wrap gap-1.5"></div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-gray-400 mb-1.5">메모 <span class="font-normal text-gray-500">(선택)</span></label>
+          <input id="attendanceMemo" type="text" maxlength="60" placeholder="예: 8시쯤 중간 참여 가능"
+            class="w-full bg-[#0d1117] border border-gray-700 rounded-lg px-3 py-2 text-xs text-gray-200 placeholder-gray-600 focus:outline-none focus:border-orange-500 transition" />
+        </div>
+
+        <div class="border-t border-gray-800 pt-3">
+          <div class="text-xs font-semibold text-gray-400 mb-1.5">내가 등록한 내역</div>
+          <div id="attendanceMyList" class="space-y-1.5"></div>
+        </div>
+      </div>
+
+      <div class="mt-4 pt-3 border-t border-gray-800 flex items-center justify-end space-x-2">
+        <button onclick="closeAttendanceModal()" class="px-4 py-2 rounded-lg text-xs font-semibold text-gray-400 hover:text-white bg-gray-800 transition">닫기</button>
+        <button id="attendanceSubmitBtn" onclick="submitAttendance()" disabled
+          class="px-4 py-2 rounded-lg text-xs font-bold text-black bg-orange-400 hover:bg-orange-300 disabled:bg-gray-700 disabled:text-gray-500 disabled:cursor-not-allowed transition">날짜와 상태를 선택해 주세요</button>
+      </div>
+    </div>
+  </div>
+
   <!-- 도움말 및 패치노트 모달 -->
   <div id="infoModal" onclick="if (event.target === this) closeInfoModal()" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-4">
     <div class="card-bg w-full max-w-2xl max-h-[85vh] rounded-2xl p-6 border border-gray-700 shadow-2xl relative flex flex-col">
@@ -298,6 +387,7 @@
       <div class="flex border-b border-gray-800 mb-4">
         <button onclick="switchInfoTab('guide')" id="infoTabBtnGuide" class="px-4 py-2 text-sm font-semibold border-b-2 border-yellow-500 text-yellow-400 transition">자주 묻는 질문</button>
         <button onclick="switchInfoTab('changelog')" id="infoTabBtnChangelog" class="px-4 py-2 text-sm font-semibold text-gray-400 hover:text-white transition">업데이트 이력</button>
+        <button onclick="switchInfoTab('suggest')" id="infoTabBtnSuggest" class="px-4 py-2 text-sm font-semibold text-gray-400 hover:text-white transition">건의사항</button>
       </div>
 
       <div class="overflow-y-auto modal-scroll pr-2 space-y-4 text-sm text-gray-300 flex-1">
@@ -314,6 +404,15 @@
               <strong>[내 캐릭터 강조]</strong>에서 본인 닉네임을 선택하면 내 슬롯만 클릭할 수 있게 됩니다. 슬롯을 누르고 캐릭터를 선택한 뒤 <strong>확정 버튼</strong>을 누르면 반영됩니다.
             </p>
           </div>
+          <div class="bg-[#0d1117] p-3.5 rounded-xl border border-gray-800">
+            <h4 class="font-bold text-xs mb-1.5 text-yellow-400">Q. 토요일에 못 가거나 늦을 것 같아요!</h4>
+            <p class="text-xs text-gray-300 leading-relaxed">
+              상단 <strong>[참여 상태]</strong>에서 날짜와 상태(불참 / 지각 / 미정)를 골라 미리 알려주세요. 메모에 <span class="text-gray-400">8시쯤 중간 참여</span>처럼 적어두시면 도움이 됩니다.
+              등록하면 일정표의 내 슬롯에 표시가 붙고, 불참은 슬롯이 흐려집니다. 어느 날짜 기준인지는 <strong>[토요일 고정]</strong> 탭 옆의 날짜로 확인하실 수 있습니다.
+              등록한 내역은 같은 창에서 삭제할 수 있습니다.
+            </p>
+          </div>
+
           <div class="bg-[#0d1117] p-3.5 rounded-xl border border-gray-800">
             <h4 class="font-bold text-xs mb-1.5 text-yellow-400">Q. 캐릭터 옆에 붙은 골드 아이콘은 무엇인가요?</h4>
             <p class="text-xs text-gray-300 leading-relaxed mb-1.5">주간 골드는 캐릭터당 <strong>3개 레이드</strong>까지만 받습니다.</p>
@@ -345,6 +444,13 @@
               <li><strong>골드 제외</strong> : 골드 획득 캐릭터 6개 밖이라는 뜻입니다. 계정별 최종레벨 상위 6개로 자동 판정하므로 실제 지정과 다를 수 있습니다.</li>
             </ul>
           </div>
+          <div class="bg-[#0d1117] p-3.5 rounded-xl border border-gray-800">
+            <h4 class="font-bold text-xs mb-1.5 text-yellow-400">Q. 원하는 기능이 없어요!</h4>
+            <p class="text-xs text-gray-300 leading-relaxed">
+              위쪽 <strong>[건의사항]</strong> 탭에서 남겨주세요. 있으면 좋겠다 싶은 기능이나 불편했던 점 모두 환영합니다.
+              보낸 건의는 같은 탭에서 처리 상태(접수 / 검토중 / 완료 / 보류)를 확인할 수 있고, 아직 <strong>접수</strong> 상태라면 삭제도 가능합니다.
+            </p>
+          </div>
         </div>
 
         <div id="infoContentChangelog" class="space-y-3 hidden">
@@ -356,9 +462,48 @@
             <ul class="text-xs text-gray-400 mt-1 space-y-0.5 list-disc pl-3">
               <li>로스트아크 레이드 공대 관리 웹 대시보드 정식 출시</li>
               <li>일정표에서 본인 슬롯의 캐릭터 교체 (선택 후 확정)</li>
+              <li>토요일 고정 레이드의 불참 · 지각 · 미정 상태를 미리 알릴 수 있는 [참여 상태] 기능</li>
               <li>캐릭터 현황 &amp; 숙제 체크 - 자동/수동 체크 구분, 골드 여부 병행 표시, 주간 진행도 표시</li>
-              <li>레이드 골드표 (입장 레벨, 유통·귀속·총골드)</li>
+              <li>도움말에 [건의사항] 탭 - 처리 상태 확인 및 접수 단계 건의 삭제 지원</li>
             </ul>
+          </div>
+        </div>
+
+        <div id="infoContentSuggest" class="space-y-3 hidden">
+          <p class="text-xs text-gray-400 leading-relaxed">
+            사이트에 있으면 좋겠다 싶은 기능이나, 쓰다가 불편했던 점을 남겨주세요.
+          </p>
+
+          <div id="suggestNeedUser" class="hidden bg-[#0d1117] border border-gray-800 rounded-xl p-3.5 text-xs text-gray-400">
+            상단 우측 <strong class="text-gray-200">[내 캐릭터 강조]</strong>에서 본인 닉네임을 먼저 선택해 주세요.
+          </div>
+
+          <div id="suggestForm" class="space-y-3">
+            <div>
+              <label class="block text-xs font-semibold text-gray-400 mb-1.5">분류</label>
+              <div id="suggestCategoryList" class="flex flex-wrap gap-1.5"></div>
+            </div>
+
+            <div>
+              <label class="block text-xs font-semibold text-gray-400 mb-1.5">내용</label>
+              <textarea id="suggestContent" rows="5" maxlength="500" oninput="updateSuggestState()"
+                placeholder="자유롭게 적어주세요"
+                class="w-full bg-[#0d1117] border border-gray-700 rounded-lg px-3 py-2 text-xs text-gray-200 placeholder-gray-600 focus:outline-none focus:border-yellow-500 transition resize-none"></textarea>
+              <div class="flex items-center justify-between mt-1">
+                <span id="suggestResult" class="text-[11px] text-emerald-400"></span>
+                <span id="suggestCount" class="text-[11px] text-gray-600">0 / 500</span>
+              </div>
+            </div>
+
+            <div class="flex justify-end">
+              <button id="suggestSubmitBtn" onclick="submitSuggestion()" disabled
+                class="px-4 py-2 rounded-lg text-xs font-bold text-black bg-yellow-400 hover:bg-yellow-300 disabled:bg-gray-700 disabled:text-gray-500 disabled:cursor-not-allowed transition">보내기</button>
+            </div>
+
+            <div class="border-t border-gray-800 pt-3">
+              <div class="text-xs font-semibold text-gray-400 mb-1.5">내가 보낸 건의</div>
+              <div id="suggestMyList" class="space-y-1.5"></div>
+            </div>
           </div>
         </div>
       </div>
@@ -395,13 +540,32 @@
     // 귀속골드를 유통골드 대비 몇 배로 칠 것인가(가중치 w).
     // 사람마다 판단이 달라서 하나로 못 정하므로 범위로 다룬다.
     // 두 끝값 모두에서 상위 3개에 들면 '확정', 한쪽에서만 들면 '선택 구간'.
-    // 조정 시에는 dev 빌드의 [DEV] 기준표에서 '역전 w'를 확인할 것.
+    // 값을 조정하려면 [DEV] 기준표의 '역전 w' 컬럼을 보고 판단할 것.
     const BOUND_GOLD_WEIGHT_LOW = 0.8;
     const BOUND_GOLD_WEIGHT_HIGH = 1.0;
     // 선택 구간 공통 안내 문구 (짝을 특정할 수 없을 때의 기본값)
     const MAYBE_GOLD_DESC = '선택 구간 — 둘 중 하나만 골드 획득';
+    // ─── 참여 상태(불참/지각) 설정 ───────────────────────────
+    // 불참/지각 신고 대상 후보로 보여줄 토요일 개수
+    const ATTENDANCE_WEEKS = 4;
+    const ATTENDANCE_STATUSES = ['불참', '지각', '미정'];
+
+    // 건의사항 분류
+    const SUGGEST_CATEGORIES = ['기능 추가', '버그 신고', '기타'];
+    let pendingSuggestCategory = SUGGEST_CATEGORIES[0];
+
     // 표/툴팁용 짧은 레이드명
     const RAID_SHORT_NAME = { belga: '벨가', serka: '세르카', cathedral: '성당', final: '종막', act4: '4막' };
+
+    // lucide 스크립트 로드가 실패해도 렌더링이 중단되지 않도록 감싼다.
+    // (아이콘만 안 보이고 나머지 기능은 정상 동작)
+    function drawIcons() {
+      try {
+        if (typeof lucide !== 'undefined' && lucide.createIcons) lucide.createIcons();
+      } catch (e) {
+        console.warn('아이콘 렌더 실패:', e);
+      }
+    }
 
     let currentMainView = 'schedule';
     let currentActiveTab = 'Main_8Man';
@@ -415,6 +579,17 @@
     let activeSwapTarget = null;
     let pendingSwapChar = null;
     let goldEligibleCharNames = new Set();
+    let attendanceData = [];          // Attendance 시트 원본
+    let suggestionsData = [];         // Suggestions 시트 원본
+    // 시트별로 편성 인스턴스를 나눠 보관한다. 한 시트만 다시 받아도 골드 재계산이 가능해진다.
+    let allRaidInstancesBySheet = {};
+    let lastSheetFetchAt = {};        // 시트명 -> 마지막 조회 시각(ms)
+    let lastFullSyncAt = 0;
+    // 같은 시트를 이 간격 안에 다시 받지 않는다 (탭 왕복 시 낭비 방지)
+    const MIN_REFETCH_MS = 30000;
+    // 브라우저 탭 복귀 시 이 시간이 지났으면 전체를 다시 받는다
+    const FULL_REFRESH_MS = 120000;
+    let pendingAttendance = { date: '', status: '', memo: '' };
 
     document.addEventListener('DOMContentLoaded', () => {
       document.getElementById('filterMySubToggle').checked = filterMySubOnly;
@@ -442,6 +617,17 @@
       fetchSheetData();
     });
 
+    // lucide 를 defer 로 불러오므로, 렌더가 먼저 끝난 경우 로드 완료 후 한 번 더 그린다
+    window.addEventListener('load', drawIcons);
+
+    // 다른 브라우저 탭/앱을 보다가 돌아왔을 때, 마지막 전체 갱신 후 일정 시간이 지났으면 다시 받는다.
+    // 짧게 왕복하는 경우에는 요청이 나가지 않는다.
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState !== 'visible') return;
+      if (Date.now() - lastFullSyncAt < FULL_REFRESH_MS) return;
+      fetchSheetData();
+    });
+
     function switchMainView(view) {
       currentMainView = view;
       ['schedule', 'pool', 'gold'].forEach(v => {
@@ -466,7 +652,15 @@
       }
 
       if (view === 'gold') renderGoldTableView();
-      lucide.createIcons();
+      drawIcons();
+
+      // 각 뷰가 실제로 쓰는 시트만 뒤에서 갱신한다
+      if (view === 'pool') refreshSheets(['Character_Pool']);
+      if (view === 'gold') refreshSheets(['Raid_Info']);
+      if (view === 'schedule') {
+        const targets = currentActiveTab === 'Main_8Man' ? [currentActiveTab, 'Attendance'] : [currentActiveTab];
+        refreshSheets(targets);
+      }
     }
 
     // 콤마 포함 문자열/공백/undefined를 안전하게 숫자로 변환
@@ -487,83 +681,182 @@
       return null;
     }
 
+    // 시트 CSV 하나를 받아 파싱까지 끝낸다. 실패 시 null.
+    // <head> 에서 미리 띄워둔 요청이 있으면 그것을 쓰고, 한 번 쓴 뒤에는 버린다
+    // (새로고침 버튼을 누르면 항상 새로 받아야 하므로).
+    async function fetchSheetCsv(sheetName, bust) {
+      let text;
+      const boot = window.__BOOT;
+      if (boot && boot.map && boot.map[sheetName]) {
+        text = await boot.map[sheetName];
+        delete boot.map[sheetName];
+      }
+      if (text === undefined || text === null) {
+        const url = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURI(sheetName)}&t=${bust}`;
+        const res = await fetch(url);
+        text = await res.text();
+      }
+      return Papa.parse(text, { skipEmptyLines: false }).data;
+    }
+
+    function setRefreshSpinning(on) {
+      const icon = document.getElementById('refreshIcon');
+      if (!icon) return;
+      icon.classList.toggle('animate-spin', on);
+    }
+
+    function updateLastSyncLabel() {
+      const el = document.getElementById('lastSyncLabel');
+      if (!el) return;
+      const d = new Date();
+      const p = n => String(n).padStart(2, '0');
+      el.textContent = `${p(d.getHours())}:${p(d.getMinutes())} 기준`;
+    }
+
+    // 일정표 시트 1개를 파싱해서 저장소에 반영한다.
+    function processScheduleSheet(config, rows) {
+      const blocks = parseRaidBlocksRobust(rows, config.is8Man, config.id);
+      const groupUsers = new Set();
+      const instances = [];
+
+      blocks.forEach(b => {
+        b.slots.forEach(sl => {
+          if (sl.user && !isHeaderWord(sl.user)) {
+            const baseUser = sl.user.split('(')[0].trim();
+            if (baseUser) {
+              groupUsers.add(baseUser);
+              allMemberList.add(baseUser);
+            }
+          }
+          if (sl.name && !isHeaderWord(sl.name)) {
+            instances.push({
+              charName: sl.name,
+              slotUid: sl.slotUid,
+              raidTitle: b.title,
+              sheetTitle: config.fixedTitle || config.id,
+              sheetId: config.id,
+              sheetRow: sl.sheetRow,
+              party: sl.party,
+              user: sl.user,
+              job: sl.job,
+              level: sl.level
+            });
+          }
+        });
+      });
+
+      sheetsDataStore[config.id] = {
+        config: config,
+        blocks: blocks,
+        users: Array.from(groupUsers),
+        title: config.fixedTitle || (groupUsers.size > 0 ? Array.from(groupUsers).join(', ') : config.id)
+      };
+      allRaidInstancesBySheet[config.id] = instances;
+    }
+
+    // 골드 판별은 5개 시트의 편성 전체를 봐야 하므로, 시트 하나만 갱신해도 합쳐서 다시 계산한다.
+    // 순수 연산이라 비용은 무시할 수 있다.
+    function recalcGoldFromStore() {
+      const all = [];
+      SHEET_CONFIG.forEach(cfg => {
+        (allRaidInstancesBySheet[cfg.id] || []).forEach(i => all.push(i));
+      });
+      calculateGoldEligibilities(all);
+      window.allRaidInstancesStore = all;
+    }
+
+    // 현재 보고 있는 화면만 다시 그린다.
+    function renderCurrentViews() {
+      populateUserSelector();
+      renderTabs();
+      renderActiveTabContent();
+      if (currentMainView === 'pool') renderPoolView();
+      if (currentMainView === 'gold') renderGoldTableView();
+      // 도움말 모달의 건의사항 탭이 열려 있으면 목록도 갱신
+      const suggestBox = document.getElementById('infoContentSuggest');
+      if (suggestBox && !suggestBox.classList.contains('hidden')) renderSuggestMyList();
+      drawIcons();
+    }
+
+    // 지정한 시트만 다시 받아 조용히 갱신한다.
+    // 화면은 이미 그려진 상태를 유지하고, 응답이 오면 교체한다.
+    async function refreshSheets(names, force = false) {
+      const now = Date.now();
+      const targets = names.filter(n =>
+        force || !lastSheetFetchAt[n] || (now - lastSheetFetchAt[n]) > MIN_REFETCH_MS
+      );
+      if (targets.length === 0) return;
+
+      setRefreshSpinning(true);
+      try {
+        const bust = now;
+        const results = await Promise.all(
+          targets.map(n => fetchSheetCsv(n, bust).catch(() => null))
+        );
+
+        let changed = false;
+        targets.forEach((name, i) => {
+          const rows = results[i];
+          if (!rows) return;
+          lastSheetFetchAt[name] = Date.now();
+
+          const cfg = SHEET_CONFIG.find(c => c.id === name);
+          if (cfg) processScheduleSheet(cfg, rows);
+          else if (name === 'Character_Pool') parseCharacterPool(rows);
+          else if (name === 'Raid_Info') parseRaidInfo(rows);
+          else if (name === 'Attendance') parseAttendance(rows);
+          else if (name === 'Suggestions') parseSuggestions(rows);
+          changed = true;
+        });
+
+        if (!changed) return;
+        recalcGoldFromStore();
+        renderCurrentViews();
+        updateLastSyncLabel();
+      } catch (err) {
+        console.error('부분 갱신 오류:', err);
+      } finally {
+        setRefreshSpinning(false);
+      }
+    }
+
+    // 전체 갱신 (최초 로딩, 새로고침 버튼, 브라우저 탭 복귀)
     async function fetchSheetData() {
-      const refreshIcon = document.getElementById('refreshIcon');
-      if (refreshIcon) refreshIcon.classList.add('animate-spin');
+      setRefreshSpinning(true);
 
       sheetsDataStore = {};
       allMemberList = new Set();
-      const allRaidInstances = [];
+      allRaidInstancesBySheet = {};
 
       try {
-        for (const config of SHEET_CONFIG) {
-          const url = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURI(config.id)}&t=${new Date().getTime()}`;
-          const response = await fetch(url);
-          const csvText = await response.text();
-          
-          const parsed = Papa.parse(csvText, { skipEmptyLines: false });
-          const blocks = parseRaidBlocksRobust(parsed.data, config.is8Man, config.id);
-          
-          const groupUsers = new Set();
-          blocks.forEach(b => {
-            b.slots.forEach(s => {
-              if (s.user && !isHeaderWord(s.user)) {
-                const baseUser = s.user.split('(')[0].trim();
-                if (baseUser) {
-                  groupUsers.add(baseUser);
-                  allMemberList.add(baseUser);
-                }
-              }
-              if (s.name && !isHeaderWord(s.name)) {
-                allRaidInstances.push({
-                  charName: s.name,
-                  slotUid: s.slotUid,
-                  raidTitle: b.title,
-                  sheetTitle: config.fixedTitle || config.id,
-                  sheetId: config.id,
-                  sheetRow: s.sheetRow,
-                  party: s.party,
-                  user: s.user,
-                  job: s.job,
-                  level: s.level
-                });
-              }
-            });
-          });
+        // 시트를 순차로 받으면 왕복 8번이 그대로 더해진다. 서로 의존하지 않으므로 전부 병렬로 받는다.
+        const bust = Date.now();
+        const [sheetRows, poolRows, attRows, raidRows] = await Promise.all([
+          Promise.all(SHEET_CONFIG.map(cfg => fetchSheetCsv(cfg.id, bust))),
+          fetchSheetCsv('Character_Pool', bust),
+          fetchSheetCsv('Attendance', bust).catch(() => null),
+          fetchSheetCsv('Raid_Info', bust).catch(() => null)
+        ]);
 
-          sheetsDataStore[config.id] = {
-            config: config,
-            blocks: blocks,
-            users: Array.from(groupUsers),
-            title: config.fixedTitle || (groupUsers.size > 0 ? Array.from(groupUsers).join(', ') : config.id)
-          };
-        }
+        SHEET_CONFIG.forEach((config, idx) => processScheduleSheet(config, sheetRows[idx]));
+        parseCharacterPool(poolRows);
 
-        const poolUrl = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=out:csv&sheet=Character_Pool&t=${new Date().getTime()}`;
-        const poolRes = await fetch(poolUrl);
-        const poolCsv = await poolRes.text();
-        parseCharacterPool(Papa.parse(poolCsv, { skipEmptyLines: false }).data);
+        // Attendance / Raid_Info 는 없어도 나머지 기능이 동작해야 한다
+        if (attRows) parseAttendance(attRows); else attendanceData = [];
+        if (raidRows) parseRaidInfo(raidRows);
 
-        try {
-          const goldUrl = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=out:csv&sheet=Raid_Info&t=${new Date().getTime()}`;
-          const goldRes = await fetch(goldUrl);
-          const goldCsv = await goldRes.text();
-          parseRaidInfo(Papa.parse(goldCsv, { skipEmptyLines: false }).data);
-        } catch (e) { console.log('Raid_Info optional', e); }
+        recalcGoldFromStore();
+        renderCurrentViews();
 
-        calculateGoldEligibilities(allRaidInstances);
-        window.allRaidInstancesStore = allRaidInstances;
-
-        populateUserSelector();
-        renderTabs();
-        renderActiveTabContent();
-        if (currentMainView === 'pool') renderPoolView();
-        if (currentMainView === 'gold') renderGoldTableView();
+        const now = Date.now();
+        lastFullSyncAt = now;
+        SHEET_CONFIG.forEach(cfg => { lastSheetFetchAt[cfg.id] = now; });
+        ['Character_Pool', 'Attendance', 'Raid_Info'].forEach(n => { lastSheetFetchAt[n] = now; });
       } catch (err) {
         console.error(err);
       } finally {
-        if (refreshIcon) refreshIcon.classList.remove('animate-spin');
-        lucide.createIcons();
+        setRefreshSpinning(false);
+        updateLastSyncLabel();
       }
     }
 
@@ -808,11 +1101,24 @@
             ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/50'
             : 'text-gray-400 hover:text-white hover:bg-gray-800'
         }`;
-        btn.innerHTML = `<span>${tabTitle}</span>`;
+        // 토요일 고정 탭에는 참여 상태의 기준 날짜를 함께 표시한다.
+        // 슬롯의 불참/지각 태그가 어느 날짜 기준인지 알 수 있어야 한다.
+        let dateSuffix = '';
+        if (cfg.id === 'Main_8Man') {
+          const satList = getUpcomingSaturdays(1);
+          if (satList.length) {
+            dateSuffix = `<span class="text-[11px] font-normal ${isActive ? 'text-yellow-500/70' : 'text-gray-500'}">${fmtDateLabel(satList[0])}</span>`;
+          }
+        }
+        btn.innerHTML = `<span>${tabTitle}</span>${dateSuffix}`;
         btn.onclick = () => {
           currentActiveTab = cfg.id;
           renderTabs();
           renderActiveTabContent();
+          // 화면을 먼저 그린 뒤 해당 시트만 조용히 갱신한다.
+          // 불참/지각 태그는 토요일 고정에만 쓰이므로 Attendance 도 그때만 함께 받는다.
+          const targets = cfg.id === 'Main_8Man' ? [cfg.id, 'Attendance'] : [cfg.id];
+          refreshSheets(targets);
         };
         nav.appendChild(btn);
       });
@@ -898,15 +1204,8 @@
         container.appendChild(card);
       });
 
-      lucide.createIcons();
+      drawIcons();
     }
-
-    // ============================================================
-    // renderPartySlots / renderGoldBadge / renderPoolView /
-    // renderRaidTag / getDifficultyBadge / renderGoldTableView /
-    // toggleManualHomework 가 정의되지 않아 ReferenceError가 발생하던
-    // 부분을 이 블록에서 모두 채워 넣었습니다.
-    // ============================================================
 
     function renderGoldBadge(status, maybeDesc) {
       if (status === 'EARN') {
@@ -976,18 +1275,36 @@
 
         // 남의 슬롯은 클릭 자체를 막는다. 계정 미선택 상태에서는 열어두어
         // openQuickSwapModal 의 안내 알림이 뜨도록 한다.
+        // 참여 상태(불참/지각): 토요일 고정 시트에서만, 가장 가까운 토요일 기준으로 표시
+        let attTag = '';
+        let attDim = '';
+        if (slot.sheetId === 'Main_8Man') {
+          const att = getAttendanceFor(slot.user, getCurrentSaturdayKey());
+          if (att) {
+            const tone = att.status === '불참'
+              ? 'bg-red-500/20 text-red-300 border-red-500/60'
+              : (att.status === '지각'
+                ? 'bg-amber-500/20 text-amber-300 border-amber-500/60'
+                : 'bg-gray-700/40 text-gray-300 border-gray-600');
+            const tip = att.memo ? ` title="${att.memo}"` : '';
+            attTag = `<span class="px-1.5 py-0.5 rounded border text-[10px] font-bold ${tone}${att.memo ? ' cursor-help' : ''}"${tip}>${att.status}</span>`;
+            if (att.status === '불참') attDim = ' opacity-50';
+          }
+        }
+
         const canEdit = !selectedUser || isMe;
         const clickAttr = canEdit ? ` onclick="openQuickSwapModal('${slotJson}')"` : '';
         const clickCls = canEdit ? ' slot-hover' : ' cursor-default';
 
         return `
-          <div${clickAttr} class="flex items-center justify-between p-2.5 rounded-lg border border-gray-800/80 ${rowStyle}${clickCls} transition">
+          <div${clickAttr} class="flex items-center justify-between p-2.5 rounded-lg border border-gray-800/80 ${rowStyle}${clickCls}${attDim} transition">
             <div class="flex items-center space-x-3">
               ${posBadge}
               <div class="flex flex-col sm:flex-row sm:items-center sm:space-x-2">
                 <span class="text-xs text-gray-400 font-medium">${slot.user}</span>
                 <span class="text-sm font-semibold text-gray-200">${slot.name}</span>
               </div>
+              ${attTag}
             </div>
             <div class="flex items-center space-x-2.5 sm:space-x-3 text-right">
               ${renderGoldBadge(goldStatus, slotMaybeDesc)}
@@ -1177,7 +1494,7 @@
         `;
       }).join('');
 
-      lucide.createIcons();
+      drawIcons();
     }
 
     function getDifficultyBadge(diff) {
@@ -1301,7 +1618,7 @@
       return tierMap;
     }
 
-    // 두 레이드의 점수가 같아지는 w(손익분기). 순위가 뒤집히는 지점이라 가중치 튜닝 근거로 쓴다.
+    // 두 레이드의 점수가 같아지는 w(손익분기). 순위가 뒤집히는 지점이라 [DEV] 기준표에서 튜닝 근거로 쓴다.
     function goldBreakEvenW(a, b) {
       const db = a.bound - b.bound;
       if (db === 0) return null;
@@ -1321,6 +1638,95 @@
       return '선택 구간 · ' + pair
         .map(r => `${RAID_SHORT_NAME[r.key] || r.key} ${man(r.payout)}만 ${kind(r)}`)
         .join(' ↔ ');
+    }
+
+    // ─── 날짜 계산 ────────────────────────────────────────────
+    function fmtDate(d) {
+      const p = n => String(n).padStart(2, '0');
+      return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+    }
+
+    function fmtDateLabel(d) {
+      const days = ['일', '월', '화', '수', '목', '금', '토'];
+      return `${d.getMonth() + 1}/${d.getDate()}(${days[d.getDay()]})`;
+    }
+
+    // 오늘(당일 포함) 이후의 토요일을 count개 반환.
+    // 이미 지난 토요일은 신고 대상이 될 수 없으므로 후보에서 제외된다.
+    function getUpcomingSaturdays(count = ATTENDANCE_WEEKS) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const first = new Date(today);
+      first.setDate(first.getDate() + ((6 - today.getDay() + 7) % 7));
+
+      const list = [];
+      for (let i = 0; i < count; i++) {
+        const d = new Date(first);
+        d.setDate(d.getDate() + i * 7);
+        list.push(d);
+      }
+      return list;
+    }
+
+    // 가장 가까운 토요일. 슬롯에 참여 상태를 표시할 기준 날짜.
+    function getCurrentSaturdayKey() {
+      const list = getUpcomingSaturdays(1);
+      return list.length ? fmtDate(list[0]) : '';
+    }
+
+    // ─── Attendance 시트 파싱 ─────────────────────────────────
+    // 열: A신청일시 B유저명 C구분 D대상 E상태 F메모
+    function parseAttendance(rows) {
+      attendanceData = [];
+      // 시트가 없으면 gviz가 오류 페이지를 반환한다(예외가 아님). 헤더로 유효성을 확인한다.
+      const header = (rows[0] || []).map(c => (c || '').toString().trim());
+      if (!header.includes('유저명')) return;
+
+      for (let r = 1; r < rows.length; r++) {
+        const row = rows[r] || [];
+        const user = (row[1] || '').toString().trim();
+        const kind = (row[2] || '').toString().trim();
+        const target = (row[3] || '').toString().trim();
+        const status = (row[4] || '').toString().trim();
+        if (!user || !status) continue;
+        attendanceData.push({
+          at: (row[0] || '').toString().trim(),
+          user, kind, target, status,
+          memo: (row[5] || '').toString().trim()
+        });
+      }
+    }
+
+    // ─── Suggestions 시트 파싱 ────────────────────────────────
+    // 열: A접수일시 B유저명 C분류 D내용 E처리상태
+    function parseSuggestions(rows) {
+      suggestionsData = [];
+      const header = (rows[0] || []).map(c => (c || '').toString().trim());
+      if (!header.includes('유저명')) return;
+
+      for (let r = 1; r < rows.length; r++) {
+        const row = rows[r] || [];
+        const user = (row[1] || '').toString().trim();
+        const content = (row[3] || '').toString().trim();
+        if (!user || !content) continue;
+        suggestionsData.push({
+          at: (row[0] || '').toString().trim(),
+          user,
+          category: (row[2] || '').toString().trim(),
+          content,
+          state: (row[4] || '접수').toString().trim()
+        });
+      }
+    }
+
+    // 해당 날짜에 유저가 등록한 상태(가장 최근 것 우선)
+    function getAttendanceFor(userName, dateKey) {
+      if (!userName || !dateKey) return null;
+      const base = userName.split('(')[0].trim();
+      const hits = attendanceData.filter(a =>
+        a.target === dateKey && a.user.split('(')[0].trim() === base
+      );
+      return hits.length ? hits[hits.length - 1] : null;
     }
 
     function calculateGoldEligibilities(instances) {
@@ -1401,7 +1807,7 @@
       updateSwapConfirmButtonState();
       document.body.style.overflow = 'hidden';
       document.getElementById('quickSwapModal').classList.remove('hidden');
-      lucide.createIcons();
+      drawIcons();
     }
 
     // 목록에서 캐릭터를 누르면 즉시 반영하지 않고 '선택'만 표시한다.
@@ -1505,11 +1911,181 @@
       }
     }
 
+// ─── 참여 상태 모달 ───────────────────────────────────────
+    function openAttendanceModal() {
+      if (!selectedUser) {
+        alert("상단 헤더의 [내 캐릭터 강조]에서 본인 계정을 먼저 선택해 주세요!");
+        return;
+      }
+      pendingAttendance = { date: '', status: '', memo: '' };
+      const memoEl = document.getElementById('attendanceMemo');
+      if (memoEl) memoEl.value = '';
+
+      renderAttendanceDateList();
+      renderAttendanceStatusList();
+      renderAttendanceMyList();
+      updateAttendanceSubmitState();
+
+      document.body.style.overflow = 'hidden';
+      document.getElementById('attendanceModal').classList.remove('hidden');
+      drawIcons();
+    }
+
+    function closeAttendanceModal() {
+      document.body.style.overflow = '';
+      document.getElementById('attendanceModal').classList.add('hidden');
+    }
+
+    function renderAttendanceDateList() {
+      const box = document.getElementById('attendanceDateList');
+      if (!box) return;
+      box.innerHTML = getUpcomingSaturdays().map(d => {
+        const key = fmtDate(d);
+        const on = pendingAttendance.date === key;
+        return `<button onclick="selectAttendanceDate('${key}')" class="px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition ${
+          on ? 'bg-orange-500/20 text-orange-300 border-orange-500' : 'bg-[#0d1117] text-gray-300 border-gray-700 hover:border-gray-500'
+        }">${fmtDateLabel(d)}</button>`;
+      }).join('');
+    }
+
+    function renderAttendanceStatusList() {
+      const box = document.getElementById('attendanceStatusList');
+      if (!box) return;
+      box.innerHTML = ATTENDANCE_STATUSES.map(st => {
+        const on = pendingAttendance.status === st;
+        return `<button onclick="selectAttendanceStatus('${st}')" class="px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition ${
+          on ? 'bg-orange-500/20 text-orange-300 border-orange-500' : 'bg-[#0d1117] text-gray-300 border-gray-700 hover:border-gray-500'
+        }">${st}</button>`;
+      }).join('');
+    }
+
+    // 본인이 등록한 내역 (앞으로의 날짜만). 같은 날짜는 마지막 등록만 유효하다.
+    function renderAttendanceMyList() {
+      const box = document.getElementById('attendanceMyList');
+      if (!box) return;
+      const base = selectedUser.split('(')[0].trim();
+      const validKeys = getUpcomingSaturdays().map(fmtDate);
+
+      const latest = {};
+      attendanceData.forEach(a => {
+        if (a.user.split('(')[0].trim() !== base) return;
+        if (!validKeys.includes(a.target)) return;
+        latest[a.target] = a;
+      });
+
+      const rows = validKeys.filter(k => latest[k]).map(k => {
+        const a = latest[k];
+        const tone = a.status === '불참' ? 'text-red-400' : (a.status === '지각' ? 'text-amber-400' : 'text-gray-400');
+        return `<div class="flex items-center justify-between bg-[#0d1117] border border-gray-800 rounded-lg px-2.5 py-1.5">
+          <div class="text-xs text-gray-300">
+            <span class="font-mono">${fmtDateLabel(new Date(k + 'T00:00:00'))}</span>
+            <span class="${tone} font-bold ml-1.5">${a.status}</span>
+            ${a.memo ? `<span class="text-gray-500 ml-1.5">${a.memo}</span>` : ''}
+          </div>
+          <button onclick="cancelAttendance('${k}')" class="text-[11px] text-gray-500 hover:text-red-400 transition">삭제</button>
+        </div>`;
+      });
+
+      box.innerHTML = rows.length ? rows.join('') : `<div class="text-xs text-gray-600">등록한 내역이 없습니다.</div>`;
+    }
+
+    function selectAttendanceDate(key) {
+      pendingAttendance.date = key;
+      renderAttendanceDateList();
+      updateAttendanceSubmitState();
+    }
+
+    function selectAttendanceStatus(st) {
+      pendingAttendance.status = st;
+      renderAttendanceStatusList();
+      updateAttendanceSubmitState();
+    }
+
+    function updateAttendanceSubmitState() {
+      const btn = document.getElementById('attendanceSubmitBtn');
+      if (!btn) return;
+      const ready = pendingAttendance.date && pendingAttendance.status;
+      btn.disabled = !ready;
+      btn.textContent = ready
+        ? `${fmtDateLabel(new Date(pendingAttendance.date + 'T00:00:00'))} ${pendingAttendance.status} 등록`
+        : '날짜와 상태를 선택해 주세요';
+    }
+
+    async function submitAttendance() {
+      if (!pendingAttendance.date || !pendingAttendance.status) return;
+      const memoEl = document.getElementById('attendanceMemo');
+      const memo = memoEl ? memoEl.value.trim() : '';
+
+      const record = {
+        at: '',
+        user: selectedUser,
+        kind: '토요일고정',
+        target: pendingAttendance.date,
+        status: pendingAttendance.status,
+        memo: memo
+      };
+
+      // 낙관적 반영: 응답을 읽을 수 없는 no-cors 요청이라 화면을 먼저 갱신한다
+      attendanceData.push(record);
+      renderAttendanceMyList();
+      renderActiveTabContent();
+      pendingAttendance = { date: '', status: '', memo: '' };
+      if (memoEl) memoEl.value = '';
+      renderAttendanceDateList();
+      renderAttendanceStatusList();
+      updateAttendanceSubmitState();
+
+      try {
+        await fetch(APPS_SCRIPT_WEB_APP_URL, {
+          method: 'POST',
+          mode: 'no-cors',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'submitAttendance',
+            user: record.user,
+            kind: record.kind,
+            target: record.target,
+            status: record.status,
+            memo: record.memo
+          })
+        });
+      } catch (err) {
+        console.error('참여 상태 등록 오류:', err);
+      }
+    }
+
+    async function cancelAttendance(dateKey) {
+      const label = fmtDateLabel(new Date(dateKey + 'T00:00:00'));
+      if (!confirm(`${label} 참여 상태 등록을 삭제할까요?`)) return;
+
+      const base = selectedUser.split('(')[0].trim();
+      attendanceData = attendanceData.filter(a =>
+        !(a.target === dateKey && a.user.split('(')[0].trim() === base)
+      );
+      renderAttendanceMyList();
+      renderActiveTabContent();
+
+      try {
+        await fetch(APPS_SCRIPT_WEB_APP_URL, {
+          method: 'POST',
+          mode: 'no-cors',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'cancelAttendance',
+            user: selectedUser,
+            target: dateKey
+          })
+        });
+      } catch (err) {
+        console.error('참여 상태 취소 오류:', err);
+      }
+    }
+
     function openInfoModal(defaultTab = 'guide') {
       document.body.style.overflow = 'hidden';
       document.getElementById('infoModal').classList.remove('hidden');
       switchInfoTab(defaultTab);
-      lucide.createIcons();
+      drawIcons();
     }
 
     function closeInfoModal() {
@@ -1517,24 +2093,177 @@
       document.getElementById('infoModal').classList.add('hidden');
     }
 
-    function switchInfoTab(tab) {
-      const guideBtn = document.getElementById('infoTabBtnGuide');
-      const changelogBtn = document.getElementById('infoTabBtnChangelog');
-      const guideContent = document.getElementById('infoContentGuide');
-      const changelogContent = document.getElementById('infoContentChangelog');
+    // ─── 건의사항 ─────────────────────────────────────────────
+    function renderSuggestForm() {
+      const needUser = document.getElementById('suggestNeedUser');
+      const form = document.getElementById('suggestForm');
+      const hasUser = !!selectedUser;
+      if (needUser) needUser.classList.toggle('hidden', hasUser);
+      if (form) form.classList.toggle('hidden', !hasUser);
+      if (!hasUser) return;
 
-      if (tab === 'guide') {
-        guideBtn.className = 'px-4 py-2 text-sm font-semibold border-b-2 border-yellow-500 text-yellow-400 transition';
-        changelogBtn.className = 'px-4 py-2 text-sm font-semibold text-gray-400 hover:text-white transition';
-        guideContent.classList.remove('hidden');
-        changelogContent.classList.add('hidden');
-      } else {
-        guideBtn.className = 'px-4 py-2 text-sm font-semibold text-gray-400 hover:text-white transition';
-        changelogBtn.className = 'px-4 py-2 text-sm font-semibold border-b-2 border-yellow-500 text-yellow-400 transition';
-        guideContent.classList.add('hidden');
-        changelogContent.classList.remove('hidden');
+      const box = document.getElementById('suggestCategoryList');
+      if (box) {
+        box.innerHTML = SUGGEST_CATEGORIES.map(c => {
+          const sel = pendingSuggestCategory === c;
+          return `<button onclick="selectSuggestCategory('${c}')" class="px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition ${
+            sel ? 'bg-yellow-500/20 text-yellow-300 border-yellow-500' : 'bg-[#0d1117] text-gray-300 border-gray-700 hover:border-gray-500'
+          }">${c}</button>`;
+        }).join('');
+      }
+      updateSuggestState();
+      renderSuggestMyList();
+    }
+
+    // 본인이 보낸 건의와 처리상태. 최근 것이 위로 온다.
+    function renderSuggestMyList() {
+      const box = document.getElementById('suggestMyList');
+      if (!box) return;
+      if (!selectedUser) { box.innerHTML = ''; return; }
+
+      const base = selectedUser.split('(')[0].trim();
+      const mine = suggestionsData
+        .filter(x => x.user.split('(')[0].trim() === base)
+        .slice()
+        .reverse();
+
+      if (mine.length === 0) {
+        box.innerHTML = `<div class="text-xs text-gray-600">보낸 건의가 없습니다.</div>`;
+        return;
+      }
+
+      const tone = st =>
+        st === '완료' ? 'bg-emerald-500/15 text-emerald-400 border-emerald-600/40'
+        : (st === '검토중' ? 'bg-amber-500/15 text-amber-400 border-amber-600/40'
+        : (st === '보류' ? 'bg-gray-700/40 text-gray-400 border-gray-600'
+        : 'bg-blue-500/15 text-blue-300 border-blue-600/40'));
+
+      box.innerHTML = mine.map(x => `
+        <div class="bg-[#0d1117] border border-gray-800 rounded-lg px-2.5 py-2">
+          <div class="flex items-center justify-between gap-2 mb-1">
+            <div class="text-[11px] text-gray-500 font-mono">${x.at ? x.at.split(' ')[0] : ''} · ${x.category || '기타'}</div>
+            <div class="flex items-center gap-1.5">
+              <span class="px-1.5 py-0.5 rounded border text-[10px] font-bold whitespace-nowrap ${tone(x.state)}">${x.state || '접수'}</span>
+              ${(x.state || '접수') === '접수'
+                ? `<button onclick="deleteSuggestion('${encodeURIComponent(x.content)}')" class="text-[11px] text-gray-500 hover:text-red-400 transition">삭제</button>`
+                : ''}
+            </div>
+          </div>
+          <div class="text-xs text-gray-300 leading-relaxed whitespace-pre-wrap">${x.content}</div>
+        </div>
+      `).join('');
+    }
+
+    // 접수 상태인 본인 건의만 삭제할 수 있다.
+    // 전송 직후 낙관적으로 추가된 항목은 접수일시가 실제 시트값과 다를 수 있으므로
+    // 내용으로 대상을 특정한다.
+    async function deleteSuggestion(contentEncoded) {
+      const content = decodeURIComponent(contentEncoded);
+      if (!confirm('이 건의를 삭제할까요?')) return;
+
+      const base = selectedUser.split('(')[0].trim();
+      let removedOne = false;
+      suggestionsData = suggestionsData.filter(x => {
+        if (removedOne) return true;
+        const mine = x.user.split('(')[0].trim() === base;
+        if (mine && x.content === content && (x.state || '접수') === '접수') {
+          removedOne = true;
+          return false;
+        }
+        return true;
+      });
+      renderSuggestMyList();
+
+      try {
+        await fetch(APPS_SCRIPT_WEB_APP_URL, {
+          method: 'POST',
+          mode: 'no-cors',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'deleteSuggestion',
+            user: selectedUser,
+            content: content
+          })
+        });
+      } catch (err) {
+        console.error('건의 삭제 오류:', err);
       }
     }
+
+    function selectSuggestCategory(cat) {
+      pendingSuggestCategory = cat;
+      renderSuggestForm();
+    }
+
+    function updateSuggestState() {
+      const ta = document.getElementById('suggestContent');
+      const btn = document.getElementById('suggestSubmitBtn');
+      const cnt = document.getElementById('suggestCount');
+      const len = ta ? ta.value.trim().length : 0;
+      if (cnt) cnt.textContent = `${len} / 500`;
+      if (btn) btn.disabled = len < 5;
+    }
+
+    async function submitSuggestion() {
+      const ta = document.getElementById('suggestContent');
+      const result = document.getElementById('suggestResult');
+      const content = ta ? ta.value.trim() : '';
+      if (content.length < 5 || !selectedUser) return;
+
+      // 응답을 읽을 수 없는 no-cors 요청이므로 화면을 먼저 정리한다
+      if (ta) ta.value = '';
+      updateSuggestState();
+      const p = n => String(n).padStart(2, '0');
+      const d = new Date();
+      suggestionsData.push({
+        at: `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:00`,
+        user: selectedUser,
+        category: pendingSuggestCategory,
+        content: content,
+        state: '접수'
+      });
+      renderSuggestMyList();
+      if (result) result.textContent = '접수되었습니다. 감사합니다!';
+      setTimeout(() => { if (result) result.textContent = ''; }, 4000);
+
+      try {
+        await fetch(APPS_SCRIPT_WEB_APP_URL, {
+          method: 'POST',
+          mode: 'no-cors',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'submitSuggestion',
+            user: selectedUser,
+            category: pendingSuggestCategory,
+            content: content
+          })
+        });
+      } catch (err) {
+        console.error('건의사항 전송 오류:', err);
+        if (result) result.textContent = '';
+      }
+    }
+
+    function switchInfoTab(tab) {
+      const on = 'px-4 py-2 text-sm font-semibold border-b-2 border-yellow-500 text-yellow-400 transition';
+      const off = 'px-4 py-2 text-sm font-semibold text-gray-400 hover:text-white transition';
+      const tabs = { guide: 'Guide', changelog: 'Changelog', suggest: 'Suggest' };
+      const active = tabs[tab] ? tab : 'guide';
+
+      Object.keys(tabs).forEach(key => {
+        const btn = document.getElementById('infoTabBtn' + tabs[key]);
+        const box = document.getElementById('infoContent' + tabs[key]);
+        if (btn) btn.className = (key === active) ? on : off;
+        if (box) box.classList.toggle('hidden', key !== active);
+      });
+
+      if (active === 'suggest') {
+        renderSuggestForm();
+        // 처리상태를 최신으로 보여주기 위해 이 탭을 열 때만 받아온다
+        refreshSheets(['Suggestions']);
+      }
+    }
+
   </script>
 </body>
 </html>
