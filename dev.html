@@ -73,7 +73,7 @@
           <i data-lucide="flask-conical" class="w-6 h-6 text-purple-400"></i>
           <span class="font-bold text-lg text-white tracking-wide whitespace-nowrap">로아 공대</span>
           <button onclick="openInfoModal('changelog')" class="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/30 hover:bg-purple-500/20 transition cursor-pointer" title="클릭하여 업데이트 이력 확인">
-            v1.0.3
+            v1.0.4
           </button>
         </div>
 
@@ -907,7 +907,16 @@
             ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/50'
             : 'text-gray-400 hover:text-white hover:bg-gray-800'
         }`;
-        btn.innerHTML = `<span>${tabTitle}</span>`;
+        // 토요일 고정 탭에는 참여 상태의 기준 날짜를 함께 표시한다.
+        // 슬롯의 불참/지각 태그가 어느 날짜 기준인지 알 수 있어야 한다.
+        let dateSuffix = '';
+        if (cfg.id === 'Main_8Man') {
+          const satList = getUpcomingSaturdays(1);
+          if (satList.length) {
+            dateSuffix = `<span class="text-[11px] font-normal ${isActive ? 'text-yellow-500/70' : 'text-gray-500'}">${fmtDateLabel(satList[0])}</span>`;
+          }
+        }
+        btn.innerHTML = `<span>${tabTitle}</span>${dateSuffix}`;
         btn.onclick = () => {
           currentActiveTab = cfg.id;
           renderTabs();
