@@ -4,9 +4,30 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>[DEV] 로아 공대 - 로스트아크 레이드 대시보드</title>
+  <link rel="preconnect" href="https://docs.google.com" crossorigin />
+  <link rel="dns-prefetch" href="https://docs.google.com" />
+
+  <!-- 시트 요청을 최대한 일찍 시작한다.
+       Tailwind 실행과 DOMContentLoaded 를 기다리지 않고 네트워크를 먼저 띄우는 것이 목적.
+       주의: 아래 시트 목록은 SHEET_CONFIG 와 함께 관리해야 한다. -->
+  <script>
+    window.__BOOT = (function () {
+      const ID = '1dDM5LoLM75hhojd8p1vA-095J-HcOgFQPTQiaErXHi0';
+      const bust = Date.now();
+      const names = ['Main_8Man', 'Sub_Group1', 'Sub_Group2', 'Sub_Group3', 'Sub_Group4',
+                     'Character_Pool', 'Attendance', 'Raid_Info'];
+      const map = {};
+      names.forEach(n => {
+        const url = `https://docs.google.com/spreadsheets/d/${ID}/gviz/tq?tqx=out:csv&sheet=${encodeURI(n)}&t=${bust}`;
+        map[n] = fetch(url).then(r => r.text()).catch(() => null);
+      });
+      return { bust: bust, map: map };
+    })();
+  </script>
+
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
-  <script src="https://unpkg.com/lucide@0.552.0/dist/umd/lucide.min.js"></script>
+  <script defer src="https://unpkg.com/lucide@0.552.0/dist/umd/lucide.min.js"></script>
   <style>
     body {
       background-color: #0d1117;
@@ -73,7 +94,7 @@
           <i data-lucide="flask-conical" class="w-6 h-6 text-purple-400"></i>
           <span class="font-bold text-lg text-white tracking-wide whitespace-nowrap">로아 공대</span>
           <button onclick="openInfoModal('changelog')" class="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/30 hover:bg-purple-500/20 transition cursor-pointer" title="클릭하여 업데이트 이력 확인">
-            v1.0.6
+            v1.0.7
           </button>
         </div>
 
@@ -550,6 +571,9 @@
       fetchSheetData();
     });
 
+    // lucide 를 defer 로 불러오므로, 렌더가 먼저 끝난 경우 로드 완료 후 한 번 더 그린다
+    window.addEventListener('load', drawIcons);
+
     function switchMainView(view) {
       currentMainView = view;
       ['schedule', 'pool', 'gold', 'debug'].forEach(v => {
@@ -601,10 +625,20 @@
     }
 
     // 시트 CSV 하나를 받아 파싱까지 끝낸다. 실패 시 null.
+    // <head> 에서 미리 띄워둔 요청이 있으면 그것을 쓰고, 한 번 쓴 뒤에는 버린다
+    // (새로고침 버튼을 누르면 항상 새로 받아야 하므로).
     async function fetchSheetCsv(sheetName, bust) {
-      const url = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURI(sheetName)}&t=${bust}`;
-      const res = await fetch(url);
-      const text = await res.text();
+      let text;
+      const boot = window.__BOOT;
+      if (boot && boot.map && boot.map[sheetName]) {
+        text = await boot.map[sheetName];
+        delete boot.map[sheetName];
+      }
+      if (text === undefined || text === null) {
+        const url = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURI(sheetName)}&t=${bust}`;
+        const res = await fetch(url);
+        text = await res.text();
+      }
       return Papa.parse(text, { skipEmptyLines: false }).data;
     }
 
