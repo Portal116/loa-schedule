@@ -94,7 +94,7 @@
           <i data-lucide="flask-conical" class="w-6 h-6 text-purple-400"></i>
           <span class="font-bold text-lg text-white tracking-wide whitespace-nowrap">로아 공대</span>
           <button onclick="openInfoModal('changelog')" class="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/30 hover:bg-purple-500/20 transition cursor-pointer" title="클릭하여 업데이트 이력 확인">
-            v1.1.2
+            v1.1.4
           </button>
         </div>
 
@@ -1862,7 +1862,24 @@
       );
     }
 
-    // 모달 캐릭터 목록 구성. 입장 불가/중복은 제외하고, 골드 대상 밖은 경고만 붙인다.
+    // 같은 계열에서 이 캐릭이 입장 가능한 더 높은 난이도가 있으면 그 골드 차이를 반환한다.
+    // 하위 난이도를 고르면 그만큼 손실이므로 경고로 알려준다 (막지는 않는다).
+    function getHigherDiffLoss(charLevel, famKey, currentRow) {
+      if (!famKey || !currentRow) return 0;
+      const curTotal = parseGoldNum(currentRow.goldTotal);
+      let best = curTotal;
+      raidInfoData.forEach(r => {
+        if (getRaidFamilyKey(r.name) !== famKey) return;
+        if (charLevel < parseGoldNum(r.level)) return;
+        const t = parseGoldNum(r.goldTotal);
+        if (t > best) best = t;
+      });
+      return best - curTotal;
+    }
+
+    // 모달 캐릭터 목록 구성.
+    // 입장 불가/이번 주 중복은 제외하고, 그 외에는 경고만 붙여 선택 가능하게 둔다.
+    // (나메를 갈 수 있어도 부담 때문에 하드를 가는 선택은 정상이므로 막지 않는다)
     function buildSwapCandidates(raidTitle, currentCharName, exceptSlotUid) {
       const famKey = getRaidFamilyKey(raidTitle);
       const row = getBlockRaidRow(raidTitle);
@@ -1877,10 +1894,24 @@
             if (minLevel && c.level < minLevel) blockReason = `입장 레벨 ${minLevel} 미달`;
             else if (famKey && charAlreadyInFamily(c.name, famKey, exceptSlotUid)) blockReason = '이번 주 이미 참여';
           }
+
+          // 경고 우선순위
+          //  1) 골드 획득 캐릭 6개 밖 -> 어차피 골드가 안 나오므로 손실액 계산은 의미가 없다
+          //  2) 상위 난이도 가능 -> 실제 골드 손실이 발생
+          //  3) 주간 골드 3칸 밖
           let warn = '';
-          if (!blockReason && famKey && goldEligibleCharNames.has(c.name)) {
-            const tier = computeGoldTiers(c.level)[famKey] || 'NONE';
-            if (tier === 'NONE') warn = '골드 대상 아님';
+          if (!blockReason) {
+            if (!goldEligibleCharNames.has(c.name)) {
+              warn = '골드 제외 캐릭';
+            } else {
+              const loss = getHigherDiffLoss(c.level, famKey, row);
+              if (loss > 0) {
+                warn = `상위 난이도 가능 -${(loss / 10000).toFixed(1)}만`;
+              } else if (famKey) {
+                const tier = computeGoldTiers(c.level)[famKey] || 'NONE';
+                if (tier === 'NONE') warn = '골드 대상 아님';
+              }
+            }
           }
           return { c, isCurrent, blockReason, warn };
         })
@@ -1905,7 +1936,7 @@
               <div class="text-sm font-bold text-white flex items-center flex-wrap gap-x-2">
                 <span>${c.name}</span>
                 ${x.isCurrent ? '<span class="text-[10px] text-yellow-400 font-normal">[현재 출전 중]</span>' : ''}
-                ${x.warn ? `<span class="text-[10px] text-gray-400 font-normal px-1.5 py-0.5 rounded bg-gray-800 border border-gray-700">${x.warn}</span>` : ''}
+                ${x.warn ? `<span class="text-[10px] font-normal px-1.5 py-0.5 rounded ${x.warn.startsWith('상위') ? 'bg-amber-500/15 text-amber-400 border border-amber-600/40' : 'bg-gray-800 text-gray-400 border border-gray-700'}">${x.warn}</span>` : ''}
                 <span class="swap-selected-tag hidden text-[10px] text-cyan-300 font-bold">[선택됨]</span>
               </div>
             </div>
