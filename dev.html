@@ -94,7 +94,7 @@
           <i data-lucide="flask-conical" class="w-6 h-6 text-purple-400"></i>
           <span class="font-bold text-lg text-white tracking-wide whitespace-nowrap">로아 공대</span>
           <button onclick="openInfoModal('changelog')" class="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/30 hover:bg-purple-500/20 transition cursor-pointer" title="클릭하여 업데이트 이력 확인">
-            v1.0.2
+            v1.0.3
           </button>
         </div>
 
@@ -1038,6 +1038,7 @@
                 slotUid: `${sheetId}_b${blockIdx}_p1_s${slotIdx}_${char1}`,
                 sheetId: sheetId,
                 sheetRow: actualSheetRow,
+                slotIndex: slotIdx,
                 party: 1,
                 user: user1,
                 name: char1,
@@ -1054,6 +1055,7 @@
                 slotUid: `${sheetId}_b${blockIdx}_p2_s${slotIdx}_${char2}`,
                 sheetId: sheetId,
                 sheetRow: actualSheetRow,
+                slotIndex: slotIdx,
                 party: 2,
                 user: user2,
                 name: char2,
@@ -1067,6 +1069,8 @@
           }
 
           if (slots.length > 0) {
+            // 같은 제목의 블록이 여러 개일 때 시트에서 정확한 블록을 찾기 위한 순번
+            slots.forEach(sl => { sl.blockIndex = blockIdx; });
             blocks.push({ title: cleanTitle, rawTitle, slots, is8Man, sheetId: sheetId });
             blockIdx++;
           }
@@ -1932,6 +1936,8 @@
         action: 'swap',
         sheetId: target.sheetId,
         sheetRow: target.sheetRow,
+        blockIndex: target.blockIndex,
+        slotIndex: target.slotIndex,
         party: target.party,
         user: target.user,
         targetRaid: `[${target.sheetId}] ${target.raidTitle}`,
