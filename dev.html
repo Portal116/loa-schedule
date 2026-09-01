@@ -94,7 +94,7 @@
           <i data-lucide="flask-conical" class="w-6 h-6 text-purple-400"></i>
           <span class="font-bold text-lg text-white tracking-wide whitespace-nowrap">로아 공대</span>
           <button onclick="openInfoModal('changelog')" class="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/30 hover:bg-purple-500/20 transition cursor-pointer" title="클릭하여 업데이트 이력 확인">
-            v1.0.4
+            v1.1.1
           </button>
         </div>
 
@@ -102,7 +102,6 @@
           <button onclick="switchMainView('schedule')" id="viewBtnSchedule" class="px-3 py-1.5 rounded-md font-semibold bg-gray-800 text-white transition">일정표</button>
           <button onclick="switchMainView('pool')" id="viewBtnPool" class="px-3 py-1.5 rounded-md font-medium text-gray-400 hover:text-white transition">캐릭터 현황 & 숙제 체크</button>
           <button onclick="switchMainView('gold')" id="viewBtnGold" class="px-3 py-1.5 rounded-md font-medium text-gray-400 hover:text-white transition">레이드 골드표</button>
-          <button onclick="switchMainView('debug')" id="viewBtnDebug" class="px-3 py-1.5 rounded-md font-medium text-purple-400 border border-purple-500/30 hover:bg-purple-500/10 transition">[DEV] 레벨별 골드 기준표</button>
         </div>
       </div>
 
@@ -292,30 +291,6 @@
     </div>
 
     <!-- 4. [DEV 전용] 레벨 구간별 골드 기준표 디버그 뷰 -->
-    <div id="sectionDebug" class="hidden">
-      <div class="card-bg rounded-xl p-6 border border-purple-500/40 shadow-xl space-y-4">
-        <div class="border-b border-gray-800 pb-3">
-          <h3 class="font-bold text-white text-base flex items-center space-x-2">
-            <i data-lucide="shield-alert" class="w-5 h-5 text-purple-400"></i>
-            <span>[DEV 전용] 레벨 구간별 골드 기준표</span>
-          </h3>
-        </div>
-        <div class="overflow-x-auto">
-          <table class="w-full text-left text-sm text-gray-300">
-            <thead class="bg-[#0d1117] text-xs uppercase text-gray-400 border-b border-gray-800">
-              <tr>
-                <th class="px-4 py-3">레벨 구간</th>
-                <th class="px-4 py-3">확정 (골드 확실히 획득)</th>
-                <th class="px-4 py-3">선택 구간 (둘 중 하나만)</th>
-              </tr>
-            </thead>
-            <tbody id="debugTableBody" class="divide-y divide-gray-800">
-              <!-- 동적 생성 -->
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
   </main>
 
   <!-- 원클릭 캐릭터 즉시 변경 모달 -->
@@ -479,12 +454,22 @@
         </div>
 
         <div id="infoContentChangelog" class="space-y-3 hidden">
-          <div class="border-l-2 border-yellow-500 pl-3 py-1">
+          <div class="border-l-2 border-yellow-500 pl-3 py-1 mb-3">
             <div class="flex items-center justify-between">
-              <span class="font-bold text-white text-xs">v1.0 - 정식 버전 릴리즈 (Official Release)</span>
-              <span class="text-[11px] text-gray-500">2026.08.31</span>
+              <span class="font-bold text-white text-xs">v1.1 - 캐릭터 교체 오류 수정</span>
+              <span class="text-[11px] text-gray-500">2026.09.01</span>
             </div>
             <ul class="text-xs text-gray-400 mt-1 space-y-0.5 list-disc pl-3">
+              <li>같은 레이드가 여러 회차 편성된 경우, 캐릭터를 바꾸면 다른 회차가 변경되던 문제 수정</li>
+            </ul>
+          </div>
+
+          <div class="border-l-2 border-gray-700 pl-3 py-1">
+            <div class="flex items-center justify-between">
+              <span class="font-bold text-gray-300 text-xs">v1.0 - 정식 버전 릴리즈 (Official Release)</span>
+              <span class="text-[11px] text-gray-500">2026.08.31</span>
+            </div>
+            <ul class="text-xs text-gray-500 mt-1 space-y-0.5 list-disc pl-3">
               <li>로스트아크 레이드 공대 관리 웹 대시보드 정식 출시</li>
               <li>일정표에서 본인 슬롯의 캐릭터 교체 (선택 후 확정)</li>
               <li>토요일 고정 레이드의 불참 · 지각 · 미정 상태를 미리 알릴 수 있는 [참여 상태] 기능</li>
@@ -542,7 +527,6 @@
   <script>
     const SPREADSHEET_ID = '1dDM5LoLM75hhojd8p1vA-095J-HcOgFQPTQiaErXHi0';
     // 테스트 배포(dev) 전용 엔드포인트. 정식(index.html)은 별도 배포 URL을 쓴다.
-    // gs 를 고칠 때 테스트 배포만 먼저 갱신하면 정식은 영향받지 않는다.
     const APPS_SCRIPT_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbyMFY1uL2u_rxVtrOqgDLVkQOCBQBO_58MlXWJI8lZgnqMXa95EDJXnxnoISFnsi8GG/exec';
     
     const SHEET_CONFIG = [
@@ -657,19 +641,15 @@
 
     function switchMainView(view) {
       currentMainView = view;
-      ['schedule', 'pool', 'gold', 'debug'].forEach(v => {
+      ['schedule', 'pool', 'gold'].forEach(v => {
         const btn = document.getElementById('viewBtn' + v.charAt(0).toUpperCase() + v.slice(1));
         const sec = document.getElementById('section' + v.charAt(0).toUpperCase() + v.slice(1));
         if (!btn || !sec) return;
         if (v === view) {
-          btn.className = (v === 'debug')
-            ? 'px-3 py-1.5 rounded-md font-semibold bg-purple-600 text-white transition'
-            : 'px-3 py-1.5 rounded-md font-semibold bg-gray-800 text-white transition';
+          btn.className = 'px-3 py-1.5 rounded-md font-semibold bg-gray-800 text-white transition';
           sec.classList.remove('hidden');
         } else {
-          btn.className = (v === 'debug')
-            ? 'px-3 py-1.5 rounded-md font-medium text-purple-400 border border-purple-500/30 hover:bg-purple-500/10 transition'
-            : 'px-3 py-1.5 rounded-md font-medium text-gray-400 hover:text-white transition';
+          btn.className = 'px-3 py-1.5 rounded-md font-medium text-gray-400 hover:text-white transition';
           sec.classList.add('hidden');
         }
       });
@@ -683,12 +663,11 @@
       }
 
       if (view === 'gold') renderGoldTableView();
-      if (view === 'debug') renderDebugTableView();
       drawIcons();
 
       // 각 뷰가 실제로 쓰는 시트만 뒤에서 갱신한다
       if (view === 'pool') refreshSheets(['Character_Pool']);
-      if (view === 'gold' || view === 'debug') refreshSheets(['Raid_Info']);
+      if (view === 'gold') refreshSheets(['Raid_Info']);
       if (view === 'schedule') {
         const targets = currentActiveTab === 'Main_8Man' ? [currentActiveTab, 'Attendance'] : [currentActiveTab];
         refreshSheets(targets);
@@ -804,7 +783,6 @@
       renderActiveTabContent();
       if (currentMainView === 'pool') renderPoolView();
       if (currentMainView === 'gold') renderGoldTableView();
-      if (currentMainView === 'debug') renderDebugTableView();
       // 도움말 모달의 건의사항 탭이 열려 있으면 목록도 갱신
       const suggestBox = document.getElementById('infoContentSuggest');
       if (suggestBox && !suggestBox.classList.contains('hidden')) renderSuggestMyList();
@@ -1176,30 +1154,22 @@
       });
     }
 
-    function balanceSlotsFor8Man(slots) {
-      const sorted = [...slots].sort((a, b) => {
-        const getPriority = (item) => {
-          if (item.pos === '서포터') return 3;
-          if (item.pos === '스왑가능') return 2;
-          return 1;
-        };
-        const pDiff = getPriority(b) - getPriority(a);
+    // 8인 레이드 슬롯 정렬: 서포터 → 스왑가능 → 딜러, 같은 등급이면 레벨 내림차순.
+    // 좌우 열로 미리 나누지 않고 정렬된 순서만 반환한다.
+    // 2열 그리드가 행 우선으로 채우므로 이 순서를 그대로 넣으면
+    // 데스크탑에서는 왼쪽 열 0·2·4·6 / 오른쪽 열 1·3·5·7 로 배치되고,
+    // 모바일(1열)에서는 정렬 순서대로 세로로 쌓인다.
+    function orderSlotsFor8Man(slots) {
+      const priority = (item) => {
+        if (item.pos === '서포터') return 3;
+        if (item.pos === '스왑가능') return 2;
+        return 1;
+      };
+      return [...slots].sort((a, b) => {
+        const pDiff = priority(b) - priority(a);
         if (pDiff !== 0) return pDiff;
         return parseFloat(b.level) - parseFloat(a.level);
       });
-
-      const colLeft = [];
-      const colRight = [];
-
-      sorted.forEach((slot, idx) => {
-        if (idx % 2 === 0) {
-          colLeft.push(slot);
-        } else {
-          colRight.push(slot);
-        }
-      });
-
-      return { colLeft, colRight };
     }
 
     function renderActiveTabContent() {
@@ -1228,12 +1198,9 @@
         `;
 
         if (block.is8Man) {
-          const { colLeft, colRight } = balanceSlotsFor8Man(block.slots);
-
           innerHTML += `
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div class="space-y-1.5">${renderPartySlots(colLeft)}</div>
-              <div class="space-y-1.5">${renderPartySlots(colRight)}</div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-1.5">
+              ${renderPartySlots(orderSlotsFor8Man(block.slots))}
             </div>
           `;
         } else {
@@ -1965,85 +1932,7 @@
       }
     }
 
-    function renderDebugTableView() {
-      const tbody = document.getElementById('debugTableBody');
-      const brackets = [
-        { label: '1780.00 이상', lvl: 1785 },
-        { label: '1770.00 ~ 1779.99', lvl: 1775 },
-        { label: '1750.00 ~ 1769.99', lvl: 1755 },
-        { label: '1740.00 ~ 1749.99', lvl: 1745 },
-        { label: '1730.00 ~ 1739.99', lvl: 1735 },
-        { label: '1720.00 ~ 1729.99', lvl: 1725 },
-        { label: '1710.00 ~ 1719.99', lvl: 1715 },
-        { label: '1700.00 ~ 1709.99', lvl: 1705 }
-      ];
-
-      const shortName = RAID_SHORT_NAME;
-
-      if (raidInfoData.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="3" class="text-center py-8 text-gray-500">Raid_Info 시트 데이터를 가져오지 못했습니다.</td></tr>`;
-        return;
-      }
-
-      const man = v => (v / 10000).toFixed(1);
-
-      // 칩 하나: 이름 + 난이도 + 골드. 귀속이 섞인 레이드는 환산 점수 범위를 같이 보여준다.
-      const chip = (r, kind) => {
-        const cls = kind === 'earn'
-          ? 'bg-amber-950/60 text-amber-300 border-amber-700'
-          : 'bg-cyan-950/60 text-cyan-300 border-cyan-700';
-        const lo = goldScore(r, BOUND_GOLD_WEIGHT_LOW);
-        const hi = goldScore(r, BOUND_GOLD_WEIGHT_HIGH);
-        const amount = r.bound > 0
-          ? `${man(lo)}~${man(hi)}만`
-          : `${man(hi)}만`;
-        const tag = r.bound > 0 ? (r.trade > 0 ? '반반' : '귀속') : '유통';
-        return `<span class="inline-flex items-baseline gap-1.5 px-2 py-1 rounded border text-xs font-semibold whitespace-nowrap ${cls}">`
-          + `<span>${shortName[r.key] || r.key} ${r.diff}</span>`
-          + `<span class="font-mono font-normal opacity-80">${amount}</span>`
-          + `<span class="text-[10px] opacity-60">${tag}</span>`
-          + `</span>`;
-      };
-
-      tbody.innerHTML = brackets.map(b => {
-        const ranked = getCharTop3Raids(b.lvl);
-        const tierMap = computeGoldTiers(b.lvl);
-
-        const earnList = ranked.filter(r => tierMap[r.key] === 'EARN');
-        const choiceList = ranked.filter(r => tierMap[r.key] === 'MAYBE');
-
-        const earnHtml = earnList.map(r => chip(r, 'earn')).join(' ') || '<span class="text-gray-600 text-xs">-</span>';
-
-        let choiceHtml = '<span class="text-gray-600 text-xs">없음 (상위 3개 확정)</span>';
-        if (choiceList.length) {
-          // 선택 구간이 생긴 근거: 밴드 안에 들어오는 역전 w만 표시 (밖은 노이즈라 생략)
-          const flips = [];
-          for (let i = 0; i < choiceList.length; i++) {
-            for (let j = i + 1; j < choiceList.length; j++) {
-              const w = goldBreakEvenW(choiceList[i], choiceList[j]);
-              if (w === null) continue;
-              if (w < BOUND_GOLD_WEIGHT_LOW || w > BOUND_GOLD_WEIGHT_HIGH) continue;
-              flips.push(`${shortName[choiceList[i].key]} ↔ ${shortName[choiceList[j].key]} 역전 w=${w.toFixed(2)}`);
-            }
-          }
-          const note = flips.length
-            ? flips.join(', ')
-            : '환산 점수 동일 (완전 교환 가능)';
-          choiceHtml = choiceList.map(r => chip(r, 'maybe')).join(' ')
-            + `<div class="mt-1.5 text-[11px] text-gray-500 font-mono">${note}</div>`;
-        }
-
-        return `
-          <tr class="hover:bg-gray-800/40 transition align-top">
-            <td class="px-4 py-3 font-semibold text-white font-mono whitespace-nowrap">${b.label}</td>
-            <td class="px-4 py-3"><div class="flex flex-wrap gap-1.5">${earnHtml}</div></td>
-            <td class="px-4 py-3"><div class="flex flex-wrap gap-1.5">${choiceHtml}</div></td>
-          </tr>
-        `;
-      }).join('');
-    }
-
-    // ─── 참여 상태 모달 ───────────────────────────────────────
+// ─── 참여 상태 모달 ───────────────────────────────────────
     function openAttendanceModal() {
       if (!selectedUser) {
         alert("상단 헤더의 [내 캐릭터 강조]에서 본인 계정을 먼저 선택해 주세요!");
