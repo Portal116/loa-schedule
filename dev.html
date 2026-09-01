@@ -94,7 +94,7 @@
           <i data-lucide="flask-conical" class="w-6 h-6 text-purple-400"></i>
           <span class="font-bold text-lg text-white tracking-wide whitespace-nowrap">로아 공대</span>
           <button onclick="openInfoModal('changelog')" class="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/30 hover:bg-purple-500/20 transition cursor-pointer" title="클릭하여 업데이트 이력 확인">
-            v1.1.1
+            v1.1.2
           </button>
         </div>
 
@@ -302,7 +302,7 @@
 
       <div class="flex items-center space-x-2 text-yellow-400 mb-2">
         <i data-lucide="refresh-cw" class="w-5 h-5"></i>
-        <h3 class="text-lg font-bold text-white">내 캐릭터 즉시 변경</h3>
+        <h3 class="text-lg font-bold text-white" id="swapModalTitle">내 캐릭터 즉시 변경</h3>
       </div>
       <p class="text-xs text-gray-400 mb-4" id="swapModalDesc">
         본인 원정대 캐릭터로만 교체할 수 있습니다. 캐릭터를 먼저 선택한 뒤, 하단의 <strong>확정 버튼</strong>을 눌러야 실제로 반영됩니다.
@@ -322,7 +322,10 @@
       </div>
 
       <div class="mt-5 flex items-center justify-between gap-2">
-        <button onclick="closeQuickSwapModal()" class="px-4 py-2 rounded-lg text-xs font-semibold text-gray-400 hover:text-white bg-gray-800 transition">취소</button>
+        <div class="flex items-center gap-2">
+          <button onclick="closeQuickSwapModal()" class="px-4 py-2 rounded-lg text-xs font-semibold text-gray-400 hover:text-white bg-gray-800 transition">취소</button>
+          <button id="swapRemoveBtn" onclick="removeMySlot()" class="px-3 py-2 rounded-lg text-xs font-semibold text-red-400 hover:text-red-300 bg-red-950/40 border border-red-900/60 transition">이 자리에서 빼기</button>
+        </div>
         <button id="swapConfirmBtn" onclick="confirmQuickSwap()" disabled class="px-4 py-2 rounded-lg text-xs font-bold text-black bg-yellow-400 hover:bg-yellow-300 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-yellow-400 transition">캐릭터를 선택해 주세요</button>
       </div>
     </div>
@@ -589,6 +592,8 @@
     let raidInfoData = [];
     let activeSwapTarget = null;
     let pendingSwapChar = null;
+    let swapMode = 'swap';        // 'swap' = 기존 슬롯 교체, 'add' = 빈 자리에 본인 추가
+    let activeAddTarget = null;   // 'add' 모드의 대상 블록 정보
     let goldEligibleCharNames = new Set();
     let attendanceData = [];          // Attendance 시트 원본
     let suggestionsData = [];         // Suggestions 시트 원본
@@ -1203,6 +1208,7 @@
               ${renderPartySlots(orderSlotsFor8Man(block.slots))}
             </div>
           `;
+          innerHTML += renderAddSlotRow(block);
         } else {
           const sortedSlots = [...block.slots].sort((a, b) => {
             const isSuppA = (a.pos === '서포터' || a.pos === '스왑가능');
@@ -1215,6 +1221,7 @@
           innerHTML += `
             <div class="space-y-1.5 max-w-2xl">
               ${renderPartySlots(sortedSlots)}
+              ${renderAddSlotRow(block)}
             </div>
           `;
         }
@@ -1644,6 +1651,42 @@
       return (b.trade - a.trade) / db;
     }
 
+    // ─── 블록 정원 계산 ───────────────────────────────────────
+    // 난이도 표기를 Raid_Info 와 맞추기 위한 정규화 (시트는 '나메', Raid_Info 는 '나이트메어')
+    function normalizeDiff(text) {
+      const t = (text || '').toString();
+      if (t.includes('나이트메어') || t.includes('나메')) return 'NM';
+      if (t.includes('하드')) return 'HARD';
+      if (t.includes('노말')) return 'NORMAL';
+      const stage = t.match(/([0-9])\s*단/);
+      if (stage) return 'STAGE' + stage[1];
+      return '';
+    }
+
+    // 블록 제목으로 Raid_Info 행을 찾아 파티유형(4인/8인)을 정원으로 쓴다.
+    // 못 찾으면 시트 구조(8인 시트=8, 서브=4)를 그대로 쓴다.
+    function getBlockCapacity(block) {
+      const sheetCap = block.is8Man ? 8 : 4;
+      const famKey = getRaidFamilyKey(block.title);
+      const diff = normalizeDiff(block.title);
+      if (!famKey) return sheetCap;
+
+      const hit = raidInfoData.find(r =>
+        getRaidFamilyKey(r.name) === famKey && normalizeDiff(r.diff) === diff
+      );
+      if (!hit || !hit.partyType) return sheetCap;
+
+      const m = hit.partyType.match(/([0-9]+)\s*인/);
+      if (!m) return sheetCap;
+      return Math.min(sheetCap, parseInt(m[1], 10));
+    }
+
+    // 선택된 계정의 캐릭이 이 블록에 이미 들어가 있는지
+    function userInBlock(block) {
+      if (!selectedUser) return true;
+      return block.slots.some(s => (s.user || '').startsWith(selectedUser));
+    }
+
     // 선택 구간 툴팁 문구. 해당 레벨의 선택 구간 짝과 골드 액수를 보여준다.
     // 예: '선택 구간 · 성당 5.0만 귀속 ↔ 종막 4.8만 유통'
     function getMaybePairDesc(charLevel) {
@@ -1773,6 +1816,173 @@
       });
     }
 
+    // ─── 빈 자리에 본인 추가 ──────────────────────────────────
+    // 정원이 남아 있고 본인이 그 블록에 없을 때만 한 줄 노출한다.
+    // 빈 칸이 몇 개든 화면에는 한 줄이고, 실제 기록할 행은 서버가 찾는다.
+    function renderAddSlotRow(block) {
+      if (!selectedUser) return '';
+      const cap = getBlockCapacity(block);
+      if (block.slots.length >= cap) return '';
+      if (userInBlock(block)) return '';
+
+      const payload = encodeURIComponent(JSON.stringify({
+        sheetId: block.sheetId,
+        blockIndex: block.slots.length ? block.slots[0].blockIndex : 0,
+        rawRaidTitle: block.rawTitle,
+        raidTitle: block.title,
+        is8Man: block.is8Man
+      }));
+
+      return `
+        <div onclick="openAddSlotModal('${payload}')" class="mt-1.5 flex items-center justify-center gap-1.5 p-2.5 rounded-lg border border-dashed border-gray-700 text-gray-500 hover:border-yellow-500 hover:text-yellow-400 cursor-pointer transition">
+          <i data-lucide="plus" class="w-3.5 h-3.5"></i>
+          <span class="text-xs font-semibold">내 캐릭터 넣기</span>
+          <span class="text-[11px] text-gray-600">(${block.slots.length}/${cap})</span>
+        </div>
+      `;
+    }
+
+    // 블록에 해당하는 Raid_Info 행 (입장 레벨 확인용)
+    function getBlockRaidRow(title) {
+      const famKey = getRaidFamilyKey(title);
+      const diff = normalizeDiff(title);
+      if (!famKey) return null;
+      return raidInfoData.find(r =>
+        getRaidFamilyKey(r.name) === famKey && normalizeDiff(r.diff) === diff
+      ) || null;
+    }
+
+    // 이 캐릭이 이번 주 다른 곳에서 같은 레이드 계열을 이미 가는지 (같은 레이드 1회 규칙)
+    function charAlreadyInFamily(charName, famKey, exceptSlotUid) {
+      const all = window.allRaidInstancesStore || [];
+      return all.some(i =>
+        i.charName === charName &&
+        i.slotUid !== exceptSlotUid &&
+        getRaidFamilyKey(i.raidTitle) === famKey
+      );
+    }
+
+    // 모달 캐릭터 목록 구성. 입장 불가/중복은 제외하고, 골드 대상 밖은 경고만 붙인다.
+    function buildSwapCandidates(raidTitle, currentCharName, exceptSlotUid) {
+      const famKey = getRaidFamilyKey(raidTitle);
+      const row = getBlockRaidRow(raidTitle);
+      const minLevel = row ? parseGoldNum(row.level) : 0;
+
+      return characterPoolData
+        .filter(c => c.user.startsWith(selectedUser))
+        .map(c => {
+          const isCurrent = c.name === currentCharName;
+          let blockReason = '';
+          if (!isCurrent) {
+            if (minLevel && c.level < minLevel) blockReason = `입장 레벨 ${minLevel} 미달`;
+            else if (famKey && charAlreadyInFamily(c.name, famKey, exceptSlotUid)) blockReason = '이번 주 이미 참여';
+          }
+          let warn = '';
+          if (!blockReason && famKey && goldEligibleCharNames.has(c.name)) {
+            const tier = computeGoldTiers(c.level)[famKey] || 'NONE';
+            if (tier === 'NONE') warn = '골드 대상 아님';
+          }
+          return { c, isCurrent, blockReason, warn };
+        })
+        .filter(x => !x.blockReason);
+    }
+
+    function renderSwapCandidateList(cands, currentCharName) {
+      const container = document.getElementById('swapCharListContainer');
+      window.__swapUserPool = cands.map(x => x.c);
+
+      if (cands.length === 0) {
+        container.innerHTML = `<div class="text-center py-6 text-xs text-gray-500">넣을 수 있는 캐릭터가 없습니다.<br><span class="text-[11px]">입장 레벨이 되고 이번 주 해당 레이드에 참여하지 않은 캐릭터만 표시됩니다.</span></div>`;
+        return;
+      }
+
+      container.innerHTML = cands.map((x, idx) => {
+        const c = x.c;
+        return `
+          <div id="swapRow_${idx}" onclick="selectSwapCandidate(${idx})" class="swap-candidate-row flex items-center justify-between p-3 rounded-lg border ${x.isCurrent ? 'border-yellow-500/60 bg-yellow-950/20' : 'border-gray-800 bg-[#0d1117] hover:border-gray-600'} cursor-pointer transition">
+            <div>
+              <div class="text-xs text-gray-400">${c.user} (${c.server})</div>
+              <div class="text-sm font-bold text-white flex items-center flex-wrap gap-x-2">
+                <span>${c.name}</span>
+                ${x.isCurrent ? '<span class="text-[10px] text-yellow-400 font-normal">[현재 출전 중]</span>' : ''}
+                ${x.warn ? `<span class="text-[10px] text-gray-400 font-normal px-1.5 py-0.5 rounded bg-gray-800 border border-gray-700">${x.warn}</span>` : ''}
+                <span class="swap-selected-tag hidden text-[10px] text-cyan-300 font-bold">[선택됨]</span>
+              </div>
+            </div>
+            <div class="text-right">
+              <span class="text-xs text-gray-400">${c.job} · ${c.pos}</span>
+              <div class="text-xs font-mono font-bold text-yellow-500">${c.level.toLocaleString('ko-KR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function openAddSlotModal(payloadEncoded) {
+      if (!selectedUser) {
+        alert("상단 헤더의 [내 캐릭터 강조]에서 본인 계정을 먼저 선택해 주세요!");
+        return;
+      }
+      const info = JSON.parse(decodeURIComponent(payloadEncoded));
+
+      swapMode = 'add';
+      activeAddTarget = info;
+      activeSwapTarget = null;
+      pendingSwapChar = null;
+
+      document.getElementById('swapModalTitle').textContent = '빈 자리에 내 캐릭터 넣기';
+      document.getElementById('swapModalDesc').textContent = '본인 캐릭터만 넣을 수 있습니다. 캐릭터를 선택한 뒤 하단의 확정 버튼을 눌러 주세요.';
+      document.getElementById('swapTargetRaidTitle').textContent = `[${info.raidTitle}]`;
+      document.getElementById('swapOldCharName').textContent = '빈 자리';
+      document.getElementById('swapModalUserLabel').textContent = `넣을 본인(${selectedUser}) 캐릭터 선택`;
+      document.getElementById('swapRemoveBtn').classList.add('hidden');
+
+      renderSwapCandidateList(buildSwapCandidates(info.raidTitle, null, null), null);
+      updateSwapConfirmButtonState();
+
+      document.body.style.overflow = 'hidden';
+      document.getElementById('quickSwapModal').classList.remove('hidden');
+      drawIcons();
+    }
+
+    // 본인 슬롯에서 빼기 (해당 행을 비운다)
+    async function removeMySlot() {
+      if (swapMode !== 'swap' || !activeSwapTarget) return;
+      const t = activeSwapTarget;
+      if (!confirm(`[${t.raidTitle}] 에서 ${t.name} 을(를) 빼고 자리를 비울까요?`)) return;
+
+      closeQuickSwapModal();
+
+      // 낙관적 반영: 화면에서 먼저 제거한다
+      const cur = sheetsDataStore[t.sheetId];
+      if (cur) {
+        cur.blocks.forEach(b => { b.slots = b.slots.filter(s => s.slotUid !== t.slotUid); });
+        renderActiveTabContent();
+      }
+
+      try {
+        await fetch(APPS_SCRIPT_WEB_APP_URL, {
+          method: 'POST',
+          mode: 'no-cors',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'clearSlot',
+            sheetId: t.sheetId,
+            sheetRow: t.sheetRow,
+            party: t.party,
+            blockIndex: t.blockIndex,
+            rawRaidTitle: t.rawRaidTitle || t.raidTitle,
+            targetRaid: `[${t.sheetId}] ${t.raidTitle}`,
+            user: t.user,
+            oldCharName: t.name,
+            oldChar: `${t.name} (${t.job} / ${t.level} / ${t.pos})`
+          })
+        });
+      } catch (err) {
+        console.error('슬롯 비우기 오류:', err);
+      }
+    }
+
     function openQuickSwapModal(slotJsonEncoded) {
       if (!selectedUser) {
         alert("상단 헤더의 [내 캐릭터 강조]에서 본인 계정을 먼저 선택해 주세요!");
@@ -1787,49 +1997,26 @@
         return;
       }
 
+      swapMode = 'swap';
       activeSwapTarget = slot;
+      activeAddTarget = null;
       pendingSwapChar = null;
 
+      document.getElementById('swapModalTitle').textContent = '내 캐릭터 즉시 변경';
+      document.getElementById('swapModalDesc').textContent = '본인 원정대 캐릭터로만 교체할 수 있습니다. 캐릭터를 먼저 선택한 뒤 하단의 확정 버튼을 눌러야 반영됩니다.';
       document.getElementById('swapTargetRaidTitle').textContent = `[${slot.raidTitle}]`;
       document.getElementById('swapOldCharName').textContent = `${slot.user} ➔ ${slot.name} (${slot.job} / ${slot.level})`;
       document.getElementById('swapModalUserLabel').textContent = `교체할 본인(${selectedUser}) 원정대 캐릭터 선택`;
+      document.getElementById('swapRemoveBtn').classList.remove('hidden');
 
-      const userPool = characterPoolData.filter(c => c.user.startsWith(selectedUser));
-      window.__swapUserPool = userPool;
-
-      const container = document.getElementById('swapCharListContainer');
-
-      if (userPool.length === 0) {
-        container.innerHTML = `<div class="text-center py-6 text-xs text-gray-500">선택된 계정(${selectedUser})으로 등록된 캐릭터가 없습니다.</div>`;
-      } else {
-        container.innerHTML = userPool.map((c, idx) => {
-          const isCurrent = (c.name === slot.name);
-          return `
-            <div id="swapRow_${idx}" onclick="selectSwapCandidate(${idx})" class="swap-candidate-row flex items-center justify-between p-3 rounded-lg border ${isCurrent ? 'border-yellow-500/60 bg-yellow-950/20' : 'border-gray-800 bg-[#0d1117] hover:border-gray-600'} cursor-pointer transition">
-              <div>
-                <div class="text-xs text-gray-400">${c.user} (${c.server})</div>
-                <div class="text-sm font-bold text-white flex items-center space-x-2">
-                  <span>${c.name}</span>
-                  ${isCurrent ? '<span class="text-[10px] text-yellow-400 font-normal">[현재 출전 중]</span>' : ''}
-                  <span class="swap-selected-tag hidden text-[10px] text-cyan-300 font-bold">[선택됨]</span>
-                </div>
-              </div>
-              <div class="text-right">
-                <span class="text-xs text-gray-400">${c.job} · ${c.pos}</span>
-                <div class="text-xs font-mono font-bold text-yellow-500">${c.level.toLocaleString('ko-KR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-              </div>
-            </div>
-          `;
-        }).join('');
-      }
-
+      renderSwapCandidateList(buildSwapCandidates(slot.raidTitle, slot.name, slot.slotUid), slot.name);
       updateSwapConfirmButtonState();
       document.body.style.overflow = 'hidden';
       document.getElementById('quickSwapModal').classList.remove('hidden');
       drawIcons();
     }
 
-    // 목록에서 캐릭터를 누르면 즉시 반영하지 않고 '선택'만 표시한다.
+// 목록에서 캐릭터를 누르면 즉시 반영하지 않고 '선택'만 표시한다.
     function selectSwapCandidate(idx) {
       const pool = window.__swapUserPool || [];
       const char = pool[idx];
@@ -1855,6 +2042,11 @@
 
     function updateSwapConfirmButtonState() {
       const btn = document.getElementById('swapConfirmBtn');
+      if (btn && swapMode === 'add') {
+        btn.disabled = !pendingSwapChar;
+        btn.textContent = pendingSwapChar ? `${pendingSwapChar.name} 넣기 확정` : '캐릭터를 선택해 주세요';
+        return;
+      }
       if (!btn) return;
       if (pendingSwapChar) {
         btn.disabled = false;
@@ -1868,10 +2060,71 @@
     // 확정 버튼을 눌렀을 때만 실제로 시트에 반영한다.
     function confirmQuickSwap() {
       if (!pendingSwapChar) return;
-      executeInstantSwap(encodeURIComponent(JSON.stringify(pendingSwapChar)));
+      if (swapMode === 'add') {
+        executeAddSlot(encodeURIComponent(JSON.stringify(pendingSwapChar)));
+      } else {
+        executeInstantSwap(encodeURIComponent(JSON.stringify(pendingSwapChar)));
+      }
+    }
+
+    // 빈 자리에 본인 캐릭 추가. 기록할 행은 서버가 블록에서 찾는다.
+    async function executeAddSlot(newCharJsonEncoded) {
+      const newChar = JSON.parse(decodeURIComponent(newCharJsonEncoded));
+      if (!activeAddTarget) return;
+      const info = activeAddTarget;
+      closeQuickSwapModal();
+
+      // 낙관적 반영: 화면에 먼저 추가한다. 행 번호는 서버가 정하므로 갱신 시 정확한 값으로 덮인다.
+      const cur = sheetsDataStore[info.sheetId];
+      if (cur) {
+        const blk = cur.blocks.find(b => b.rawTitle === info.rawRaidTitle &&
+          (b.slots.length === 0 || b.slots[0].blockIndex === info.blockIndex));
+        if (blk) {
+          blk.slots.push({
+            slotUid: `${info.sheetId}_pending_${newChar.name}`,
+            sheetId: info.sheetId,
+            sheetRow: 0,
+            slotIndex: blk.slots.length,
+            blockIndex: info.blockIndex,
+            party: 1,
+            user: newChar.user,
+            name: newChar.name,
+            job: newChar.job,
+            level: newChar.level.toFixed(2),
+            pos: newChar.pos,
+            raidTitle: info.raidTitle,
+            rawRaidTitle: info.rawRaidTitle
+          });
+          renderActiveTabContent();
+        }
+      }
+
+      try {
+        await fetch(APPS_SCRIPT_WEB_APP_URL, {
+          method: 'POST',
+          mode: 'no-cors',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'addSlot',
+            sheetId: info.sheetId,
+            blockIndex: info.blockIndex,
+            rawRaidTitle: info.rawRaidTitle,
+            targetRaid: `[${info.sheetId}] ${info.raidTitle}`,
+            user: newChar.user,
+            newCharName: newChar.name,
+            newJob: newChar.job,
+            newLevel: newChar.level.toFixed(2),
+            newPos: newChar.pos
+          })
+        });
+      } catch (err) {
+        console.error('슬롯 추가 오류:', err);
+      }
     }
 
     function closeQuickSwapModal() {
+      swapMode = 'swap';
+      activeAddTarget = null;
       document.body.style.overflow = '';
       document.getElementById('quickSwapModal').classList.add('hidden');
       activeSwapTarget = null;
