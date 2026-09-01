@@ -1,553 +1,2401 @@
-/**
- * 웹 대시보드 POST 요청 처리 핸들러 (doPost)
- */
-function doPost(e) {
-  try {
-    const data = JSON.parse(e.postData.contents);
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>[DEV] 로아 공대 - 로스트아크 레이드 대시보드</title>
+  <link rel="preconnect" href="https://docs.google.com" crossorigin />
+  <link rel="dns-prefetch" href="https://docs.google.com" />
 
-    // 1. 야생/수동 숙제 클리어 체크 토글
-    if (data.action === "toggleWildClear") {
-      const result = toggleWildClearInPool(ss, data);
-      return ContentService.createTextOutput(JSON.stringify(result))
-        .setMimeType(ContentService.MimeType.JSON);
+  <!-- 시트 요청을 최대한 일찍 시작한다.
+       Tailwind 실행과 DOMContentLoaded 를 기다리지 않고 네트워크를 먼저 띄우는 것이 목적.
+       주의: 아래 시트 목록은 SHEET_CONFIG 와 함께 관리해야 한다. -->
+  <script>
+    window.__BOOT = (function () {
+      const ID = '1dDM5LoLM75hhojd8p1vA-095J-HcOgFQPTQiaErXHi0';
+      const bust = Date.now();
+      const names = ['Main_8Man', 'Sub_Group1', 'Sub_Group2', 'Sub_Group3', 'Sub_Group4',
+                     'Character_Pool', 'Attendance', 'Raid_Info'];
+      const map = {};
+      names.forEach(n => {
+        const url = `https://docs.google.com/spreadsheets/d/${ID}/gviz/tq?tqx=out:csv&sheet=${encodeURI(n)}&t=${bust}`;
+        map[n] = fetch(url).then(r => r.text()).catch(() => null);
+      });
+      return { bust: bust, map: map };
+    })();
+  </script>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+  <script defer src="https://unpkg.com/lucide@0.552.0/dist/umd/lucide.min.js"></script>
+  <style>
+    body {
+      background-color: #0d1117;
+      color: #c9d1d9;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
     }
+    .card-bg {
+      background-color: #161b22;
+      border: 1px solid #30363d;
+    }
+    .supporter-row {
+      background-color: rgba(46, 160, 67, 0.15) !important;
+      border-left: 3px solid #3fb950;
+    }
+    .my-highlight {
+      background-color: rgba(210, 153, 34, 0.25) !important;
+      border-left: 3px solid #f2cc60 !important;
+      font-weight: bold;
+    }
+    .badge-dealer {
+      background-color: rgba(248, 81, 73, 0.2);
+      color: #ff7b72;
+      border: 1px solid rgba(248, 81, 73, 0.4);
+    }
+    .badge-supporter {
+      background-color: rgba(56, 139, 253, 0.2);
+      color: #79c0ff;
+      border: 1px solid rgba(56, 139, 253, 0.4);
+    }
+    .badge-swap {
+      background-color: rgba(163, 113, 247, 0.2);
+      color: #d2a8ff;
+      border: 1px solid rgba(163, 113, 247, 0.4);
+    }
+    .slot-hover:hover {
+      border-color: #f59e0b;
+      cursor: pointer;
+      transform: translateY(-1px);
+    }
+    .modal-scroll {
+      overscroll-behavior: contain;
+    }
+    .modal-scroll::-webkit-scrollbar {
+      width: 6px;
+    }
+    .modal-scroll::-webkit-scrollbar-track {
+      background: #0d1117;
+      border-radius: 4px;
+    }
+    .modal-scroll::-webkit-scrollbar-thumb {
+      background: #30363d;
+      border-radius: 4px;
+    }
+    .modal-scroll::-webkit-scrollbar-thumb:hover {
+      background: #484f58;
+    }
+  </style>
+</head>
+<body class="min-h-screen pb-16">
+  <header class="border-b border-gray-800 bg-[#161b22]/90 sticky top-0 z-50 backdrop-blur">
+    <div class="max-w-7xl mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-4">
+      <div class="flex items-center space-x-3">
+        <div class="flex items-center space-x-2">
+          <i data-lucide="flask-conical" class="w-6 h-6 text-purple-400"></i>
+          <span class="font-bold text-lg text-white tracking-wide whitespace-nowrap">로아 공대</span>
+          <button onclick="openInfoModal('changelog')" class="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/30 hover:bg-purple-500/20 transition cursor-pointer" title="클릭하여 업데이트 이력 확인">
+            v1.0.4
+          </button>
+        </div>
+
+        <div class="flex bg-[#0d1117] p-1 rounded-lg border border-gray-800 text-xs flex-wrap gap-1">
+          <button onclick="switchMainView('schedule')" id="viewBtnSchedule" class="px-3 py-1.5 rounded-md font-semibold bg-gray-800 text-white transition">일정표</button>
+          <button onclick="switchMainView('pool')" id="viewBtnPool" class="px-3 py-1.5 rounded-md font-medium text-gray-400 hover:text-white transition">캐릭터 현황 & 숙제 체크</button>
+          <button onclick="switchMainView('gold')" id="viewBtnGold" class="px-3 py-1.5 rounded-md font-medium text-gray-400 hover:text-white transition">레이드 골드표</button>
+          <button onclick="switchMainView('debug')" id="viewBtnDebug" class="px-3 py-1.5 rounded-md font-medium text-purple-400 border border-purple-500/30 hover:bg-purple-500/10 transition">[DEV] 레벨별 골드 기준표</button>
+        </div>
+      </div>
+
+      <div class="flex items-center flex-wrap gap-2.5">
+        <div class="flex items-center space-x-2 bg-[#0d1117] px-3 py-1.5 rounded-lg border border-gray-700">
+          <i data-lucide="user" class="w-4 h-4 text-gray-400"></i>
+          <span class="text-xs text-gray-400">내 캐릭터 강조:</span>
+          <select id="userSelector" class="bg-transparent text-sm text-yellow-400 font-semibold focus:outline-none cursor-pointer">
+            <option value="" class="bg-[#161b22] text-gray-300">선택 안 함 (전체)</option>
+          </select>
+        </div>
+
+        <button onclick="openAttendanceModal()" class="flex items-center space-x-1 bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white border border-gray-700 text-xs font-semibold px-2.5 py-1.5 rounded-lg transition">
+          <i data-lucide="calendar-x" class="w-3.5 h-3.5 text-orange-400"></i>
+          <span>참여 상태</span>
+        </button>
+
+        <button onclick="openInfoModal('guide')" class="flex items-center space-x-1 bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white border border-gray-700 text-xs font-semibold px-2.5 py-1.5 rounded-lg transition" title="도움말 및 패치노트">
+          <i data-lucide="help-circle" class="w-3.5 h-3.5 text-yellow-400"></i>
+          <span>도움말</span>
+        </button>
+
+        <div class="flex items-center space-x-2">
+          <span id="lastSyncLabel" class="text-[11px] text-gray-500 hidden sm:inline"></span>
+          <button onclick="fetchSheetData()" title="시트 데이터 다시 받기" class="flex items-center justify-center bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white border border-gray-700 w-8 h-8 rounded-lg transition">
+            <i data-lucide="refresh-cw" class="w-3.5 h-3.5" id="refreshIcon"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-7xl mx-auto px-4 mt-6">
+    <!-- 1. 일정표 뷰 -->
+    <div id="sectionSchedule">
+      <div class="flex items-center justify-between flex-wrap gap-3 border-b border-gray-800 pb-2">
+        <nav class="flex space-x-2 overflow-x-auto" id="tabNav"></nav>
+        <div class="flex items-center space-x-3">
+          <span class="text-[11px] text-gray-400 flex items-center space-x-1">
+            <i data-lucide="mouse-pointer-click" class="w-3.5 h-3.5 text-yellow-400"></i>
+            <span>상단에 '내 캐릭터 강조' 지정 후, 본인 슬롯을 클릭하면 캐릭터 교체</span>
+          </span>
+          <label class="flex items-center space-x-1.5 text-xs text-gray-300 cursor-pointer bg-[#161b22] px-3 py-1.5 rounded-lg border border-gray-700 hover:border-gray-500 transition">
+            <input type="checkbox" id="filterMySubToggle" class="rounded bg-gray-800 border-gray-600 text-yellow-500 focus:ring-0 cursor-pointer" />
+            <span>내 서브 조만 보기</span>
+          </label>
+        </div>
+      </div>
+
+      <div class="mt-4 px-3 py-2 bg-[#161b22] border border-gray-800 rounded-lg flex flex-wrap items-center gap-4 text-xs text-gray-400">
+        <span class="font-semibold text-gray-300">골드 획득 범례:</span>
+        <div class="flex items-center space-x-1.5">
+          <span class="inline-block w-4 h-4 rounded-full bg-amber-500 text-[10px] text-amber-950 font-bold text-center leading-4">G</span>
+          <span>골드 획득 (주간 상위 3개 레이드)</span>
+        </div>
+        <div class="flex items-center space-x-1.5">
+          <span class="inline-block w-4 h-4 rounded-full bg-cyan-600 text-[10px] text-white font-bold text-center leading-4">?</span>
+          <span>선택 구간 (둘 중 하나만 골드 획득)</span>
+        </div>
+        <div class="flex items-center space-x-1.5">
+          <span class="inline-block w-4 h-4 rounded-full bg-gray-700 text-[10px] text-red-500 font-bold text-center leading-4">✕</span>
+          <span>골드 미획득 (하위 레이드 일정)</span>
+        </div>
+      </div>
+
+      <section id="raidContainer" class="mt-6 grid grid-cols-1 gap-6">
+        <div class="card-bg rounded-xl p-5 shadow-lg animate-pulse space-y-3">
+          <div class="h-5 w-40 bg-gray-800 rounded"></div>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="space-y-1.5">
+              <div class="h-10 bg-gray-800/60 rounded-lg"></div>
+              <div class="h-10 bg-gray-800/60 rounded-lg"></div>
+              <div class="h-10 bg-gray-800/60 rounded-lg"></div>
+            </div>
+            <div class="space-y-1.5">
+              <div class="h-10 bg-gray-800/60 rounded-lg"></div>
+              <div class="h-10 bg-gray-800/60 rounded-lg"></div>
+              <div class="h-10 bg-gray-800/60 rounded-lg"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <!-- 2. 캐릭터 현황 & 숙제 체크 뷰 -->
+    <div id="sectionPool" class="hidden">
+      <div class="card-bg p-4 rounded-xl mb-4 flex flex-wrap items-center justify-between gap-4">
+        <div class="flex flex-wrap items-center gap-3">
+          <div class="flex items-center space-x-2 bg-[#0d1117] px-3 py-1.5 rounded-lg border border-gray-700">
+            <span class="text-xs text-gray-400">유저:</span>
+            <select id="poolUserFilter" onchange="renderPoolView()" class="bg-transparent text-xs text-white focus:outline-none cursor-pointer">
+              <option value="" class="bg-[#161b22]">전체 유저</option>
+            </select>
+          </div>
+
+          <div class="flex items-center space-x-2 bg-[#0d1117] px-3 py-1.5 rounded-lg border border-gray-700">
+            <span class="text-xs text-gray-400">포지션:</span>
+            <select id="poolPosFilter" onchange="renderPoolView()" class="bg-transparent text-xs text-white focus:outline-none cursor-pointer">
+              <option value="ALL" class="bg-[#161b22]">전체 포지션</option>
+              <option value="DEALER" class="bg-[#161b22]">딜러 (스왑 포함)</option>
+              <option value="SUPPORTER" class="bg-[#161b22]">서포터 (스왑 포함)</option>
+            </select>
+          </div>
+
+          <div class="flex items-center space-x-2 bg-[#0d1117] px-3 py-1.5 rounded-lg border border-gray-700">
+            <span class="text-xs text-gray-400">최소 레벨:</span>
+            <select id="poolLevelFilter" onchange="renderPoolView()" class="bg-transparent text-xs text-white focus:outline-none cursor-pointer">
+              <option value="0" class="bg-[#161b22]">전체 레벨</option>
+              <option value="1720" class="bg-[#161b22]">1720+ (4막/성당)</option>
+              <option value="1730" class="bg-[#161b22]">1730+ (종막/세르카)</option>
+              <option value="1750" class="bg-[#161b22]">1750+ (성당3단/세르카나메/벨가)</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="text-xs text-gray-400">
+          조회된 캐릭터: <strong id="poolCount" class="text-yellow-400">0</strong>개
+        </div>
+      </div>
+
+      <div class="mb-6 px-3.5 py-3 bg-[#161b22] border border-gray-800 rounded-lg text-xs text-gray-400">
+        <div class="font-semibold text-gray-300 mb-2.5">숙제 체크 안내</div>
+
+        <div class="space-y-2">
+          <div class="flex flex-wrap items-center gap-x-5 gap-y-2">
+            <span class="w-16 shrink-0 text-[11px] text-gray-500">체크 출처</span>
+            <div class="flex items-center gap-1.5">
+              <span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-gray-800 text-gray-400 border border-gray-700">레이드 ✓</span>
+              <span>실선 = 일정표 자동 (수정 불가)</span>
+            </div>
+            <div class="flex items-center gap-1.5">
+              <span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-gray-800 text-gray-400 border border-dashed border-gray-700">레이드 ✓</span>
+              <span>점선 = 개별 수동 (클릭 시 취소)</span>
+            </div>
+          </div>
+
+          <div class="flex flex-wrap items-center gap-x-5 gap-y-2">
+            <span class="w-16 shrink-0 text-[11px] text-gray-500">골드 여부</span>
+            <div class="flex items-center gap-1.5">
+              <span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/70">레이드 ✓</span>
+              <span>확정</span>
+            </div>
+            <div class="flex items-center gap-1.5">
+              <span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/70">레이드 ✓</span>
+              <span>선택 (둘 중 하나만)</span>
+            </div>
+            <div class="flex items-center gap-1.5">
+              <span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-gray-800 text-gray-400 border border-gray-700">레이드 ✓</span>
+              <span>대상 아님</span>
+            </div>
+            <div class="flex items-center gap-1.5">
+              <span class="px-1.5 py-0.5 rounded text-[10px] font-medium bg-transparent border border-dashed border-amber-500/70 text-amber-400/70">레이드</span>
+              <span>미완료</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div id="poolGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+    </div>
+
+    <!-- 3. 레이드 골드 정보 뷰 -->
+    <div id="sectionGold" class="hidden">
+      <div class="card-bg rounded-xl overflow-hidden shadow-lg border border-gray-800">
+        <div class="p-4 border-b border-gray-800">
+          <h3 class="font-bold text-white text-base">로스트아크 주요 레이드 골드 및 보상 안내</h3>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-sm text-gray-300">
+            <thead class="bg-[#0d1117] text-xs uppercase text-gray-400 border-b border-gray-800">
+              <tr>
+                <th class="px-4 py-3">레이드명</th>
+                <th class="px-4 py-3">파티</th>
+                <th class="px-4 py-3">난이도</th>
+                <th class="px-4 py-3 text-right">입장 레벨</th>
+                <th class="px-4 py-3 text-right text-amber-400">일반 골드</th>
+                <th class="px-4 py-3 text-right text-emerald-400">귀속 골드</th>
+                <th class="px-4 py-3 text-right text-yellow-300 font-bold">총 획득 골드</th>
+              </tr>
+            </thead>
+            <tbody id="goldTableBody" class="divide-y divide-gray-800">
+              <tr><td colspan="7" class="text-center py-8 text-gray-500">데이터를 불러오는 중입니다...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- 4. [DEV 전용] 레벨 구간별 골드 기준표 디버그 뷰 -->
+    <div id="sectionDebug" class="hidden">
+      <div class="card-bg rounded-xl p-6 border border-purple-500/40 shadow-xl space-y-4">
+        <div class="border-b border-gray-800 pb-3">
+          <h3 class="font-bold text-white text-base flex items-center space-x-2">
+            <i data-lucide="shield-alert" class="w-5 h-5 text-purple-400"></i>
+            <span>[DEV 전용] 레벨 구간별 골드 기준표</span>
+          </h3>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-sm text-gray-300">
+            <thead class="bg-[#0d1117] text-xs uppercase text-gray-400 border-b border-gray-800">
+              <tr>
+                <th class="px-4 py-3">레벨 구간</th>
+                <th class="px-4 py-3">확정 (골드 확실히 획득)</th>
+                <th class="px-4 py-3">선택 구간 (둘 중 하나만)</th>
+              </tr>
+            </thead>
+            <tbody id="debugTableBody" class="divide-y divide-gray-800">
+              <!-- 동적 생성 -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- 원클릭 캐릭터 즉시 변경 모달 -->
+  <div id="quickSwapModal" onclick="if (event.target === this) closeQuickSwapModal()" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="card-bg w-full max-w-lg rounded-2xl p-6 border border-gray-700 shadow-2xl relative">
+      <button onclick="closeQuickSwapModal()" class="absolute top-4 right-4 text-gray-400 hover:text-white">
+        <i data-lucide="x" class="w-5 h-5"></i>
+      </button>
+
+      <div class="flex items-center space-x-2 text-yellow-400 mb-2">
+        <i data-lucide="refresh-cw" class="w-5 h-5"></i>
+        <h3 class="text-lg font-bold text-white">내 캐릭터 즉시 변경</h3>
+      </div>
+      <p class="text-xs text-gray-400 mb-4" id="swapModalDesc">
+        본인 원정대 캐릭터로만 교체할 수 있습니다. 캐릭터를 먼저 선택한 뒤, 하단의 <strong>확정 버튼</strong>을 눌러야 실제로 반영됩니다.
+      </p>
+
+      <div class="bg-[#0d1117] p-3 rounded-xl border border-gray-800 mb-4">
+        <div class="text-[11px] text-gray-500 mb-1">현재 슬롯 정보</div>
+        <div class="flex items-center justify-between">
+          <div class="text-xs text-gray-300 font-semibold" id="swapTargetRaidTitle">-</div>
+          <div class="text-xs font-bold text-red-400" id="swapOldCharName">-</div>
+        </div>
+      </div>
+
+      <div class="space-y-2">
+        <label class="block text-xs font-semibold text-gray-400" id="swapModalUserLabel">교체할 내 캐릭터 선택</label>
+        <div class="space-y-2 max-h-64 overflow-y-auto modal-scroll pr-1.5" id="swapCharListContainer"></div>
+      </div>
+
+      <div class="mt-5 flex items-center justify-between gap-2">
+        <button onclick="closeQuickSwapModal()" class="px-4 py-2 rounded-lg text-xs font-semibold text-gray-400 hover:text-white bg-gray-800 transition">취소</button>
+        <button id="swapConfirmBtn" onclick="confirmQuickSwap()" disabled class="px-4 py-2 rounded-lg text-xs font-bold text-black bg-yellow-400 hover:bg-yellow-300 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-yellow-400 transition">캐릭터를 선택해 주세요</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 참여 상태(불참/지각) 모달 -->
+  <div id="attendanceModal" onclick="if (event.target === this) closeAttendanceModal()" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="card-bg w-full max-w-lg max-h-[85vh] rounded-2xl p-6 border border-gray-700 shadow-2xl relative flex flex-col">
+      <button onclick="closeAttendanceModal()" class="absolute top-4 right-4 text-gray-400 hover:text-white">
+        <i data-lucide="x" class="w-5 h-5"></i>
+      </button>
+
+      <div class="flex items-center space-x-2 text-orange-400 mb-1">
+        <i data-lucide="calendar-x" class="w-5 h-5"></i>
+        <h3 class="text-lg font-bold text-white">참여 상태 알리기</h3>
+      </div>
+      <p class="text-xs text-gray-400 mb-4">토요일 고정 레이드에 불참하거나 늦을 경우 미리 알려주세요.</p>
+
+      <div class="overflow-y-auto modal-scroll pr-1.5 flex-1 space-y-4">
+        <div>
+          <label class="block text-xs font-semibold text-gray-400 mb-1.5">날짜</label>
+          <div id="attendanceDateList" class="flex flex-wrap gap-1.5"></div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-gray-400 mb-1.5">상태</label>
+          <div id="attendanceStatusList" class="flex flex-wrap gap-1.5"></div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-gray-400 mb-1.5">메모 <span class="font-normal text-gray-500">(선택)</span></label>
+          <input id="attendanceMemo" type="text" maxlength="60" placeholder="예: 8시쯤 중간 참여 가능"
+            class="w-full bg-[#0d1117] border border-gray-700 rounded-lg px-3 py-2 text-xs text-gray-200 placeholder-gray-600 focus:outline-none focus:border-orange-500 transition" />
+        </div>
+
+        <div class="border-t border-gray-800 pt-3">
+          <div class="text-xs font-semibold text-gray-400 mb-1.5">내가 등록한 내역</div>
+          <div id="attendanceMyList" class="space-y-1.5"></div>
+        </div>
+      </div>
+
+      <div class="mt-4 pt-3 border-t border-gray-800 flex items-center justify-end space-x-2">
+        <button onclick="closeAttendanceModal()" class="px-4 py-2 rounded-lg text-xs font-semibold text-gray-400 hover:text-white bg-gray-800 transition">닫기</button>
+        <button id="attendanceSubmitBtn" onclick="submitAttendance()" disabled
+          class="px-4 py-2 rounded-lg text-xs font-bold text-black bg-orange-400 hover:bg-orange-300 disabled:bg-gray-700 disabled:text-gray-500 disabled:cursor-not-allowed transition">날짜와 상태를 선택해 주세요</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 도움말 및 패치노트 모달 -->
+  <div id="infoModal" onclick="if (event.target === this) closeInfoModal()" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="card-bg w-full max-w-2xl max-h-[85vh] rounded-2xl p-6 border border-gray-700 shadow-2xl relative flex flex-col">
+      <button onclick="closeInfoModal()" class="absolute top-4 right-4 text-gray-400 hover:text-white">
+        <i data-lucide="x" class="w-5 h-5"></i>
+      </button>
+
+      <div class="flex items-center space-x-2 text-yellow-400 mb-4">
+        <i data-lucide="book-open" class="w-5 h-5"></i>
+        <h3 class="text-lg font-bold text-white">대시보드 이용 안내</h3>
+      </div>
+
+      <div class="flex border-b border-gray-800 mb-4">
+        <button onclick="switchInfoTab('guide')" id="infoTabBtnGuide" class="px-4 py-2 text-sm font-semibold border-b-2 border-yellow-500 text-yellow-400 transition">자주 묻는 질문</button>
+        <button onclick="switchInfoTab('changelog')" id="infoTabBtnChangelog" class="px-4 py-2 text-sm font-semibold text-gray-400 hover:text-white transition">업데이트 이력</button>
+        <button onclick="switchInfoTab('suggest')" id="infoTabBtnSuggest" class="px-4 py-2 text-sm font-semibold text-gray-400 hover:text-white transition">건의사항</button>
+      </div>
+
+      <div class="overflow-y-auto modal-scroll pr-2 space-y-4 text-sm text-gray-300 flex-1">
+        <div id="infoContentGuide" class="space-y-3">
+          <div class="bg-[#0d1117] p-3.5 rounded-xl border border-gray-800">
+            <h4 class="font-bold text-xs mb-1.5 text-yellow-400">Q. 내가 출전하는 일정만 모아보고 싶어요!</h4>
+            <p class="text-xs text-gray-300 leading-relaxed">
+              상단 우측의 <strong>[내 캐릭터 강조]</strong>에서 본인 닉네임을 선택하면 내 캐릭터가 노란색으로 강조됩니다. 추가로 <strong>[내 서브 조만 보기]</strong>를 체크하면 내가 참여하는 조의 탭만 깔끔하게 필터링됩니다.
+            </p>
+          </div>
+          <div class="bg-[#0d1117] p-3.5 rounded-xl border border-gray-800">
+            <h4 class="font-bold text-xs mb-1.5 text-yellow-400">Q. 출전할 캐릭터를 다른 캐릭터로 바꾸고 싶어요!</h4>
+            <p class="text-xs text-gray-300 leading-relaxed">
+              <strong>[내 캐릭터 강조]</strong>에서 본인 닉네임을 선택하면 내 슬롯만 클릭할 수 있게 됩니다. 슬롯을 누르고 캐릭터를 선택한 뒤 <strong>확정 버튼</strong>을 누르면 반영됩니다.
+            </p>
+          </div>
+          <div class="bg-[#0d1117] p-3.5 rounded-xl border border-gray-800">
+            <h4 class="font-bold text-xs mb-1.5 text-yellow-400">Q. 토요일에 못 가거나 늦을 것 같아요!</h4>
+            <p class="text-xs text-gray-300 leading-relaxed">
+              상단 <strong>[참여 상태]</strong>에서 날짜와 상태(불참 / 지각 / 미정)를 골라 미리 알려주세요. 메모에 <span class="text-gray-400">8시쯤 중간 참여</span>처럼 적어두시면 도움이 됩니다.
+              등록하면 일정표의 내 슬롯에 표시가 붙고, 불참은 슬롯이 흐려집니다. 어느 날짜 기준인지는 <strong>[토요일 고정]</strong> 탭 옆의 날짜로 확인하실 수 있습니다.
+              등록한 내역은 같은 창에서 삭제할 수 있습니다.
+            </p>
+          </div>
+
+          <div class="bg-[#0d1117] p-3.5 rounded-xl border border-gray-800">
+            <h4 class="font-bold text-xs mb-1.5 text-yellow-400">Q. 캐릭터 옆에 붙은 골드 아이콘은 무엇인가요?</h4>
+            <p class="text-xs text-gray-300 leading-relaxed mb-1.5">주간 골드는 캐릭터당 <strong>3개 레이드</strong>까지만 받습니다.</p>
+            <ul class="text-xs text-gray-300 space-y-1 list-disc pl-4">
+              <li><span class="inline-block w-4 h-4 rounded-full bg-amber-500 text-[10px] text-amber-950 font-bold text-center leading-4 align-middle">G</span> : 골드를 획득하는 일정</li>
+              <li><span class="inline-block w-4 h-4 rounded-full bg-cyan-600 text-[10px] text-white font-bold text-center leading-4 align-middle">?</span> : 선택 구간. 짝인 레이드와 1칸을 나눠 <strong>둘 중 하나만</strong> 골드가 나옵니다 (마우스를 올리면 짝과 골드 표시)</li>
+              <li><span class="inline-block w-4 h-4 rounded-full bg-gray-700 text-[10px] text-red-500 font-bold text-center leading-4 align-middle">✕</span> : 골드 3칸 밖이라 골드가 나오지 않는 일정</li>
+            </ul>
+          </div>
+          <div class="bg-[#0d1117] p-3.5 rounded-xl border border-gray-800">
+            <h4 class="font-bold text-xs mb-1.5 text-yellow-400">Q. 선택 구간은 왜 생기나요?</h4>
+            <p class="text-xs text-gray-300 leading-relaxed">
+              유통골드와 귀속골드의 가치가 달라서, 총골드만으로 순위가 안 정해지는 구간이 있습니다. 성당 3단계는 5.0만 전액 귀속, 종막 하드는 4.8만 유통이라 사람마다 유리한 쪽이 갈립니다.
+            </p>
+          </div>
+          <div class="bg-[#0d1117] p-3.5 rounded-xl border border-gray-800">
+            <h4 class="font-bold text-xs mb-1.5 text-yellow-400">Q. [캐릭터 현황] 탭의 레이드 뱃지는 무슨 의미인가요?</h4>
+            <ul class="text-xs text-gray-300 space-y-1 list-disc pl-4">
+              <li><strong>색상 = 골드 여부</strong> : <span class="text-amber-300">호박색</span> 확정 / <span class="text-cyan-300">청록색</span> 선택 구간 / <span class="text-gray-400">회색</span> 골드 대상 아님</li>
+              <li><strong>테두리 = 체크 출처</strong> : 실선은 일정표 자동 (해제 불가) / 점선은 수동 체크 (클릭 시 취소)</li>
+              <li><strong>속이 빈 뱃지</strong> : 미완료</li>
+              <li><strong>취소선</strong> : 레벨 부족으로 입장 불가</li>
+            </ul>
+          </div>
+          <div class="bg-[#0d1117] p-3.5 rounded-xl border border-gray-800">
+            <h4 class="font-bold text-xs mb-1.5 text-yellow-400">Q. 캐릭터 이름 옆의 (2/3)과 '골드 제외'는 무엇인가요?</h4>
+            <ul class="text-xs text-gray-300 space-y-1 list-disc pl-4">
+              <li><strong>(2/3)</strong> : 이번 주 골드 3칸 중 채운 개수입니다. 선택 구간 2개를 다 돌아도 골드는 1칸이라 1로 셉니다.</li>
+              <li><strong>골드 제외</strong> : 골드 획득 캐릭터 6개 밖이라는 뜻입니다. 계정별 최종레벨 상위 6개로 자동 판정하므로 실제 지정과 다를 수 있습니다.</li>
+            </ul>
+          </div>
+          <div class="bg-[#0d1117] p-3.5 rounded-xl border border-gray-800">
+            <h4 class="font-bold text-xs mb-1.5 text-yellow-400">Q. 원하는 기능이 없어요!</h4>
+            <p class="text-xs text-gray-300 leading-relaxed">
+              위쪽 <strong>[건의사항]</strong> 탭에서 남겨주세요. 있으면 좋겠다 싶은 기능이나 불편했던 점 모두 환영합니다.
+              보낸 건의는 같은 탭에서 처리 상태(접수 / 검토중 / 완료 / 보류)를 확인할 수 있고, 아직 <strong>접수</strong> 상태라면 삭제도 가능합니다.
+            </p>
+          </div>
+        </div>
+
+        <div id="infoContentChangelog" class="space-y-3 hidden">
+          <div class="border-l-2 border-yellow-500 pl-3 py-1">
+            <div class="flex items-center justify-between">
+              <span class="font-bold text-white text-xs">v1.0 - 정식 버전 릴리즈 (Official Release)</span>
+              <span class="text-[11px] text-gray-500">2026.08.31</span>
+            </div>
+            <ul class="text-xs text-gray-400 mt-1 space-y-0.5 list-disc pl-3">
+              <li>로스트아크 레이드 공대 관리 웹 대시보드 정식 출시</li>
+              <li>일정표에서 본인 슬롯의 캐릭터 교체 (선택 후 확정)</li>
+              <li>토요일 고정 레이드의 불참 · 지각 · 미정 상태를 미리 알릴 수 있는 [참여 상태] 기능</li>
+              <li>캐릭터 현황 &amp; 숙제 체크 - 자동/수동 체크 구분, 골드 여부 병행 표시, 주간 진행도 표시</li>
+              <li>도움말에 [건의사항] 탭 - 처리 상태 확인 및 접수 단계 건의 삭제 지원</li>
+            </ul>
+          </div>
+        </div>
+
+        <div id="infoContentSuggest" class="space-y-3 hidden">
+          <p class="text-xs text-gray-400 leading-relaxed">
+            사이트에 있으면 좋겠다 싶은 기능이나, 쓰다가 불편했던 점을 남겨주세요.
+          </p>
+
+          <div id="suggestNeedUser" class="hidden bg-[#0d1117] border border-gray-800 rounded-xl p-3.5 text-xs text-gray-400">
+            상단 우측 <strong class="text-gray-200">[내 캐릭터 강조]</strong>에서 본인 닉네임을 먼저 선택해 주세요.
+          </div>
+
+          <div id="suggestForm" class="space-y-3">
+            <div>
+              <label class="block text-xs font-semibold text-gray-400 mb-1.5">분류</label>
+              <div id="suggestCategoryList" class="flex flex-wrap gap-1.5"></div>
+            </div>
+
+            <div>
+              <label class="block text-xs font-semibold text-gray-400 mb-1.5">내용</label>
+              <textarea id="suggestContent" rows="5" maxlength="500" oninput="updateSuggestState()"
+                placeholder="자유롭게 적어주세요"
+                class="w-full bg-[#0d1117] border border-gray-700 rounded-lg px-3 py-2 text-xs text-gray-200 placeholder-gray-600 focus:outline-none focus:border-yellow-500 transition resize-none"></textarea>
+              <div class="flex items-center justify-between mt-1">
+                <span id="suggestResult" class="text-[11px] text-emerald-400"></span>
+                <span id="suggestCount" class="text-[11px] text-gray-600">0 / 500</span>
+              </div>
+            </div>
+
+            <div class="flex justify-end">
+              <button id="suggestSubmitBtn" onclick="submitSuggestion()" disabled
+                class="px-4 py-2 rounded-lg text-xs font-bold text-black bg-yellow-400 hover:bg-yellow-300 disabled:bg-gray-700 disabled:text-gray-500 disabled:cursor-not-allowed transition">보내기</button>
+            </div>
+
+            <div class="border-t border-gray-800 pt-3">
+              <div class="text-xs font-semibold text-gray-400 mb-1.5">내가 보낸 건의</div>
+              <div id="suggestMyList" class="space-y-1.5"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="mt-4 pt-3 border-t border-gray-800 flex justify-end">
+        <button onclick="closeInfoModal()" class="px-4 py-2 rounded-lg text-xs font-semibold text-black bg-yellow-400 hover:bg-yellow-300 transition">닫기</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const SPREADSHEET_ID = '1dDM5LoLM75hhojd8p1vA-095J-HcOgFQPTQiaErXHi0';
+    // 테스트 배포(dev) 전용 엔드포인트. 정식(index.html)은 별도 배포 URL을 쓴다.
+    // gs 를 고칠 때 테스트 배포만 먼저 갱신하면 정식은 영향받지 않는다.
+    const APPS_SCRIPT_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbyMFY1uL2u_rxVtrOqgDLVkQOCBQBO_58MlXWJI8lZgnqMXa95EDJXnxnoISFnsi8GG/exec';
     
-    // 1-2. 참여 상태(불참/지각) 등록
-    if (data.action === "submitAttendance") {
-      const result = submitAttendanceToSheet(ss, data);
-      return ContentService.createTextOutput(JSON.stringify(result))
-        .setMimeType(ContentService.MimeType.JSON);
+    const SHEET_CONFIG = [
+      { id: 'Main_8Man', fixedTitle: '[토요일 고정]', is8Man: true },
+      { id: 'Sub_Group1', is8Man: false },
+      { id: 'Sub_Group2', is8Man: false },
+      { id: 'Sub_Group3', is8Man: false },
+      { id: 'Sub_Group4', is8Man: false },
+    ];
+
+    const RAID_DEFINITIONS = [
+      { key: 'final', label: '종막', minLevel: 1710 },
+      { key: 'act4', label: '4막', minLevel: 1700 },
+      { key: 'cathedral', label: '성당', minLevel: 1700 },
+      { key: 'serka', label: '세르카', minLevel: 1710 },
+      { key: 'belga', label: '벨가', minLevel: 1750 }
+    ];
+
+    // ─── 골드 판별 엔진 설정 ───────────────────────────────────
+    // 주간 골드 획득 가능 레이드 수
+    const GOLD_SLOT_LIMIT = 3;
+    // 귀속골드를 유통골드 대비 몇 배로 칠 것인가(가중치 w).
+    // 사람마다 판단이 달라서 하나로 못 정하므로 범위로 다룬다.
+    // 두 끝값 모두에서 상위 3개에 들면 '확정', 한쪽에서만 들면 '선택 구간'.
+    // 값을 조정하려면 [DEV] 기준표의 '역전 w' 컬럼을 보고 판단할 것.
+    const BOUND_GOLD_WEIGHT_LOW = 0.8;
+    const BOUND_GOLD_WEIGHT_HIGH = 1.0;
+    // 선택 구간 공통 안내 문구 (짝을 특정할 수 없을 때의 기본값)
+    const MAYBE_GOLD_DESC = '선택 구간 — 둘 중 하나만 골드 획득';
+    // ─── 참여 상태(불참/지각) 설정 ───────────────────────────
+    // 불참/지각 신고 대상 후보로 보여줄 토요일 개수
+    const ATTENDANCE_WEEKS = 4;
+    const ATTENDANCE_STATUSES = ['불참', '지각', '미정'];
+
+    // 건의사항 분류
+    const SUGGEST_CATEGORIES = ['기능 추가', '버그 신고', '기타'];
+    let pendingSuggestCategory = SUGGEST_CATEGORIES[0];
+
+    // 표/툴팁용 짧은 레이드명
+    const RAID_SHORT_NAME = { belga: '벨가', serka: '세르카', cathedral: '성당', final: '종막', act4: '4막' };
+
+    // lucide 스크립트 로드가 실패해도 렌더링이 중단되지 않도록 감싼다.
+    // (아이콘만 안 보이고 나머지 기능은 정상 동작)
+    function drawIcons() {
+      try {
+        if (typeof lucide !== 'undefined' && lucide.createIcons) lucide.createIcons();
+      } catch (e) {
+        console.warn('아이콘 렌더 실패:', e);
+      }
     }
 
-    // 1-3. 참여 상태 취소
-    if (data.action === "cancelAttendance") {
-      const result = cancelAttendanceInSheet(ss, data);
-      return ContentService.createTextOutput(JSON.stringify(result))
-        .setMimeType(ContentService.MimeType.JSON);
+    let currentMainView = 'schedule';
+    let currentActiveTab = 'Main_8Man';
+    let selectedUser = localStorage.getItem('loa_selected_user') || '';
+    let filterMySubOnly = localStorage.getItem('loa_filter_sub') === 'true';
+    let sheetsDataStore = {};
+    let allMemberList = new Set();
+    let slotGoldStatusMap = {};
+    let characterPoolData = [];
+    let raidInfoData = [];
+    let activeSwapTarget = null;
+    let pendingSwapChar = null;
+    let goldEligibleCharNames = new Set();
+    let attendanceData = [];          // Attendance 시트 원본
+    let suggestionsData = [];         // Suggestions 시트 원본
+    // 시트별로 편성 인스턴스를 나눠 보관한다. 한 시트만 다시 받아도 골드 재계산이 가능해진다.
+    let allRaidInstancesBySheet = {};
+    let lastSheetFetchAt = {};        // 시트명 -> 마지막 조회 시각(ms)
+    let lastFullSyncAt = 0;
+    // 같은 시트를 이 간격 안에 다시 받지 않는다 (탭 왕복 시 낭비 방지)
+    const MIN_REFETCH_MS = 30000;
+    // 브라우저 탭 복귀 시 이 시간이 지났으면 전체를 다시 받는다
+    const FULL_REFRESH_MS = 120000;
+    let pendingAttendance = { date: '', status: '', memo: '' };
+
+    document.addEventListener('DOMContentLoaded', () => {
+      document.getElementById('filterMySubToggle').checked = filterMySubOnly;
+      document.getElementById('filterMySubToggle').addEventListener('change', (e) => {
+        filterMySubOnly = e.target.checked;
+        localStorage.setItem('loa_filter_sub', filterMySubOnly);
+        renderTabs();
+        renderActiveTabContent();
+      });
+
+      document.getElementById('userSelector').addEventListener('change', (e) => {
+        selectedUser = e.target.value;
+        localStorage.setItem('loa_selected_user', selectedUser);
+        
+        const poolUserFilter = document.getElementById('poolUserFilter');
+        if (poolUserFilter) {
+          poolUserFilter.value = selectedUser;
+        }
+
+        renderTabs();
+        renderActiveTabContent();
+        if (currentMainView === 'pool') renderPoolView();
+      });
+
+      fetchSheetData();
+    });
+
+    // lucide 를 defer 로 불러오므로, 렌더가 먼저 끝난 경우 로드 완료 후 한 번 더 그린다
+    window.addEventListener('load', drawIcons);
+
+    // 다른 브라우저 탭/앱을 보다가 돌아왔을 때, 마지막 전체 갱신 후 일정 시간이 지났으면 다시 받는다.
+    // 짧게 왕복하는 경우에는 요청이 나가지 않는다.
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState !== 'visible') return;
+      if (Date.now() - lastFullSyncAt < FULL_REFRESH_MS) return;
+      fetchSheetData();
+    });
+
+    function switchMainView(view) {
+      currentMainView = view;
+      ['schedule', 'pool', 'gold', 'debug'].forEach(v => {
+        const btn = document.getElementById('viewBtn' + v.charAt(0).toUpperCase() + v.slice(1));
+        const sec = document.getElementById('section' + v.charAt(0).toUpperCase() + v.slice(1));
+        if (!btn || !sec) return;
+        if (v === view) {
+          btn.className = (v === 'debug')
+            ? 'px-3 py-1.5 rounded-md font-semibold bg-purple-600 text-white transition'
+            : 'px-3 py-1.5 rounded-md font-semibold bg-gray-800 text-white transition';
+          sec.classList.remove('hidden');
+        } else {
+          btn.className = (v === 'debug')
+            ? 'px-3 py-1.5 rounded-md font-medium text-purple-400 border border-purple-500/30 hover:bg-purple-500/10 transition'
+            : 'px-3 py-1.5 rounded-md font-medium text-gray-400 hover:text-white transition';
+          sec.classList.add('hidden');
+        }
+      });
+
+      if (view === 'pool') {
+        const poolUserFilter = document.getElementById('poolUserFilter');
+        if (poolUserFilter && selectedUser) {
+          poolUserFilter.value = selectedUser;
+        }
+        renderPoolView();
+      }
+
+      if (view === 'gold') renderGoldTableView();
+      if (view === 'debug') renderDebugTableView();
+      drawIcons();
+
+      // 각 뷰가 실제로 쓰는 시트만 뒤에서 갱신한다
+      if (view === 'pool') refreshSheets(['Character_Pool']);
+      if (view === 'gold' || view === 'debug') refreshSheets(['Raid_Info']);
+      if (view === 'schedule') {
+        const targets = currentActiveTab === 'Main_8Man' ? [currentActiveTab, 'Attendance'] : [currentActiveTab];
+        refreshSheets(targets);
+      }
     }
 
-    // 1-4. 건의사항 접수
-    if (data.action === "submitSuggestion") {
-      const result = submitSuggestionToSheet(ss, data);
-      return ContentService.createTextOutput(JSON.stringify(result))
-        .setMimeType(ContentService.MimeType.JSON);
+    // 콤마 포함 문자열/공백/undefined를 안전하게 숫자로 변환
+    function parseGoldNum(v) {
+      if (v === undefined || v === null || v === '') return 0;
+      const n = parseFloat(String(v).replace(/,/g, ''));
+      return isNaN(n) ? 0 : n;
     }
 
-    // 1-5. 건의사항 삭제 (접수 상태만)
-    if (data.action === "deleteSuggestion") {
-      const result = deleteSuggestionInSheet(ss, data);
-      return ContentService.createTextOutput(JSON.stringify(result))
-        .setMimeType(ContentService.MimeType.JSON);
+    // 슬롯 제목/Raid_Info 이름에서 레이드 계열 키를 추출 (일정표 슬롯 매칭과 동일한 키워드 기준)
+    function getRaidFamilyKey(name) {
+      if (!name) return null;
+      if (name.includes('벨가')) return 'belga';
+      if (name.includes('세르카')) return 'serka';
+      if (name.includes('성당')) return 'cathedral';
+      if (name.includes('종막')) return 'final';
+      if (name.includes('4막')) return 'act4';
+      return null;
     }
 
-    // 2. 원본 시트 슬롯 실시간 덮어쓰기
-    if (data.sheetId) {
-      const targetSheet = ss.getSheetByName(data.sheetId);
-      if (targetSheet) {
-        const swapResult = updateExactSlotInSheet(targetSheet, data);
-        // 슬롯을 특정하지 못했으면 시트를 건드리지 않았으므로 로그도 남기지 않는다
-        if (swapResult && swapResult.status === "error") {
-          return ContentService.createTextOutput(JSON.stringify(swapResult))
-            .setMimeType(ContentService.MimeType.JSON);
+    // 시트 CSV 하나를 받아 파싱까지 끝낸다. 실패 시 null.
+    // <head> 에서 미리 띄워둔 요청이 있으면 그것을 쓰고, 한 번 쓴 뒤에는 버린다
+    // (새로고침 버튼을 누르면 항상 새로 받아야 하므로).
+    async function fetchSheetCsv(sheetName, bust) {
+      let text;
+      const boot = window.__BOOT;
+      if (boot && boot.map && boot.map[sheetName]) {
+        text = await boot.map[sheetName];
+        delete boot.map[sheetName];
+      }
+      if (text === undefined || text === null) {
+        const url = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURI(sheetName)}&t=${bust}`;
+        const res = await fetch(url);
+        text = await res.text();
+      }
+      return Papa.parse(text, { skipEmptyLines: false }).data;
+    }
+
+    function setRefreshSpinning(on) {
+      const icon = document.getElementById('refreshIcon');
+      if (!icon) return;
+      icon.classList.toggle('animate-spin', on);
+    }
+
+    function updateLastSyncLabel() {
+      const el = document.getElementById('lastSyncLabel');
+      if (!el) return;
+      const d = new Date();
+      const p = n => String(n).padStart(2, '0');
+      el.textContent = `${p(d.getHours())}:${p(d.getMinutes())} 기준`;
+    }
+
+    // 일정표 시트 1개를 파싱해서 저장소에 반영한다.
+    function processScheduleSheet(config, rows) {
+      const blocks = parseRaidBlocksRobust(rows, config.is8Man, config.id);
+      const groupUsers = new Set();
+      const instances = [];
+
+      blocks.forEach(b => {
+        b.slots.forEach(sl => {
+          if (sl.user && !isHeaderWord(sl.user)) {
+            const baseUser = sl.user.split('(')[0].trim();
+            if (baseUser) {
+              groupUsers.add(baseUser);
+              allMemberList.add(baseUser);
+            }
+          }
+          if (sl.name && !isHeaderWord(sl.name)) {
+            instances.push({
+              charName: sl.name,
+              slotUid: sl.slotUid,
+              raidTitle: b.title,
+              sheetTitle: config.fixedTitle || config.id,
+              sheetId: config.id,
+              sheetRow: sl.sheetRow,
+              party: sl.party,
+              user: sl.user,
+              job: sl.job,
+              level: sl.level
+            });
+          }
+        });
+      });
+
+      sheetsDataStore[config.id] = {
+        config: config,
+        blocks: blocks,
+        users: Array.from(groupUsers),
+        title: config.fixedTitle || (groupUsers.size > 0 ? Array.from(groupUsers).join(', ') : config.id)
+      };
+      allRaidInstancesBySheet[config.id] = instances;
+    }
+
+    // 골드 판별은 5개 시트의 편성 전체를 봐야 하므로, 시트 하나만 갱신해도 합쳐서 다시 계산한다.
+    // 순수 연산이라 비용은 무시할 수 있다.
+    function recalcGoldFromStore() {
+      const all = [];
+      SHEET_CONFIG.forEach(cfg => {
+        (allRaidInstancesBySheet[cfg.id] || []).forEach(i => all.push(i));
+      });
+      calculateGoldEligibilities(all);
+      window.allRaidInstancesStore = all;
+    }
+
+    // 현재 보고 있는 화면만 다시 그린다.
+    function renderCurrentViews() {
+      populateUserSelector();
+      renderTabs();
+      renderActiveTabContent();
+      if (currentMainView === 'pool') renderPoolView();
+      if (currentMainView === 'gold') renderGoldTableView();
+      if (currentMainView === 'debug') renderDebugTableView();
+      // 도움말 모달의 건의사항 탭이 열려 있으면 목록도 갱신
+      const suggestBox = document.getElementById('infoContentSuggest');
+      if (suggestBox && !suggestBox.classList.contains('hidden')) renderSuggestMyList();
+      drawIcons();
+    }
+
+    // 지정한 시트만 다시 받아 조용히 갱신한다.
+    // 화면은 이미 그려진 상태를 유지하고, 응답이 오면 교체한다.
+    async function refreshSheets(names, force = false) {
+      const now = Date.now();
+      const targets = names.filter(n =>
+        force || !lastSheetFetchAt[n] || (now - lastSheetFetchAt[n]) > MIN_REFETCH_MS
+      );
+      if (targets.length === 0) return;
+
+      setRefreshSpinning(true);
+      try {
+        const bust = now;
+        const results = await Promise.all(
+          targets.map(n => fetchSheetCsv(n, bust).catch(() => null))
+        );
+
+        let changed = false;
+        targets.forEach((name, i) => {
+          const rows = results[i];
+          if (!rows) return;
+          lastSheetFetchAt[name] = Date.now();
+
+          const cfg = SHEET_CONFIG.find(c => c.id === name);
+          if (cfg) processScheduleSheet(cfg, rows);
+          else if (name === 'Character_Pool') parseCharacterPool(rows);
+          else if (name === 'Raid_Info') parseRaidInfo(rows);
+          else if (name === 'Attendance') parseAttendance(rows);
+          else if (name === 'Suggestions') parseSuggestions(rows);
+          changed = true;
+        });
+
+        if (!changed) return;
+        recalcGoldFromStore();
+        renderCurrentViews();
+        updateLastSyncLabel();
+      } catch (err) {
+        console.error('부분 갱신 오류:', err);
+      } finally {
+        setRefreshSpinning(false);
+      }
+    }
+
+    // 전체 갱신 (최초 로딩, 새로고침 버튼, 브라우저 탭 복귀)
+    async function fetchSheetData() {
+      setRefreshSpinning(true);
+
+      sheetsDataStore = {};
+      allMemberList = new Set();
+      allRaidInstancesBySheet = {};
+
+      try {
+        // 시트를 순차로 받으면 왕복 8번이 그대로 더해진다. 서로 의존하지 않으므로 전부 병렬로 받는다.
+        const bust = Date.now();
+        const [sheetRows, poolRows, attRows, raidRows] = await Promise.all([
+          Promise.all(SHEET_CONFIG.map(cfg => fetchSheetCsv(cfg.id, bust))),
+          fetchSheetCsv('Character_Pool', bust),
+          fetchSheetCsv('Attendance', bust).catch(() => null),
+          fetchSheetCsv('Raid_Info', bust).catch(() => null)
+        ]);
+
+        SHEET_CONFIG.forEach((config, idx) => processScheduleSheet(config, sheetRows[idx]));
+        parseCharacterPool(poolRows);
+
+        // Attendance / Raid_Info 는 없어도 나머지 기능이 동작해야 한다
+        if (attRows) parseAttendance(attRows); else attendanceData = [];
+        if (raidRows) parseRaidInfo(raidRows);
+
+        recalcGoldFromStore();
+        renderCurrentViews();
+
+        const now = Date.now();
+        lastFullSyncAt = now;
+        SHEET_CONFIG.forEach(cfg => { lastSheetFetchAt[cfg.id] = now; });
+        ['Character_Pool', 'Attendance', 'Raid_Info'].forEach(n => { lastSheetFetchAt[n] = now; });
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setRefreshSpinning(false);
+        updateLastSyncLabel();
+      }
+    }
+
+    function parseCharacterPool(rows) {
+      characterPoolData = [];
+      goldEligibleCharNames = new Set();
+      const userGroupMap = {};
+
+      for (let r = 1; r < rows.length; r++) {
+        const row = rows[r] || [];
+        const user = (row[0] || '').toString().trim();
+        const server = (row[1] || '').toString().trim();
+        const name = (row[2] || '').toString().trim();
+        const job = (row[3] || '').toString().trim();
+
+        const valE = parseFloat(String(row[4]).replace(/,/g, '')) || 0;
+        const valF = parseFloat(String(row[5]).replace(/,/g, '')) || 0;
+        const valG = parseFloat(String(row[6]).replace(/,/g, '')) || 0;
+
+        let finalLevel = 0;
+        if (valF >= 1000) finalLevel = valF;
+        else if (valE >= 1000) finalLevel = valE;
+        else if (valG >= 1000) finalLevel = valG;
+        else finalLevel = valE || valF || valG;
+
+        const pos = (row[7] || '딜러').toString().trim();
+
+        const stFinal = (row[8] || '').toString().trim().toUpperCase();
+        const stAct4 = (row[9] || '').toString().trim().toUpperCase();
+        const stCathedral = (row[10] || '').toString().trim().toUpperCase();
+        const stSerka = (row[11] || '').toString().trim().toUpperCase();
+        const stBelga = (row[12] || '').toString().trim().toUpperCase();
+
+        if (name && !isHeaderWord(name)) {
+          const charObj = {
+            user, server, name, job,
+            level: finalLevel,
+            pos,
+            raids: { final: stFinal, act4: stAct4, cathedral: stCathedral, serka: stSerka, belga: stBelga }
+          };
+          characterPoolData.push(charObj);
+
+          if (!userGroupMap[user]) userGroupMap[user] = [];
+          userGroupMap[user].push(charObj);
+        }
+      }
+
+      Object.keys(userGroupMap).forEach(accountUser => {
+        const list = userGroupMap[accountUser];
+        list.sort((a, b) => b.level - a.level);
+        list.slice(0, 6).forEach(c => goldEligibleCharNames.add(c.name));
+      });
+    }
+
+    function parseRaidInfo(rows) {
+      raidInfoData = [];
+      for (let r = 1; r < rows.length; r++) {
+        const row = rows[r] || [];
+        const name = (row[0] || '').toString().trim();
+        // 헤더는 r=1부터 순회하므로 이미 제외됨. 이름에 '레이드'가 들어간 정상 행을 버리지 않도록 필터 없음.
+        if (name) {
+          raidInfoData.push({
+            name: name,
+            abbr: (row[1] || '').toString().trim(),        // B열: 축약어
+            diff: (row[2] || '').toString().trim(),
+            level: (row[3] || '').toString().trim(),
+            goldTrade: (row[4] || '0').toString().trim(),
+            goldBound: (row[5] || '0').toString().trim(),
+            goldTotal: (row[6] || '0').toString().trim(),
+            partyType: (row[7] || '').toString().trim()    // H열: 파티유형(8인/4인)
+          });
         }
       }
     }
 
-    // 3. Change_Logs 시트 자동 생성 및 열 너비/스타일 자동 설정
-    let logSheet = ss.getSheetByName("Change_Logs");
-    if (!logSheet) {
-      logSheet = ss.insertSheet("Change_Logs");
-      logSheet.appendRow(["신청일시", "유저명", "대상레이드", "기존캐릭", "변경캐릭", "포지션", "메모", "처리상태"]);
-      logSheet.getRange(1, 1, 1, 8)
-        .setBackground("#f3f3f3")
-        .setFontWeight("bold")
-        .setHorizontalAlignment("center");
+    function isHeaderWord(word) {
+      if (!word) return true;
+      const w = word.trim();
+      return w === '유저명' || w === '캐릭터명' || w === '직업' || w === '레벨' || w === '포지션';
     }
 
-    // 열 너비 고정
-    logSheet.setColumnWidth(1, 170); // A: 신청일시
-    logSheet.setColumnWidth(2, 110); // B: 유저명
-    logSheet.setColumnWidth(3, 220); // C: 대상레이드
-    logSheet.setColumnWidth(4, 270); // D: 기존캐릭
-    logSheet.setColumnWidth(5, 270); // E: 변경캐릭
-    logSheet.setColumnWidth(6, 90);  // F: 포지션
-    logSheet.setColumnWidth(7, 180); // G: 메모
-    logSheet.setColumnWidth(8, 90);  // H: 처리상태
-
-    // 로그 행 추가
-    const nowStr = Utilities.formatDate(new Date(), "Asia/Seoul", "yyyy-MM-dd HH:mm:ss");
-    logSheet.appendRow([
-      nowStr,
-      data.user,
-      data.targetRaid,
-      data.oldChar,
-      `${data.newCharName} (${data.newJob} / ${data.newLevel} / ${data.newPos})`,
-      data.newPos,
-      data.reason || "대시보드 원클릭 즉시 변경",
-      "완료"
-    ]);
-
-    // 스타일 서식 유지 적용 (테두리 없음, 지정 정렬)
-    const lastRow = logSheet.getLastRow();
-    const rowRange = logSheet.getRange(lastRow, 1, 1, 8);
-    
-    rowRange.setBorder(false, false, false, false, false, false); // 테두리 없음
-    rowRange.setBackground(null); // 배경색 없음 (기본 흰색)
-    rowRange.setFontWeight("normal");
-
-    // 컬럼별 정렬 세팅
-    logSheet.getRange(lastRow, 1).setHorizontalAlignment("center"); // A: 신청일시 (가운데)
-    logSheet.getRange(lastRow, 2).setHorizontalAlignment("center"); // B: 유저명 (가운데)
-    logSheet.getRange(lastRow, 3).setHorizontalAlignment("left");   // C: 대상레이드 (왼쪽)
-    logSheet.getRange(lastRow, 4).setHorizontalAlignment("left");   // D: 기존캐릭 (왼쪽)
-    logSheet.getRange(lastRow, 5).setHorizontalAlignment("left");   // E: 변경캐릭 (왼쪽)
-    logSheet.getRange(lastRow, 6).setHorizontalAlignment("center"); // F: 포지션 (가운데)
-    logSheet.getRange(lastRow, 7).setHorizontalAlignment("left");   // G: 메모 (왼쪽)
-    logSheet.getRange(lastRow, 8).setHorizontalAlignment("center"); // H: 처리상태 (가운데)
-
-    // 4. 디스코드 알림 발송
-    sendDiscordNotification(data, nowStr);
-
-    // 5. 시트 출전 현황(V) 동기화
-    if (typeof syncRaidCompletions === 'function') {
-      syncRaidCompletions();
+    function sanitizeTitle(rawTitle) {
+      if (!rawTitle) return '';
+      return rawTitle.replace(/(유저명|캐릭터명|직업|레벨|포지션)/g, '').trim();
     }
 
-    return ContentService.createTextOutput(JSON.stringify({ status: "success" }))
-      .setMimeType(ContentService.MimeType.JSON);
+    function parseRaidBlocksRobust(rows, is8Man, sheetId) {
+      const blocks = [];
+      let r = 0;
+      let blockIdx = 0;
 
-  } catch (err) {
-    return ContentService.createTextOutput(JSON.stringify({ status: "error", message: err.toString() }))
-      .setMimeType(ContentService.MimeType.JSON);
-  }
-}
+      while (r < rows.length) {
+        const row = rows[r] || [];
+        
+        let foundTitle = '';
+        for (let col = 0; col < (is8Man ? 10 : 5); col++) {
+          const val = (row[col] || '').toString().trim();
+          if (val.startsWith('[') && val.includes(']')) {
+            foundTitle = val;
+            break;
+          }
+        }
 
-/**
- * Attendance 시트 확보 (없으면 생성 + 헤더/서식 세팅)
- */
-function ensureAttendanceSheet(ss) {
-  let sheet = ss.getSheetByName("Attendance");
-  if (!sheet) {
-    sheet = ss.insertSheet("Attendance");
-    sheet.appendRow(["신청일시", "유저명", "구분", "대상", "상태", "메모"]);
-    sheet.getRange(1, 1, 1, 6)
-      .setBackground("#f3f3f3")
-      .setFontWeight("bold")
-      .setHorizontalAlignment("center");
-    sheet.setFrozenRows(1);
-  }
+        if (foundTitle) {
+          const cleanTitle = sanitizeTitle(foundTitle);
+          const rawTitle = foundTitle;
+          const slots = [];
+          
+          r++;
 
-  const widths = [170, 110, 100, 110, 70, 260];
-  widths.forEach((w, i) => sheet.setColumnWidth(i + 1, w));
-  return sheet;
-}
+          if (r < rows.length) {
+            const checkRow = rows[r] || [];
+            const isHeader = isHeaderWord((checkRow[0] || '').toString()) || isHeaderWord((checkRow[1] || '').toString());
+            if (isHeader) r++;
+          }
 
-/**
- * 참여 상태 등록.
- * 같은 유저 + 같은 대상일자의 기존 행은 지우고 새로 넣어 항상 1건만 남긴다.
- */
-function submitAttendanceToSheet(ss, data) {
-  const user = (data.user || '').toString().trim();
-  const target = (data.target || '').toString().trim();
-  const status = (data.status || '').toString().trim();
-  if (!user || !target || !status) {
-    return { status: "error", message: "유저명/대상일자/상태는 필수입니다." };
-  }
+          for (let slotIdx = 0; slotIdx < 4 && r < rows.length; slotIdx++, r++) {
+            const curRow = rows[r] || [];
+            const actualSheetRow = r + 1;
 
-  const sheet = ensureAttendanceSheet(ss);
-  removeAttendanceRows(sheet, user, target);
+            let nextTitleCheck = '';
+            for (let col = 0; col < (is8Man ? 10 : 5); col++) {
+              const val = (curRow[col] || '').toString().trim();
+              if (val.startsWith('[') && val.includes(']')) {
+                nextTitleCheck = val;
+                break;
+              }
+            }
+            if (nextTitleCheck) {
+              r--;
+              break;
+            }
 
-  const nowStr = Utilities.formatDate(new Date(), "Asia/Seoul", "yyyy-MM-dd HH:mm:ss");
-  sheet.appendRow([
-    nowStr,
-    user,
-    (data.kind || '토요일고정').toString().trim(),
-    target,
-    status,
-    (data.memo || '').toString().trim()
-  ]);
+            const user1 = (curRow[0] || '').toString().trim();
+            const char1 = (curRow[1] || '').toString().trim();
+            const job1  = (curRow[2] || '').toString().trim();
+            const lvl1  = (curRow[3] || '').toString().trim();
+            const pos1  = (curRow[4] || '').toString().trim();
 
-  const lastRow = sheet.getLastRow();
-  sheet.getRange(lastRow, 1, 1, 6).setBackground(null).setFontWeight("normal");
-  [1, 2, 3, 4, 5].forEach(c => sheet.getRange(lastRow, c).setHorizontalAlignment("center"));
-  sheet.getRange(lastRow, 6).setHorizontalAlignment("left");
-  // 날짜가 자동 서식으로 바뀌지 않게 텍스트로 고정
-  sheet.getRange(lastRow, 4).setNumberFormat("@");
+            const user2 = (curRow[5] || '').toString().trim();
+            const char2 = (curRow[6] || '').toString().trim();
+            const job2  = (curRow[7] || '').toString().trim();
+            const lvl2  = (curRow[8] || '').toString().trim();
+            const pos2  = (curRow[9] || '').toString().trim();
 
-  sendAttendanceNotification(data, nowStr, false);
-  return { status: "success" };
-}
+            if (char1 && !isHeaderWord(char1)) {
+              slots.push({
+                slotUid: `${sheetId}_b${blockIdx}_p1_s${slotIdx}_${char1}`,
+                sheetId: sheetId,
+                sheetRow: actualSheetRow,
+                slotIndex: slotIdx,
+                party: 1,
+                user: user1,
+                name: char1,
+                job: job1,
+                level: lvl1,
+                pos: pos1 || (slotIdx === 3 ? '서포터' : '딜러'),
+                raidTitle: cleanTitle,
+                rawRaidTitle: rawTitle
+              });
+            }
 
-/**
- * 참여 상태 취소 (해당 유저 + 대상일자 행 삭제)
- */
-function cancelAttendanceInSheet(ss, data) {
-  const user = (data.user || '').toString().trim();
-  const target = (data.target || '').toString().trim();
-  if (!user || !target) {
-    return { status: "error", message: "유저명과 대상일자가 필요합니다." };
-  }
+            if (is8Man && char2 && !isHeaderWord(char2)) {
+              slots.push({
+                slotUid: `${sheetId}_b${blockIdx}_p2_s${slotIdx}_${char2}`,
+                sheetId: sheetId,
+                sheetRow: actualSheetRow,
+                slotIndex: slotIdx,
+                party: 2,
+                user: user2,
+                name: char2,
+                job: job2,
+                level: lvl2,
+                pos: pos2 || (slotIdx === 3 ? '서포터' : '딜러'),
+                raidTitle: cleanTitle,
+                rawRaidTitle: rawTitle
+              });
+            }
+          }
 
-  const sheet = ensureAttendanceSheet(ss);
-  const removed = removeAttendanceRows(sheet, user, target);
-  if (removed > 0) {
-    const nowStr = Utilities.formatDate(new Date(), "Asia/Seoul", "yyyy-MM-dd HH:mm:ss");
-    sendAttendanceNotification(data, nowStr, true);
-  }
-  return { status: "success", removed: removed };
-}
-
-/**
- * 같은 유저(괄호 계정 표기 무시) + 같은 대상일자 행을 모두 삭제. 삭제된 행 수 반환.
- */
-function removeAttendanceRows(sheet, user, target) {
-  const lastRow = sheet.getLastRow();
-  if (lastRow < 2) return 0;
-
-  const baseUser = user.split('(')[0].trim();
-  const values = sheet.getRange(2, 2, lastRow - 1, 3).getValues(); // B:유저명 ~ D:대상
-  let removed = 0;
-
-  // 아래에서 위로 지워야 행 번호가 밀리지 않는다
-  for (let i = values.length - 1; i >= 0; i--) {
-    const rowUser = (values[i][0] || '').toString().split('(')[0].trim();
-    const rowTarget = (values[i][2] || '').toString().trim();
-    if (rowUser === baseUser && rowTarget === target) {
-      sheet.deleteRow(i + 2);
-      removed++;
-    }
-  }
-  return removed;
-}
-
-function sendAttendanceNotification(data, timeStr, isCancel) {
-  if (!DISCORD_WEBHOOK_URL || !DISCORD_WEBHOOK_URL.startsWith('http')) return;
-
-  const fields = [
-    { name: '유저명', value: (data.user || '-').toString(), inline: true },
-    { name: '대상 일자', value: (data.target || '-').toString(), inline: true }
-  ];
-  if (!isCancel) {
-    fields.push({ name: '상태', value: (data.status || '-').toString(), inline: true });
-    if (data.memo) fields.push({ name: '메모', value: data.memo.toString(), inline: false });
-  }
-
-  const payload = {
-    embeds: [{
-      title: isCancel ? '↩️ [참여 상태 취소]' : '📅 [참여 상태 등록]',
-      color: isCancel ? 9807270 : 15105570,
-      fields: fields,
-      footer: { text: '등록 시간: ' + timeStr }
-    }]
-  };
-
-  try {
-    UrlFetchApp.fetch(DISCORD_WEBHOOK_URL, {
-      method: 'post',
-      contentType: 'application/json',
-      payload: JSON.stringify(payload),
-      muteHttpExceptions: true
-    });
-  } catch (e) {
-    console.error('디스코드 웹훅 전송 실패:', e);
-  }
-}
-
-/**
- * Suggestions 시트 확보 (없으면 생성)
- */
-function ensureSuggestionSheet(ss) {
-  let sheet = ss.getSheetByName("Suggestions");
-  if (!sheet) {
-    sheet = ss.insertSheet("Suggestions");
-    sheet.appendRow(["접수일시", "유저명", "분류", "내용", "처리상태"]);
-    sheet.getRange(1, 1, 1, 5)
-      .setBackground("#f3f3f3")
-      .setFontWeight("bold")
-      .setHorizontalAlignment("center");
-    sheet.setFrozenRows(1);
-
-    // 처리상태 드롭다운
-    const rule = SpreadsheetApp.newDataValidation()
-      .requireValueInList(['접수', '검토중', '완료', '보류'], true)
-      .build();
-    sheet.getRange(2, 5, 500, 1).setDataValidation(rule);
-  }
-
-  const widths = [170, 110, 90, 520, 90];
-  widths.forEach((w, i) => sheet.setColumnWidth(i + 1, w));
-  return sheet;
-}
-
-/**
- * 건의사항 접수
- */
-function submitSuggestionToSheet(ss, data) {
-  const user = (data.user || '').toString().trim();
-  const content = (data.content || '').toString().trim();
-  if (!user || !content) {
-    return { status: "error", message: "유저명과 내용은 필수입니다." };
-  }
-
-  const sheet = ensureSuggestionSheet(ss);
-  const nowStr = Utilities.formatDate(new Date(), "Asia/Seoul", "yyyy-MM-dd HH:mm:ss");
-
-  sheet.appendRow([
-    nowStr,
-    user,
-    (data.category || '기타').toString().trim(),
-    content,
-    "접수"
-  ]);
-
-  const lastRow = sheet.getLastRow();
-  sheet.getRange(lastRow, 1, 1, 5).setBackground(null).setFontWeight("normal").setVerticalAlignment("top");
-  [1, 2, 3, 5].forEach(c => sheet.getRange(lastRow, c).setHorizontalAlignment("center"));
-  // 내용은 길 수 있으므로 왼쪽 정렬 + 줄바꿈
-  sheet.getRange(lastRow, 4).setHorizontalAlignment("left").setWrap(true);
-
-  sendSuggestionNotification(user, data.category, content, nowStr);
-  return { status: "success" };
-}
-
-/**
- * 건의사항 삭제.
- * 본인이 올린 것 + 처리상태가 '접수'인 것만 지운다.
- * 이미 검토중/완료로 넘어간 건은 삭제되지 않는다.
- */
-function deleteSuggestionInSheet(ss, data) {
-  const user = (data.user || '').toString().trim();
-  const content = (data.content || '').toString().trim();
-  if (!user || !content) {
-    return { status: "error", message: "유저명과 내용이 필요합니다." };
-  }
-
-  const sheet = ss.getSheetByName("Suggestions");
-  if (!sheet) return { status: "error", message: "Suggestions 시트가 없습니다." };
-
-  const lastRow = sheet.getLastRow();
-  if (lastRow < 2) return { status: "error", message: "삭제할 항목이 없습니다." };
-
-  const baseUser = user.split('(')[0].trim();
-  const values = sheet.getRange(2, 2, lastRow - 1, 4).getValues(); // B유저명 C분류 D내용 E처리상태
-
-  // 아래에서 위로 훑어 가장 최근 항목 1건만 삭제한다
-  for (let i = values.length - 1; i >= 0; i--) {
-    const rowUser = (values[i][0] || '').toString().split('(')[0].trim();
-    const rowContent = (values[i][2] || '').toString().trim();
-    const rowState = (values[i][3] || '접수').toString().trim();
-
-    if (rowUser === baseUser && rowContent === content) {
-      if (rowState !== '접수') {
-        return { status: "ignored", message: "이미 처리가 시작된 건의는 삭제할 수 없습니다." };
+          if (slots.length > 0) {
+            // 같은 제목의 블록이 여러 개일 때 시트에서 정확한 블록을 찾기 위한 순번
+            slots.forEach(sl => { sl.blockIndex = blockIdx; });
+            blocks.push({ title: cleanTitle, rawTitle, slots, is8Man, sheetId: sheetId });
+            blockIdx++;
+          }
+        } else {
+          r++;
+        }
       }
-      sheet.deleteRow(i + 2);
-      return { status: "success", removed: 1 };
+      // 같은 레이드가 한 시트에 여러 번 나오면 등장 순서대로 'N회차'를 붙인다.
+      // 시트에 이미 회차가 적혀 있으면 그대로 두고, 1번만 나오는 레이드에는 붙이지 않는다.
+      // rawTitle(시트 원본 문자열)은 슬롯 덮어쓰기 매칭에 쓰이므로 절대 바꾸지 않는다.
+      const titleCounts = {};
+      blocks.forEach(b => {
+        titleCounts[b.title] = (titleCounts[b.title] || 0) + 1;
+      });
+      const seen = {};
+      blocks.forEach(b => {
+        if (b.title.includes('회차')) return;
+        if (titleCounts[b.title] < 2) return;
+        seen[b.title] = (seen[b.title] || 0) + 1;
+        b.title = `${b.title} ${seen[b.title]}회차`;
+      });
+
+      return blocks;
     }
-  }
 
-  return { status: "error", message: "해당 건의를 찾지 못했습니다." };
-}
+    function populateUserSelector() {
+      const select = document.getElementById('userSelector');
+      const poolUserSelect = document.getElementById('poolUserFilter');
 
-function sendSuggestionNotification(user, category, content, timeStr) {
-  if (!DISCORD_WEBHOOK_URL || !DISCORD_WEBHOOK_URL.startsWith('http')) return;
+      select.innerHTML = '<option value="" class="bg-[#161b22] text-gray-300">선택 안 함 (전체)</option>';
+      poolUserSelect.innerHTML = '<option value="" class="bg-[#161b22]">전체 유저</option>';
 
-  const payload = {
-    embeds: [{
-      title: '💡 [건의사항 접수]',
-      color: 16776960,
-      fields: [
-        { name: '유저명', value: user, inline: true },
-        { name: '분류', value: (category || '기타').toString(), inline: true },
-        { name: '내용', value: content.length > 1000 ? content.substring(0, 1000) + '…' : content, inline: false }
-      ],
-      footer: { text: '접수 시간: ' + timeStr }
-    }]
-  };
+      Array.from(allMemberList).sort().forEach(u => {
+        const opt = document.createElement('option');
+        opt.value = u;
+        opt.textContent = u;
+        opt.className = 'bg-[#161b22] text-white';
+        if (u === selectedUser) opt.selected = true;
+        select.appendChild(opt);
 
-  try {
-    UrlFetchApp.fetch(DISCORD_WEBHOOK_URL, {
-      method: 'post',
-      contentType: 'application/json',
-      payload: JSON.stringify(payload),
-      muteHttpExceptions: true
-    });
-  } catch (e) {
-    console.error('디스코드 웹훅 전송 실패:', e);
-  }
-}
+        const poolOpt = document.createElement('option');
+        poolOpt.value = u;
+        poolOpt.textContent = u;
+        poolOpt.className = 'bg-[#161b22] text-white';
+        poolUserSelect.appendChild(poolOpt);
+      });
 
-/**
- * Character_Pool 시트 I~M열의 야생 체크('W') 토글 함수
- */
-function toggleWildClearInPool(ss, data) {
-  const poolSheet = ss.getSheetByName("Character_Pool");
-  if (!poolSheet) return { status: "error", message: "Character_Pool 시트를 찾을 수 없습니다." };
+      if (selectedUser && poolUserSelect) {
+        poolUserSelect.value = selectedUser;
+      }
+    }
 
-  const raidColMap = {
-    "final": 9,      // I열: 종막
-    "act4": 10,      // J열: 4막
-    "cathedral": 11, // K열: 성당
-    "serka": 12,     // L열: 세르카
-    "belga": 13      // M열: 벨가
-  };
+    function renderTabs() {
+      const nav = document.getElementById('tabNav');
+      nav.innerHTML = '';
 
-  const colIdx = raidColMap[data.raidKey];
-  if (!colIdx) return { status: "error", message: "유효하지 않은 레이드 키입니다." };
-
-  const lastRow = poolSheet.getLastRow();
-  if (lastRow < 2) return { status: "error", message: "캐릭터 풀이 비어있습니다." };
-
-  const names = poolSheet.getRange(2, 3, lastRow - 1, 1).getValues();
-
-  for (let i = 0; i < names.length; i++) {
-    const rowChar = (names[i][0] || "").toString().trim();
-    if (rowChar === data.charName) {
-      const rowIdx = i + 2;
-      const targetCell = poolSheet.getRange(rowIdx, colIdx);
-      const currentVal = (targetCell.getValue() || "").toString().trim().toUpperCase();
-
-      if (currentVal === "V") {
-        return { status: "ignored", message: "공대 일정으로 완료된 항목입니다." };
+      let availableTabs = SHEET_CONFIG;
+      if (filterMySubOnly && selectedUser) {
+        availableTabs = SHEET_CONFIG.filter(cfg => {
+          if (cfg.is8Man) return true;
+          const sheetInfo = sheetsDataStore[cfg.id];
+          return sheetInfo && sheetInfo.users.includes(selectedUser);
+        });
       }
 
-      if (currentVal === "W") {
-        targetCell.clearContent();
-        return { status: "success", cleared: false };
+      if (!availableTabs.some(t => t.id === currentActiveTab)) {
+        currentActiveTab = availableTabs[0]?.id || 'Main_8Man';
+      }
+
+      availableTabs.forEach(cfg => {
+        const info = sheetsDataStore[cfg.id];
+        const tabTitle = info ? info.title : cfg.fixedTitle || cfg.id;
+        const isActive = (cfg.id === currentActiveTab);
+
+        const btn = document.createElement('button');
+        btn.className = `px-4 py-2 rounded-lg text-sm font-semibold transition whitespace-nowrap flex items-center space-x-1.5 ${
+          isActive
+            ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/50'
+            : 'text-gray-400 hover:text-white hover:bg-gray-800'
+        }`;
+        // 토요일 고정 탭에는 참여 상태의 기준 날짜를 함께 표시한다.
+        // 슬롯의 불참/지각 태그가 어느 날짜 기준인지 알 수 있어야 한다.
+        let dateSuffix = '';
+        if (cfg.id === 'Main_8Man') {
+          const satList = getUpcomingSaturdays(1);
+          if (satList.length) {
+            dateSuffix = `<span class="text-[11px] font-normal ${isActive ? 'text-yellow-500/70' : 'text-gray-500'}">${fmtDateLabel(satList[0])}</span>`;
+          }
+        }
+        btn.innerHTML = `<span>${tabTitle}</span>${dateSuffix}`;
+        btn.onclick = () => {
+          currentActiveTab = cfg.id;
+          renderTabs();
+          renderActiveTabContent();
+          // 화면을 먼저 그린 뒤 해당 시트만 조용히 갱신한다.
+          // 불참/지각 태그는 토요일 고정에만 쓰이므로 Attendance 도 그때만 함께 받는다.
+          const targets = cfg.id === 'Main_8Man' ? [cfg.id, 'Attendance'] : [cfg.id];
+          refreshSheets(targets);
+        };
+        nav.appendChild(btn);
+      });
+    }
+
+    function balanceSlotsFor8Man(slots) {
+      const sorted = [...slots].sort((a, b) => {
+        const getPriority = (item) => {
+          if (item.pos === '서포터') return 3;
+          if (item.pos === '스왑가능') return 2;
+          return 1;
+        };
+        const pDiff = getPriority(b) - getPriority(a);
+        if (pDiff !== 0) return pDiff;
+        return parseFloat(b.level) - parseFloat(a.level);
+      });
+
+      const colLeft = [];
+      const colRight = [];
+
+      sorted.forEach((slot, idx) => {
+        if (idx % 2 === 0) {
+          colLeft.push(slot);
+        } else {
+          colRight.push(slot);
+        }
+      });
+
+      return { colLeft, colRight };
+    }
+
+    function renderActiveTabContent() {
+      const container = document.getElementById('raidContainer');
+      const currentSheet = sheetsDataStore[currentActiveTab];
+
+      if (!currentSheet || currentSheet.blocks.length === 0) {
+        container.innerHTML = `
+          <div class="text-center py-20 text-gray-500 card-bg rounded-xl">
+            편성된 레이드 일정이 없습니다.
+          </div>
+        `;
+        return;
+      }
+
+      container.innerHTML = '';
+      currentSheet.blocks.forEach(block => {
+        const card = document.createElement('div');
+        card.className = 'card-bg rounded-xl p-5 shadow-lg';
+
+        let innerHTML = `
+          <div class="flex items-center space-x-2 border-b border-gray-800 pb-3 mb-4">
+            <span class="w-2.5 h-2.5 rounded-full ${block.is8Man ? 'bg-orange-400' : 'bg-blue-400'}"></span>
+            <h2 class="text-lg font-bold text-white tracking-wide">${block.title}</h2>
+          </div>
+        `;
+
+        if (block.is8Man) {
+          const { colLeft, colRight } = balanceSlotsFor8Man(block.slots);
+
+          innerHTML += `
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div class="space-y-1.5">${renderPartySlots(colLeft)}</div>
+              <div class="space-y-1.5">${renderPartySlots(colRight)}</div>
+            </div>
+          `;
+        } else {
+          const sortedSlots = [...block.slots].sort((a, b) => {
+            const isSuppA = (a.pos === '서포터' || a.pos === '스왑가능');
+            const isSuppB = (b.pos === '서포터' || b.pos === '스왑가능');
+            if (isSuppA && !isSuppB) return -1;
+            if (isSuppB && !isSuppA) return 1;
+            return parseFloat(b.level) - parseFloat(a.level);
+          });
+
+          innerHTML += `
+            <div class="space-y-1.5 max-w-2xl">
+              ${renderPartySlots(sortedSlots)}
+            </div>
+          `;
+        }
+
+        card.innerHTML = innerHTML;
+        container.appendChild(card);
+      });
+
+      drawIcons();
+    }
+
+    function renderGoldBadge(status, maybeDesc) {
+      if (status === 'EARN') {
+        return `
+          <div class="relative flex items-center justify-center w-5 h-5">
+            <svg class="w-5 h-5" viewBox="0 0 24 24">
+              <circle cx="12" cy="12" r="9.5" fill="#D97706" stroke="#B45309" stroke-width="1" />
+              <circle cx="12" cy="12" r="7.5" fill="#FBBF24" stroke="#FDE68A" stroke-width="0.8" />
+              <text x="12" y="15.2" font-size="9" font-weight="900" font-family="Arial, sans-serif" fill="#78350F" text-anchor="middle">G</text>
+            </svg>
+          </div>
+        `;
+      } else if (status === 'MAYBE') {
+        return `
+          <div class="relative flex items-center justify-center w-5 h-5 cursor-help" title="${maybeDesc || MAYBE_GOLD_DESC}">
+            <svg class="w-5 h-5" viewBox="0 0 24 24">
+              <circle cx="12" cy="12" r="9.5" fill="#D97706" stroke="#B45309" stroke-width="1" />
+              <circle cx="12" cy="12" r="7.5" fill="#FBBF24" stroke="#FDE68A" stroke-width="0.8" />
+              <text x="12" y="15.2" font-size="9" font-weight="900" font-family="Arial, sans-serif" fill="#78350F" text-anchor="middle">G</text>
+            </svg>
+            <div class="absolute -top-1 -right-1 w-3.5 h-3.5 bg-cyan-600 border border-[#161b22] rounded-full flex items-center justify-center">
+              <span class="text-[9px] font-black text-white leading-none">?</span>
+            </div>
+          </div>
+        `;
       } else {
-        targetCell.setValue("W");
-        targetCell.setHorizontalAlignment("center");
-        return { status: "success", cleared: true };
+        return `
+          <div class="relative flex items-center justify-center w-5 h-5 opacity-75 hover:opacity-100 transition">
+            <svg class="w-5 h-5" viewBox="0 0 24 24">
+              <circle cx="12" cy="12" r="9.5" fill="#78716C" stroke="#57534E" stroke-width="1" />
+              <circle cx="12" cy="12" r="7.5" fill="#A8A29E" stroke="#D6D3D1" stroke-width="0.8" />
+              <text x="12" y="15.2" font-size="9" font-weight="900" font-family="Arial, sans-serif" fill="#44403C" text-anchor="middle">G</text>
+            </svg>
+            <svg class="absolute inset-0 w-5 h-5" viewBox="0 0 24 24">
+              <line x1="5.5" y1="5.5" x2="18.5" y2="18.5" stroke="#DC2626" stroke-width="2.5" stroke-linecap="round" />
+              <line x1="18.5" y1="5.5" x2="5.5" y2="18.5" stroke="#DC2626" stroke-width="2.5" stroke-linecap="round" />
+            </svg>
+          </div>
+        `;
       }
     }
-  }
 
-  return { status: "error", message: "해당 캐릭터를 시트에서 찾지 못했습니다." };
-}
-
-/**
- * 슬롯 덮어쓰기
- */
-function updateExactSlotInSheet(sheet, data) {
-  const values = sheet.getDataRange().getValues();
-  const oldCharName = (data.oldCharName || '').trim();
-  const targetRow = parseInt(data.sheetRow, 10);
-  const party = parseInt(data.party, 10);
-  const charCol = (party === 2) ? 6 : 1;   // B열(1파티) / G열(2파티)
-
-  // 1순위: 프론트가 보낸 행 번호가 맞는지 확인하고 그대로 쓴다.
-  if (targetRow && targetRow <= values.length) {
-    const checkChar = (values[targetRow - 1][charCol] || '').toString().trim();
-    if (checkChar === oldCharName) {
-      applyRowValues(sheet, targetRow, party, data);
-      return { status: "success", matched: "row" };
-    }
-  }
-
-  // 2순위: 블록 순번으로 대상 블록을 특정한 뒤 그 블록 안에서만 찾는다.
-  // 회차를 적지 않아 같은 제목의 블록이 여러 개여도 정확히 구분된다.
-  const blockIndex = parseInt(data.blockIndex, 10);
-  const targetTitle = (data.rawRaidTitle || data.targetRaid || '').trim();
-
-  if (!isNaN(blockIndex)) {
-    let curBlock = -1;
-    let inTarget = false;
-
-    for (let r = 0; r < values.length; r++) {
-      const cellA = (values[r][0] || '').toString().trim();
-
-      if (cellA.startsWith('[') && cellA.includes(']')) {
-        curBlock++;
-        inTarget = (curBlock === blockIndex);
-        // 지나쳤으면 더 볼 필요가 없다
-        if (curBlock > blockIndex) break;
-        continue;
-      }
-
-      if (inTarget) {
-        const c = (values[r][charCol] || '').toString().trim();
-        if (c === oldCharName) {
-          applyRowValues(sheet, r + 1, party, data);
-          return { status: "success", matched: "blockIndex" };
+    function renderPartySlots(slots) {
+      return slots.map(slot => {
+        const isMe = selectedUser && slot.user.startsWith(selectedUser);
+        const isSupporter = slot.pos === '서포터';
+        const isSwap = slot.pos === '스왑가능';
+        const goldStatus = slotGoldStatusMap[slot.slotUid] || 'NONE';
+        let slotMaybeDesc = '';
+        if (goldStatus === 'MAYBE') {
+          const poolChar = characterPoolData.find(c => c.name === slot.name);
+          slotMaybeDesc = getMaybePairDesc(poolChar ? poolChar.level : parseFloat(slot.level) || 0);
         }
-      }
-    }
-  }
 
-  // 3순위: 제목이 유일한 경우에만 제목 스캔을 허용한다.
-  // 같은 제목이 여러 개면 엉뚱한 블록을 덮어쓸 수 있으므로 아무것도 하지 않는다.
-  let titleCount = 0;
-  for (let r = 0; r < values.length; r++) {
-    const cellA = (values[r][0] || '').toString().trim();
-    if (cellA.startsWith('[') && cellA.includes(']')) {
-      if (cellA === targetTitle || targetTitle.indexOf(cellA) === 0) titleCount++;
-    }
-  }
-
-  if (titleCount === 1) {
-    let inside = false;
-    for (let r = 0; r < values.length; r++) {
-      const cellA = (values[r][0] || '').toString().trim();
-      if (cellA.startsWith('[') && cellA.includes(']')) {
-        inside = (cellA === targetTitle || targetTitle.indexOf(cellA) === 0);
-        continue;
-      }
-      if (inside) {
-        const c = (values[r][charCol] || '').toString().trim();
-        if (c === oldCharName) {
-          applyRowValues(sheet, r + 1, party, data);
-          return { status: "success", matched: "title" };
+        let posBadge = `<span class="badge-dealer text-[11px] font-semibold px-2 py-0.5 rounded">딜러</span>`;
+        if (isSupporter) {
+          posBadge = `<span class="badge-supporter text-[11px] font-semibold px-2 py-0.5 rounded">서포터</span>`;
+        } else if (isSwap) {
+          posBadge = `<span class="badge-swap text-[11px] font-semibold px-2 py-0.5 rounded">스왑</span>`;
         }
+
+        const rowStyle = isMe
+          ? 'my-highlight'
+          : (isSupporter ? 'supporter-row' : 'bg-[#0d1117]/60 hover:bg-[#0d1117]');
+
+        const slotJson = encodeURIComponent(JSON.stringify(slot));
+
+        // 남의 슬롯은 클릭 자체를 막는다. 계정 미선택 상태에서는 열어두어
+        // openQuickSwapModal 의 안내 알림이 뜨도록 한다.
+        // 참여 상태(불참/지각): 토요일 고정 시트에서만, 가장 가까운 토요일 기준으로 표시
+        let attTag = '';
+        let attDim = '';
+        if (slot.sheetId === 'Main_8Man') {
+          const att = getAttendanceFor(slot.user, getCurrentSaturdayKey());
+          if (att) {
+            const tone = att.status === '불참'
+              ? 'bg-red-500/20 text-red-300 border-red-500/60'
+              : (att.status === '지각'
+                ? 'bg-amber-500/20 text-amber-300 border-amber-500/60'
+                : 'bg-gray-700/40 text-gray-300 border-gray-600');
+            const tip = att.memo ? ` title="${att.memo}"` : '';
+            attTag = `<span class="px-1.5 py-0.5 rounded border text-[10px] font-bold ${tone}${att.memo ? ' cursor-help' : ''}"${tip}>${att.status}</span>`;
+            if (att.status === '불참') attDim = ' opacity-50';
+          }
+        }
+
+        const canEdit = !selectedUser || isMe;
+        const clickAttr = canEdit ? ` onclick="openQuickSwapModal('${slotJson}')"` : '';
+        const clickCls = canEdit ? ' slot-hover' : ' cursor-default';
+
+        return `
+          <div${clickAttr} class="flex items-center justify-between p-2.5 rounded-lg border border-gray-800/80 ${rowStyle}${clickCls}${attDim} transition">
+            <div class="flex items-center space-x-3">
+              ${posBadge}
+              <div class="flex flex-col sm:flex-row sm:items-center sm:space-x-2">
+                <span class="text-xs text-gray-400 font-medium">${slot.user}</span>
+                <span class="text-sm font-semibold text-gray-200">${slot.name}</span>
+              </div>
+              ${attTag}
+            </div>
+            <div class="flex items-center space-x-2.5 sm:space-x-3 text-right">
+              ${renderGoldBadge(goldStatus, slotMaybeDesc)}
+              <span class="text-xs text-gray-400 hidden sm:inline">${slot.job}</span>
+              <span class="text-sm font-mono font-medium text-yellow-500/90">${slot.level}</span>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function getRaidMinLevel(raidKey) {
+      const def = RAID_DEFINITIONS.find(r => r.key === raidKey);
+      return def ? def.minLevel : 1700;
+    }
+
+    // 캐릭터 현황 탭의 레이드별 숙제 뱃지 렌더링
+    //
+    // 두 가지 정보를 서로 겹치지 않는 축으로 표현한다.
+    //   색상   = 골드 여부   호박(확정) / 청록(선택 구간) / 회색(골드 대상 아님)
+    //   테두리 = 체크 출처   실선(V: 일정표 자동, 수정 불가) / 점선(W: 개별 수동, 클릭 시 취소)
+    //   채움   = 완료 여부   채워짐(완료) / 비어있음(미완료)
+    //
+    // status: 'V' = 일정표 자동 등록, 'W' = 개별 수동 완료, '' = 미완료
+    // goldTier: 'EARN' | 'MAYBE' | 'NONE' | undefined
+    function renderRaidTag(label, status, charLevel, raidKey, charName, goldTier, maybeDesc) {
+      const minCut = getRaidMinLevel(raidKey);
+      const canEnter = charLevel >= minCut;
+      const base = 'px-1.5 py-0.5 rounded text-[10px] font-bold select-none';
+
+      // 입장 불가는 골드/출처와 무관하게 하나로 처리
+      if (!canEnter) {
+        return `<span class="${base} bg-[#0d1117] border border-gray-900 text-gray-600 line-through opacity-60 cursor-not-allowed">${label}</span>`;
+      }
+
+      const tone = goldTier === 'EARN'
+        ? { fill: 'bg-amber-500/20 text-amber-300', hollow: 'text-amber-400/70', border: 'border-amber-500/70' }
+        : (goldTier === 'MAYBE'
+          ? { fill: 'bg-cyan-500/20 text-cyan-300', hollow: 'text-cyan-400/70', border: 'border-cyan-500/70' }
+          : { fill: 'bg-gray-800 text-gray-400', hollow: 'text-gray-500', border: 'border-gray-700' });
+
+      // 툴팁은 선택 구간에만 붙인다. 확정/대상 아님은 색만으로 충분하고,
+      // 판단이 필요한 건 선택 구간뿐이라 여기에만 골드 액수를 보여준다.
+      const isMaybe = goldTier === 'MAYBE';
+      const tip = isMaybe ? ` title="${maybeDesc || MAYBE_GOLD_DESC}"` : '';
+      const help = isMaybe ? ' cursor-help' : '';
+
+      const esc = charName.replace(/'/g, "\\'");
+
+      // 1) 일정표 자동 등록(V) — 실선 테두리, 웹에서 해제 불가
+      if (status === 'V') {
+        return `<span class="${base} ${tone.fill} border ${tone.border} cursor-not-allowed"${tip}>${label} ✓</span>`;
+      }
+
+      // 2) 개별 수동 완료(W) — 점선 테두리, 클릭 시 취소
+      if (status === 'W') {
+        return `<span onclick="toggleManualHomework('${esc}','${raidKey}')" class="${base} ${tone.fill} border border-dashed ${tone.border} cursor-pointer hover:brightness-125 transition"${tip}>${label} ✓</span>`;
+      }
+
+      // 3) 미완료 — 속이 빈 상태. 골드 대상이면 색으로 남아 우선순위가 보인다.
+      return `<span onclick="toggleManualHomework('${esc}','${raidKey}')" class="${base} bg-transparent border border-dashed ${tone.border} ${tone.hollow}${help} font-medium cursor-pointer hover:brightness-125 transition"${tip}>${label}</span>`;
+    }
+
+    // W(개별 수동 완료) 상태만 웹에서 원클릭 토글 가능. V(일정표 자동 등록)는 해제 불가.
+    async function toggleManualHomework(charName, raidKey) {
+      const charObj = characterPoolData.find(c => c.name === charName);
+      if (!charObj) return;
+
+      const curStatus = charObj.raids[raidKey];
+      if (curStatus === 'V') return; // 공대 일정 종속 상태는 웹에서 해제 불가
+
+      const minCut = getRaidMinLevel(raidKey);
+      if (curStatus !== 'W' && charObj.level < minCut) return; // 입장 불가 레벨이면 클릭 무시
+
+      const newStatus = (curStatus === 'W') ? '' : 'W';
+      charObj.raids[raidKey] = newStatus;
+      renderPoolView();
+
+      try {
+        await fetch(APPS_SCRIPT_WEB_APP_URL, {
+          method: 'POST',
+          mode: 'no-cors',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'toggleWildClear',
+            charName: charName,
+            raidKey: raidKey
+          })
+        });
+      } catch (err) {
+        console.error('숙제 상태 저장 오류:', err);
       }
     }
-  }
 
-  // 어느 방법으로도 특정하지 못하면 쓰지 않는다. 잘못된 슬롯을 덮어쓰는 것보다 낫다.
-  return { status: "error", message: "대상 슬롯을 찾지 못했습니다. 새로고침 후 다시 시도해 주세요." };
-}
+    function renderPoolView() {
+      const grid = document.getElementById('poolGrid');
+      const uFilter = document.getElementById('poolUserFilter').value;
+      const pFilter = document.getElementById('poolPosFilter').value;
+      const lFilter = parseFloat(document.getElementById('poolLevelFilter').value) || 0;
 
-function applyRowValues(sheet, rowIdx, party, data) {
-  if (party === 1) {
-    sheet.getRange(rowIdx, 1).setValue(data.user);
-    sheet.getRange(rowIdx, 2).setValue(data.newCharName);
-    sheet.getRange(rowIdx, 3).setValue(data.newJob);
-    sheet.getRange(rowIdx, 4).setValue(parseFloat(data.newLevel) || data.newLevel);
-    sheet.getRange(rowIdx, 5).setValue(data.newPos);
-  } else {
-    sheet.getRange(rowIdx, 6).setValue(data.user);
-    sheet.getRange(rowIdx, 7).setValue(data.newCharName);
-    sheet.getRange(rowIdx, 8).setValue(data.newJob);
-    sheet.getRange(rowIdx, 9).setValue(parseFloat(data.newLevel) || data.newLevel);
-    sheet.getRange(rowIdx, 10).setValue(data.newPos);
-  }
-}
+      const filtered = characterPoolData.filter(c => {
+        if (uFilter && !c.user.startsWith(uFilter)) return false;
+        if (lFilter > 0 && c.level < lFilter) return false;
 
-function sendDiscordNotification(data, timeStr) {
-  if (!DISCORD_WEBHOOK_URL || !DISCORD_WEBHOOK_URL.startsWith('http')) return;
+        if (pFilter === 'DEALER') {
+          if (c.pos !== '딜러' && c.pos !== '스왑가능') return false;
+        } else if (pFilter === 'SUPPORTER') {
+          if (c.pos !== '서포터' && c.pos !== '스왑가능') return false;
+        }
+        return true;
+      });
 
-  const payload = {
-    embeds: [{
-      title: '⚡ [공대 편성 즉시 변경 완료]',
-      color: 3066993,
-      fields: [
-        { name: '유저명', value: data.user, inline: true },
-        { name: '대상 레이드', value: data.targetRaid, inline: true },
-        { name: '기존 캐릭터', value: data.oldChar, inline: false },
-        { name: '새 캐릭터', value: `${data.newCharName} (${data.newJob} / ${data.newLevel} / ${data.newPos})`, inline: false }
-      ],
-      footer: { text: '변경 시간: ' + timeStr }
-    }]
-  };
+      const poolCountEl = document.getElementById('poolCount');
+      if (poolCountEl) poolCountEl.textContent = filtered.length;
 
-  try {
-    UrlFetchApp.fetch(DISCORD_WEBHOOK_URL, {
-      method: 'post',
-      contentType: 'application/json',
-      payload: JSON.stringify(payload),
-      muteHttpExceptions: true
-    });
-  } catch (e) {
-    console.error('디스코드 웹훅 전송 실패:', e);
-  }
-}
+      if (filtered.length === 0) {
+        grid.innerHTML = `<div class="col-span-full py-16 text-center text-gray-500 card-bg rounded-xl">조건에 맞는 캐릭터가 없습니다.</div>`;
+        return;
+      }
+
+      grid.innerHTML = filtered.map(c => {
+        const isMe = selectedUser && c.user.startsWith(selectedUser);
+        let posBadge = `<span class="badge-dealer text-[11px] font-semibold px-2 py-0.5 rounded">딜러</span>`;
+        if (c.pos === '서포터') posBadge = `<span class="badge-supporter text-[11px] font-semibold px-2 py-0.5 rounded">서포터</span>`;
+        else if (c.pos === '스왑가능') posBadge = `<span class="badge-swap text-[11px] font-semibold px-2 py-0.5 rounded">스왑가능</span>`;
+
+        const isGoldChar = goldEligibleCharNames.has(c.name);
+
+        // 주간 골드 진행도.
+        // 확정(EARN)은 각각 한 칸씩 차지하고, 선택 구간(MAYBE)은 여러 개를 돌아도
+        // 남은 칸 수만큼만 골드가 나온다. (예: 확정 2 + 선택 2 -> 선택은 1칸만 인정)
+        const tierMap = isGoldChar ? computeGoldTiers(c.level) : {};
+        const isDone = k => c.raids[k] === 'V' || c.raids[k] === 'W';
+        const earnKeys = RAID_DEFINITIONS.map(d => d.key).filter(k => tierMap[k] === 'EARN');
+        const maybeKeys = RAID_DEFINITIONS.map(d => d.key).filter(k => tierMap[k] === 'MAYBE');
+
+        const maybeDesc = maybeKeys.length ? getMaybePairDesc(c.level) : '';
+
+        const maybeSlots = Math.max(0, GOLD_SLOT_LIMIT - earnKeys.length);
+        const doneCount = Math.min(earnKeys.filter(isDone).length, GOLD_SLOT_LIMIT)
+          + Math.min(maybeKeys.filter(isDone).length, maybeSlots);
+        // 입장 가능한 레이드가 3개 미만이면 애초에 3칸을 못 채우므로 분모도 낮춘다
+        const totalSlots = Math.min(GOLD_SLOT_LIMIT, earnKeys.length + Math.min(maybeKeys.length, maybeSlots));
+
+        const isFull = totalSlots > 0 && doneCount >= totalSlots;
+        const progressColor = isFull ? 'bg-emerald-500' : (doneCount > 0 ? 'bg-yellow-500' : 'bg-gray-700');
+        // 캐릭터명 옆 한 자리에 둘 중 하나만 표시한다.
+        // 골드 획득 대상 -> 진행도 (n/m) / 대상 밖 -> '골드 제외'. 뱃지로 따로 표기하면 같은 정보가 두 번 나온다.
+        const counterHtml = isGoldChar
+          ? `<span class="text-[11px] font-mono font-normal ${isFull ? 'text-emerald-400' : 'text-gray-400'}" title="주간 골드 획득 ${totalSlots}칸 중 완료한 수${maybeKeys.length ? ' (선택 구간은 ' + maybeSlots + '칸만 인정)' : ''}">(${doneCount}/${totalSlots})</span>`
+          : `<span class="text-[11px] font-normal text-gray-500" title="원정대 레벨 상위 6개 밖으로 추정되어 주간 골드를 받지 않습니다 (실제 인게임 골드 획득 캐릭터 지정과 다를 수 있음)">골드 제외</span>`;
+        const progressHtml = isGoldChar
+          ? `<div class="w-full bg-[#0d1117] h-1.5 rounded-full overflow-hidden border border-gray-800">
+               <div class="${progressColor} h-full transition-all duration-300" style="width: ${totalSlots ? (doneCount / totalSlots) * 100 : 0}%"></div>
+             </div>`
+          : `<div class="w-full bg-gray-900/60 h-1.5 rounded-full overflow-hidden"></div>`;
+
+        return `
+          <div class="card-bg p-4 rounded-xl border border-gray-800 flex flex-col justify-between space-y-3 ${isMe ? 'border-yellow-500/50 bg-yellow-950/10' : ''}">
+            <div class="flex items-start justify-between">
+              <div>
+                <div class="text-xs text-gray-400 font-medium mb-0.5">${c.user} (${c.server})</div>
+                <div class="text-base font-bold text-white flex items-center space-x-2">
+                  <span>${c.name}</span>
+                  ${counterHtml}
+                </div>
+              </div>
+              <div class="text-right space-y-1">
+                ${posBadge}
+                <div class="text-xs text-gray-400">${c.job}</div>
+              </div>
+            </div>
+
+            ${progressHtml}
+
+            <div class="flex items-center justify-between border-t border-gray-800/60 pt-2.5">
+              <span class="text-sm font-mono font-bold text-yellow-500/90">${c.level.toLocaleString('ko-KR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+              <div class="flex items-center flex-wrap justify-end gap-1">
+                ${renderRaidTag('종막', c.raids.final, c.level, 'final', c.name, tierMap.final, maybeDesc)}
+                ${renderRaidTag('4막', c.raids.act4, c.level, 'act4', c.name, tierMap.act4, maybeDesc)}
+                ${renderRaidTag('성당', c.raids.cathedral, c.level, 'cathedral', c.name, tierMap.cathedral, maybeDesc)}
+                ${renderRaidTag('세르카', c.raids.serka, c.level, 'serka', c.name, tierMap.serka, maybeDesc)}
+                ${renderRaidTag('벨가', c.raids.belga, c.level, 'belga', c.name, tierMap.belga, maybeDesc)}
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      drawIcons();
+    }
+
+    function getDifficultyBadge(diff) {
+      if (diff.includes('나이트메어') || diff.includes('3단')) {
+        return `<span class="px-2 py-0.5 rounded text-xs bg-purple-950 text-purple-400 border border-purple-800 font-medium">${diff}</span>`;
+      } else if (diff.includes('하드') || diff.includes('2단')) {
+        return `<span class="px-2 py-0.5 rounded text-xs bg-red-950 text-red-400 border border-red-800 font-medium">${diff}</span>`;
+      } else {
+        return `<span class="px-2 py-0.5 rounded text-xs bg-gray-800 text-gray-300 font-medium">${diff}</span>`;
+      }
+    }
+
+    function renderGoldTableView() {
+      const tbody = document.getElementById('goldTableBody');
+      if (raidInfoData.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="7" class="text-center py-8 text-gray-500">Raid_Info 시트 데이터를 가져오지 못했습니다.</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = raidInfoData.map(r => `
+        <tr class="hover:bg-gray-800/40 transition">
+          <td class="px-4 py-3 font-semibold text-white">${r.name}</td>
+          <td class="px-4 py-3"><span class="px-2 py-0.5 rounded text-xs bg-blue-950 text-blue-400 border border-blue-800">${r.partyType || '-'}</span></td>
+          <td class="px-4 py-3">${getDifficultyBadge(r.diff)}</td>
+          <td class="px-4 py-3 text-right font-mono">${r.level}</td>
+          <td class="px-4 py-3 text-right font-mono text-amber-400">${r.goldTrade} G</td>
+          <td class="px-4 py-3 text-right font-mono text-emerald-400">${r.goldBound} G</td>
+          <td class="px-4 py-3 text-right font-mono font-bold text-yellow-300">${r.goldTotal} G</td>
+        </tr>
+      `).join('');
+    }
+
+    // Raid_Info 시트를 기반으로, 해당 레벨의 캐릭터가 각 레이드 계열에서
+    // 입장 가능한 최고 난이도를 하나씩 뽑아 총골드 내림차순으로 반환한다.
+    // 같은 계열의 두 난이도를 동시에 갈 일은 없으므로 계열당 1개만 남긴다.
+    function getCharTop3Raids(charLevel) {
+      const familyGroups = {};
+      raidInfoData.forEach(r => {
+        const key = getRaidFamilyKey(r.name);
+        if (!key) return;
+        if (!familyGroups[key]) familyGroups[key] = [];
+        familyGroups[key].push(r);
+      });
+
+      const candidates = [];
+      Object.keys(familyGroups).forEach(key => {
+        const entries = familyGroups[key]
+          .map(r => ({
+            key: key,
+            name: r.name,
+            diff: r.diff,
+            levelNum: parseGoldNum(r.level),
+            tradeNum: parseGoldNum(r.goldTrade),
+            boundNum: parseGoldNum(r.goldBound),
+            totalNum: parseGoldNum(r.goldTotal)
+          }))
+          .filter(r => charLevel >= r.levelNum)
+          // 요구 레벨이 가장 높은(=가장 좋은) 난이도 우선.
+          // 요구 레벨이 같은 행이 있으면 총골드가 큰 쪽을 채택(시트 행 순서에 좌우되지 않도록).
+          .sort((a, b) => (b.levelNum - a.levelNum) || (b.totalNum - a.totalNum));
+
+        if (entries.length > 0) {
+          const best = entries[0];
+          candidates.push({
+            key: best.key,
+            name: best.name,
+            diff: best.diff,
+            payout: best.totalNum,
+            trade: best.tradeNum,
+            bound: best.boundNum
+          });
+        }
+      });
+
+      candidates.sort((a, b) => b.payout - a.payout);
+      return candidates;
+    }
+
+    // 귀속골드 가중치 w를 적용한 환산 점수
+    function goldScore(raid, w) {
+      return raid.trade + raid.bound * w;
+    }
+
+    // 특정 w에서 각 레이드가 상위 GOLD_SLOT_LIMIT개 안에 드는지 판정.
+    // 'in'     : 나보다 점수가 높은 것 + 나와 동점인 것을 다 합쳐도 골드칸에 들어감 (확실히 획득)
+    // 'out'    : 나보다 점수가 높은 것만 이미 골드칸을 다 채움 (확실히 미획득)
+    // 'border' : 동점 그룹이 남은 칸을 넘침 (그 중 일부만 받을 수 있음)
+    // 점수가 완전히 같은 레이드는 항상 같은 판정을 받는다.
+    function goldStatusAt(candidates, w) {
+      const statusMap = {};
+      candidates.forEach(r => {
+        const my = goldScore(r, w);
+        const higher = candidates.filter(o => goldScore(o, w) > my).length;
+        const atLeast = candidates.filter(o => goldScore(o, w) >= my).length;
+
+        if (higher >= GOLD_SLOT_LIMIT) statusMap[r.key] = 'out';
+        else if (atLeast <= GOLD_SLOT_LIMIT) statusMap[r.key] = 'in';
+        else statusMap[r.key] = 'border';
+      });
+      return statusMap;
+    }
+
+    // 귀속골드 가중치 w의 양 끝값에서 각각 순위를 매기고 결과를 합친다.
+    //   양쪽 다 획득  -> EARN  (확정)
+    //   양쪽 다 미획득 -> NONE
+    //   한쪽만 획득   -> MAYBE (선택 구간: w를 어떻게 보느냐에 따라 갈림)
+    function computeGoldTiers(charLevel) {
+      const candidates = getCharTop3Raids(charLevel);
+      const atLow = goldStatusAt(candidates, BOUND_GOLD_WEIGHT_LOW);
+      const atHigh = goldStatusAt(candidates, BOUND_GOLD_WEIGHT_HIGH);
+
+      const tierMap = {};
+      candidates.forEach(r => {
+        const lo = atLow[r.key];
+        const hi = atHigh[r.key];
+        if (lo === 'in' && hi === 'in') tierMap[r.key] = 'EARN';
+        else if (lo === 'out' && hi === 'out') tierMap[r.key] = 'NONE';
+        else tierMap[r.key] = 'MAYBE';
+      });
+
+      return tierMap;
+    }
+
+    // 두 레이드의 점수가 같아지는 w(손익분기). 순위가 뒤집히는 지점이라 [DEV] 기준표에서 튜닝 근거로 쓴다.
+    function goldBreakEvenW(a, b) {
+      const db = a.bound - b.bound;
+      if (db === 0) return null;
+      return (b.trade - a.trade) / db;
+    }
+
+    // 선택 구간 툴팁 문구. 해당 레벨의 선택 구간 짝과 골드 액수를 보여준다.
+    // 예: '선택 구간 · 성당 5.0만 귀속 ↔ 종막 4.8만 유통'
+    function getMaybePairDesc(charLevel) {
+      const ranked = getCharTop3Raids(charLevel);
+      const tierMap = computeGoldTiers(charLevel);
+      const pair = ranked.filter(r => tierMap[r.key] === 'MAYBE');
+      if (pair.length === 0) return MAYBE_GOLD_DESC;
+
+      const man = v => (v / 10000).toFixed(1);
+      const kind = r => r.bound > 0 ? (r.trade > 0 ? '반반' : '귀속') : '유통';
+      return '선택 구간 · ' + pair
+        .map(r => `${RAID_SHORT_NAME[r.key] || r.key} ${man(r.payout)}만 ${kind(r)}`)
+        .join(' ↔ ');
+    }
+
+    // ─── 날짜 계산 ────────────────────────────────────────────
+    function fmtDate(d) {
+      const p = n => String(n).padStart(2, '0');
+      return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+    }
+
+    function fmtDateLabel(d) {
+      const days = ['일', '월', '화', '수', '목', '금', '토'];
+      return `${d.getMonth() + 1}/${d.getDate()}(${days[d.getDay()]})`;
+    }
+
+    // 오늘(당일 포함) 이후의 토요일을 count개 반환.
+    // 이미 지난 토요일은 신고 대상이 될 수 없으므로 후보에서 제외된다.
+    function getUpcomingSaturdays(count = ATTENDANCE_WEEKS) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const first = new Date(today);
+      first.setDate(first.getDate() + ((6 - today.getDay() + 7) % 7));
+
+      const list = [];
+      for (let i = 0; i < count; i++) {
+        const d = new Date(first);
+        d.setDate(d.getDate() + i * 7);
+        list.push(d);
+      }
+      return list;
+    }
+
+    // 가장 가까운 토요일. 슬롯에 참여 상태를 표시할 기준 날짜.
+    function getCurrentSaturdayKey() {
+      const list = getUpcomingSaturdays(1);
+      return list.length ? fmtDate(list[0]) : '';
+    }
+
+    // ─── Attendance 시트 파싱 ─────────────────────────────────
+    // 열: A신청일시 B유저명 C구분 D대상 E상태 F메모
+    function parseAttendance(rows) {
+      attendanceData = [];
+      // 시트가 없으면 gviz가 오류 페이지를 반환한다(예외가 아님). 헤더로 유효성을 확인한다.
+      const header = (rows[0] || []).map(c => (c || '').toString().trim());
+      if (!header.includes('유저명')) return;
+
+      for (let r = 1; r < rows.length; r++) {
+        const row = rows[r] || [];
+        const user = (row[1] || '').toString().trim();
+        const kind = (row[2] || '').toString().trim();
+        const target = (row[3] || '').toString().trim();
+        const status = (row[4] || '').toString().trim();
+        if (!user || !status) continue;
+        attendanceData.push({
+          at: (row[0] || '').toString().trim(),
+          user, kind, target, status,
+          memo: (row[5] || '').toString().trim()
+        });
+      }
+    }
+
+    // ─── Suggestions 시트 파싱 ────────────────────────────────
+    // 열: A접수일시 B유저명 C분류 D내용 E처리상태
+    function parseSuggestions(rows) {
+      suggestionsData = [];
+      const header = (rows[0] || []).map(c => (c || '').toString().trim());
+      if (!header.includes('유저명')) return;
+
+      for (let r = 1; r < rows.length; r++) {
+        const row = rows[r] || [];
+        const user = (row[1] || '').toString().trim();
+        const content = (row[3] || '').toString().trim();
+        if (!user || !content) continue;
+        suggestionsData.push({
+          at: (row[0] || '').toString().trim(),
+          user,
+          category: (row[2] || '').toString().trim(),
+          content,
+          state: (row[4] || '접수').toString().trim()
+        });
+      }
+    }
+
+    // 해당 날짜에 유저가 등록한 상태(가장 최근 것 우선)
+    function getAttendanceFor(userName, dateKey) {
+      if (!userName || !dateKey) return null;
+      const base = userName.split('(')[0].trim();
+      const hits = attendanceData.filter(a =>
+        a.target === dateKey && a.user.split('(')[0].trim() === base
+      );
+      return hits.length ? hits[hits.length - 1] : null;
+    }
+
+    function calculateGoldEligibilities(instances) {
+      slotGoldStatusMap = {};
+
+      const tierMapCache = {};
+      function getTierMapForLevel(lvl) {
+        if (!tierMapCache[lvl]) tierMapCache[lvl] = computeGoldTiers(lvl);
+        return tierMapCache[lvl];
+      }
+
+      instances.forEach(inst => {
+        const isGoldChar = goldEligibleCharNames.has(inst.charName);
+        if (!isGoldChar) {
+          slotGoldStatusMap[inst.slotUid] = 'NONE';
+          return;
+        }
+
+        const charObj = characterPoolData.find(c => c.name === inst.charName);
+        const charLvl = charObj ? charObj.level : 0;
+        const tierMap = getTierMapForLevel(charLvl);
+
+        const instKey = getRaidFamilyKey(inst.raidTitle);
+        slotGoldStatusMap[inst.slotUid] = instKey ? (tierMap[instKey] || 'NONE') : 'NONE';
+      });
+    }
+
+    function openQuickSwapModal(slotJsonEncoded) {
+      if (!selectedUser) {
+        alert("상단 헤더의 [내 캐릭터 강조]에서 본인 계정을 먼저 선택해 주세요!");
+        return;
+      }
+
+      const slot = JSON.parse(decodeURIComponent(slotJsonEncoded));
+
+      // 본인 슬롯이 아니면 열지 않는다 (슬롯 클릭이 이미 막혀 있지만 이중 방어)
+      if (!slot.user.startsWith(selectedUser)) {
+        alert(`다른 유저(${slot.user})의 슬롯은 변경할 수 없습니다.`);
+        return;
+      }
+
+      activeSwapTarget = slot;
+      pendingSwapChar = null;
+
+      document.getElementById('swapTargetRaidTitle').textContent = `[${slot.raidTitle}]`;
+      document.getElementById('swapOldCharName').textContent = `${slot.user} ➔ ${slot.name} (${slot.job} / ${slot.level})`;
+      document.getElementById('swapModalUserLabel').textContent = `교체할 본인(${selectedUser}) 원정대 캐릭터 선택`;
+
+      const userPool = characterPoolData.filter(c => c.user.startsWith(selectedUser));
+      window.__swapUserPool = userPool;
+
+      const container = document.getElementById('swapCharListContainer');
+
+      if (userPool.length === 0) {
+        container.innerHTML = `<div class="text-center py-6 text-xs text-gray-500">선택된 계정(${selectedUser})으로 등록된 캐릭터가 없습니다.</div>`;
+      } else {
+        container.innerHTML = userPool.map((c, idx) => {
+          const isCurrent = (c.name === slot.name);
+          return `
+            <div id="swapRow_${idx}" onclick="selectSwapCandidate(${idx})" class="swap-candidate-row flex items-center justify-between p-3 rounded-lg border ${isCurrent ? 'border-yellow-500/60 bg-yellow-950/20' : 'border-gray-800 bg-[#0d1117] hover:border-gray-600'} cursor-pointer transition">
+              <div>
+                <div class="text-xs text-gray-400">${c.user} (${c.server})</div>
+                <div class="text-sm font-bold text-white flex items-center space-x-2">
+                  <span>${c.name}</span>
+                  ${isCurrent ? '<span class="text-[10px] text-yellow-400 font-normal">[현재 출전 중]</span>' : ''}
+                  <span class="swap-selected-tag hidden text-[10px] text-cyan-300 font-bold">[선택됨]</span>
+                </div>
+              </div>
+              <div class="text-right">
+                <span class="text-xs text-gray-400">${c.job} · ${c.pos}</span>
+                <div class="text-xs font-mono font-bold text-yellow-500">${c.level.toLocaleString('ko-KR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+              </div>
+            </div>
+          `;
+        }).join('');
+      }
+
+      updateSwapConfirmButtonState();
+      document.body.style.overflow = 'hidden';
+      document.getElementById('quickSwapModal').classList.remove('hidden');
+      drawIcons();
+    }
+
+    // 목록에서 캐릭터를 누르면 즉시 반영하지 않고 '선택'만 표시한다.
+    function selectSwapCandidate(idx) {
+      const pool = window.__swapUserPool || [];
+      const char = pool[idx];
+      if (!char) return;
+
+      pendingSwapChar = char;
+
+      document.querySelectorAll('#swapCharListContainer .swap-candidate-row').forEach(el => {
+        el.classList.remove('ring-2', 'ring-cyan-400', 'border-cyan-400', 'bg-cyan-950/20');
+        const tag = el.querySelector('.swap-selected-tag');
+        if (tag) tag.classList.add('hidden');
+      });
+
+      const target = document.getElementById(`swapRow_${idx}`);
+      if (target) {
+        target.classList.add('ring-2', 'ring-cyan-400', 'border-cyan-400', 'bg-cyan-950/20');
+        const tag = target.querySelector('.swap-selected-tag');
+        if (tag) tag.classList.remove('hidden');
+      }
+
+      updateSwapConfirmButtonState();
+    }
+
+    function updateSwapConfirmButtonState() {
+      const btn = document.getElementById('swapConfirmBtn');
+      if (!btn) return;
+      if (pendingSwapChar) {
+        btn.disabled = false;
+        btn.textContent = `${pendingSwapChar.name} (으)로 변경 확정`;
+      } else {
+        btn.disabled = true;
+        btn.textContent = '캐릭터를 선택해 주세요';
+      }
+    }
+
+    // 확정 버튼을 눌렀을 때만 실제로 시트에 반영한다.
+    function confirmQuickSwap() {
+      if (!pendingSwapChar) return;
+      executeInstantSwap(encodeURIComponent(JSON.stringify(pendingSwapChar)));
+    }
+
+    function closeQuickSwapModal() {
+      document.body.style.overflow = '';
+      document.getElementById('quickSwapModal').classList.add('hidden');
+      activeSwapTarget = null;
+      pendingSwapChar = null;
+      window.__swapUserPool = null;
+    }
+
+    async function executeInstantSwap(newCharJsonEncoded) {
+      const newChar = JSON.parse(decodeURIComponent(newCharJsonEncoded));
+      if (!activeSwapTarget) return;
+
+      const target = activeSwapTarget;
+      closeQuickSwapModal();
+
+      const curSheet = sheetsDataStore[target.sheetId];
+      if (curSheet) {
+        curSheet.blocks.forEach(b => {
+          b.slots.forEach(s => {
+            if (s.slotUid === target.slotUid) {
+              s.name = newChar.name;
+              s.job = newChar.job;
+              s.level = newChar.level.toFixed(2);
+              s.pos = newChar.pos;
+            }
+          });
+        });
+        renderActiveTabContent();
+      }
+
+      const payload = {
+        action: 'swap',
+        sheetId: target.sheetId,
+        sheetRow: target.sheetRow,
+        blockIndex: target.blockIndex,
+        slotIndex: target.slotIndex,
+        party: target.party,
+        user: target.user,
+        targetRaid: `[${target.sheetId}] ${target.raidTitle}`,
+        rawRaidTitle: target.rawRaidTitle || target.raidTitle,
+        oldCharName: target.name,
+        oldChar: `${target.name} (${target.job} / ${target.level} / ${target.pos})`,
+        newCharName: newChar.name,
+        newJob: newChar.job,
+        newLevel: newChar.level.toFixed(2),
+        newPos: newChar.pos,
+        reason: '대시보드 원클릭 즉시 변경'
+      };
+
+      try {
+        await fetch(APPS_SCRIPT_WEB_APP_URL, {
+          method: 'POST',
+          mode: 'no-cors',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+      } catch (err) {
+        console.error('시트 저장 오류:', err);
+      }
+    }
+
+    function renderDebugTableView() {
+      const tbody = document.getElementById('debugTableBody');
+      const brackets = [
+        { label: '1780.00 이상', lvl: 1785 },
+        { label: '1770.00 ~ 1779.99', lvl: 1775 },
+        { label: '1750.00 ~ 1769.99', lvl: 1755 },
+        { label: '1740.00 ~ 1749.99', lvl: 1745 },
+        { label: '1730.00 ~ 1739.99', lvl: 1735 },
+        { label: '1720.00 ~ 1729.99', lvl: 1725 },
+        { label: '1710.00 ~ 1719.99', lvl: 1715 },
+        { label: '1700.00 ~ 1709.99', lvl: 1705 }
+      ];
+
+      const shortName = RAID_SHORT_NAME;
+
+      if (raidInfoData.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="3" class="text-center py-8 text-gray-500">Raid_Info 시트 데이터를 가져오지 못했습니다.</td></tr>`;
+        return;
+      }
+
+      const man = v => (v / 10000).toFixed(1);
+
+      // 칩 하나: 이름 + 난이도 + 골드. 귀속이 섞인 레이드는 환산 점수 범위를 같이 보여준다.
+      const chip = (r, kind) => {
+        const cls = kind === 'earn'
+          ? 'bg-amber-950/60 text-amber-300 border-amber-700'
+          : 'bg-cyan-950/60 text-cyan-300 border-cyan-700';
+        const lo = goldScore(r, BOUND_GOLD_WEIGHT_LOW);
+        const hi = goldScore(r, BOUND_GOLD_WEIGHT_HIGH);
+        const amount = r.bound > 0
+          ? `${man(lo)}~${man(hi)}만`
+          : `${man(hi)}만`;
+        const tag = r.bound > 0 ? (r.trade > 0 ? '반반' : '귀속') : '유통';
+        return `<span class="inline-flex items-baseline gap-1.5 px-2 py-1 rounded border text-xs font-semibold whitespace-nowrap ${cls}">`
+          + `<span>${shortName[r.key] || r.key} ${r.diff}</span>`
+          + `<span class="font-mono font-normal opacity-80">${amount}</span>`
+          + `<span class="text-[10px] opacity-60">${tag}</span>`
+          + `</span>`;
+      };
+
+      tbody.innerHTML = brackets.map(b => {
+        const ranked = getCharTop3Raids(b.lvl);
+        const tierMap = computeGoldTiers(b.lvl);
+
+        const earnList = ranked.filter(r => tierMap[r.key] === 'EARN');
+        const choiceList = ranked.filter(r => tierMap[r.key] === 'MAYBE');
+
+        const earnHtml = earnList.map(r => chip(r, 'earn')).join(' ') || '<span class="text-gray-600 text-xs">-</span>';
+
+        let choiceHtml = '<span class="text-gray-600 text-xs">없음 (상위 3개 확정)</span>';
+        if (choiceList.length) {
+          // 선택 구간이 생긴 근거: 밴드 안에 들어오는 역전 w만 표시 (밖은 노이즈라 생략)
+          const flips = [];
+          for (let i = 0; i < choiceList.length; i++) {
+            for (let j = i + 1; j < choiceList.length; j++) {
+              const w = goldBreakEvenW(choiceList[i], choiceList[j]);
+              if (w === null) continue;
+              if (w < BOUND_GOLD_WEIGHT_LOW || w > BOUND_GOLD_WEIGHT_HIGH) continue;
+              flips.push(`${shortName[choiceList[i].key]} ↔ ${shortName[choiceList[j].key]} 역전 w=${w.toFixed(2)}`);
+            }
+          }
+          const note = flips.length
+            ? flips.join(', ')
+            : '환산 점수 동일 (완전 교환 가능)';
+          choiceHtml = choiceList.map(r => chip(r, 'maybe')).join(' ')
+            + `<div class="mt-1.5 text-[11px] text-gray-500 font-mono">${note}</div>`;
+        }
+
+        return `
+          <tr class="hover:bg-gray-800/40 transition align-top">
+            <td class="px-4 py-3 font-semibold text-white font-mono whitespace-nowrap">${b.label}</td>
+            <td class="px-4 py-3"><div class="flex flex-wrap gap-1.5">${earnHtml}</div></td>
+            <td class="px-4 py-3"><div class="flex flex-wrap gap-1.5">${choiceHtml}</div></td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    // ─── 참여 상태 모달 ───────────────────────────────────────
+    function openAttendanceModal() {
+      if (!selectedUser) {
+        alert("상단 헤더의 [내 캐릭터 강조]에서 본인 계정을 먼저 선택해 주세요!");
+        return;
+      }
+      pendingAttendance = { date: '', status: '', memo: '' };
+      const memoEl = document.getElementById('attendanceMemo');
+      if (memoEl) memoEl.value = '';
+
+      renderAttendanceDateList();
+      renderAttendanceStatusList();
+      renderAttendanceMyList();
+      updateAttendanceSubmitState();
+
+      document.body.style.overflow = 'hidden';
+      document.getElementById('attendanceModal').classList.remove('hidden');
+      drawIcons();
+    }
+
+    function closeAttendanceModal() {
+      document.body.style.overflow = '';
+      document.getElementById('attendanceModal').classList.add('hidden');
+    }
+
+    function renderAttendanceDateList() {
+      const box = document.getElementById('attendanceDateList');
+      if (!box) return;
+      box.innerHTML = getUpcomingSaturdays().map(d => {
+        const key = fmtDate(d);
+        const on = pendingAttendance.date === key;
+        return `<button onclick="selectAttendanceDate('${key}')" class="px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition ${
+          on ? 'bg-orange-500/20 text-orange-300 border-orange-500' : 'bg-[#0d1117] text-gray-300 border-gray-700 hover:border-gray-500'
+        }">${fmtDateLabel(d)}</button>`;
+      }).join('');
+    }
+
+    function renderAttendanceStatusList() {
+      const box = document.getElementById('attendanceStatusList');
+      if (!box) return;
+      box.innerHTML = ATTENDANCE_STATUSES.map(st => {
+        const on = pendingAttendance.status === st;
+        return `<button onclick="selectAttendanceStatus('${st}')" class="px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition ${
+          on ? 'bg-orange-500/20 text-orange-300 border-orange-500' : 'bg-[#0d1117] text-gray-300 border-gray-700 hover:border-gray-500'
+        }">${st}</button>`;
+      }).join('');
+    }
+
+    // 본인이 등록한 내역 (앞으로의 날짜만). 같은 날짜는 마지막 등록만 유효하다.
+    function renderAttendanceMyList() {
+      const box = document.getElementById('attendanceMyList');
+      if (!box) return;
+      const base = selectedUser.split('(')[0].trim();
+      const validKeys = getUpcomingSaturdays().map(fmtDate);
+
+      const latest = {};
+      attendanceData.forEach(a => {
+        if (a.user.split('(')[0].trim() !== base) return;
+        if (!validKeys.includes(a.target)) return;
+        latest[a.target] = a;
+      });
+
+      const rows = validKeys.filter(k => latest[k]).map(k => {
+        const a = latest[k];
+        const tone = a.status === '불참' ? 'text-red-400' : (a.status === '지각' ? 'text-amber-400' : 'text-gray-400');
+        return `<div class="flex items-center justify-between bg-[#0d1117] border border-gray-800 rounded-lg px-2.5 py-1.5">
+          <div class="text-xs text-gray-300">
+            <span class="font-mono">${fmtDateLabel(new Date(k + 'T00:00:00'))}</span>
+            <span class="${tone} font-bold ml-1.5">${a.status}</span>
+            ${a.memo ? `<span class="text-gray-500 ml-1.5">${a.memo}</span>` : ''}
+          </div>
+          <button onclick="cancelAttendance('${k}')" class="text-[11px] text-gray-500 hover:text-red-400 transition">삭제</button>
+        </div>`;
+      });
+
+      box.innerHTML = rows.length ? rows.join('') : `<div class="text-xs text-gray-600">등록한 내역이 없습니다.</div>`;
+    }
+
+    function selectAttendanceDate(key) {
+      pendingAttendance.date = key;
+      renderAttendanceDateList();
+      updateAttendanceSubmitState();
+    }
+
+    function selectAttendanceStatus(st) {
+      pendingAttendance.status = st;
+      renderAttendanceStatusList();
+      updateAttendanceSubmitState();
+    }
+
+    function updateAttendanceSubmitState() {
+      const btn = document.getElementById('attendanceSubmitBtn');
+      if (!btn) return;
+      const ready = pendingAttendance.date && pendingAttendance.status;
+      btn.disabled = !ready;
+      btn.textContent = ready
+        ? `${fmtDateLabel(new Date(pendingAttendance.date + 'T00:00:00'))} ${pendingAttendance.status} 등록`
+        : '날짜와 상태를 선택해 주세요';
+    }
+
+    async function submitAttendance() {
+      if (!pendingAttendance.date || !pendingAttendance.status) return;
+      const memoEl = document.getElementById('attendanceMemo');
+      const memo = memoEl ? memoEl.value.trim() : '';
+
+      const record = {
+        at: '',
+        user: selectedUser,
+        kind: '토요일고정',
+        target: pendingAttendance.date,
+        status: pendingAttendance.status,
+        memo: memo
+      };
+
+      // 낙관적 반영: 응답을 읽을 수 없는 no-cors 요청이라 화면을 먼저 갱신한다
+      attendanceData.push(record);
+      renderAttendanceMyList();
+      renderActiveTabContent();
+      pendingAttendance = { date: '', status: '', memo: '' };
+      if (memoEl) memoEl.value = '';
+      renderAttendanceDateList();
+      renderAttendanceStatusList();
+      updateAttendanceSubmitState();
+
+      try {
+        await fetch(APPS_SCRIPT_WEB_APP_URL, {
+          method: 'POST',
+          mode: 'no-cors',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'submitAttendance',
+            user: record.user,
+            kind: record.kind,
+            target: record.target,
+            status: record.status,
+            memo: record.memo
+          })
+        });
+      } catch (err) {
+        console.error('참여 상태 등록 오류:', err);
+      }
+    }
+
+    async function cancelAttendance(dateKey) {
+      const label = fmtDateLabel(new Date(dateKey + 'T00:00:00'));
+      if (!confirm(`${label} 참여 상태 등록을 삭제할까요?`)) return;
+
+      const base = selectedUser.split('(')[0].trim();
+      attendanceData = attendanceData.filter(a =>
+        !(a.target === dateKey && a.user.split('(')[0].trim() === base)
+      );
+      renderAttendanceMyList();
+      renderActiveTabContent();
+
+      try {
+        await fetch(APPS_SCRIPT_WEB_APP_URL, {
+          method: 'POST',
+          mode: 'no-cors',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'cancelAttendance',
+            user: selectedUser,
+            target: dateKey
+          })
+        });
+      } catch (err) {
+        console.error('참여 상태 취소 오류:', err);
+      }
+    }
+
+    function openInfoModal(defaultTab = 'guide') {
+      document.body.style.overflow = 'hidden';
+      document.getElementById('infoModal').classList.remove('hidden');
+      switchInfoTab(defaultTab);
+      drawIcons();
+    }
+
+    function closeInfoModal() {
+      document.body.style.overflow = '';
+      document.getElementById('infoModal').classList.add('hidden');
+    }
+
+    // ─── 건의사항 ─────────────────────────────────────────────
+    function renderSuggestForm() {
+      const needUser = document.getElementById('suggestNeedUser');
+      const form = document.getElementById('suggestForm');
+      const hasUser = !!selectedUser;
+      if (needUser) needUser.classList.toggle('hidden', hasUser);
+      if (form) form.classList.toggle('hidden', !hasUser);
+      if (!hasUser) return;
+
+      const box = document.getElementById('suggestCategoryList');
+      if (box) {
+        box.innerHTML = SUGGEST_CATEGORIES.map(c => {
+          const sel = pendingSuggestCategory === c;
+          return `<button onclick="selectSuggestCategory('${c}')" class="px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition ${
+            sel ? 'bg-yellow-500/20 text-yellow-300 border-yellow-500' : 'bg-[#0d1117] text-gray-300 border-gray-700 hover:border-gray-500'
+          }">${c}</button>`;
+        }).join('');
+      }
+      updateSuggestState();
+      renderSuggestMyList();
+    }
+
+    // 본인이 보낸 건의와 처리상태. 최근 것이 위로 온다.
+    function renderSuggestMyList() {
+      const box = document.getElementById('suggestMyList');
+      if (!box) return;
+      if (!selectedUser) { box.innerHTML = ''; return; }
+
+      const base = selectedUser.split('(')[0].trim();
+      const mine = suggestionsData
+        .filter(x => x.user.split('(')[0].trim() === base)
+        .slice()
+        .reverse();
+
+      if (mine.length === 0) {
+        box.innerHTML = `<div class="text-xs text-gray-600">보낸 건의가 없습니다.</div>`;
+        return;
+      }
+
+      const tone = st =>
+        st === '완료' ? 'bg-emerald-500/15 text-emerald-400 border-emerald-600/40'
+        : (st === '검토중' ? 'bg-amber-500/15 text-amber-400 border-amber-600/40'
+        : (st === '보류' ? 'bg-gray-700/40 text-gray-400 border-gray-600'
+        : 'bg-blue-500/15 text-blue-300 border-blue-600/40'));
+
+      box.innerHTML = mine.map(x => `
+        <div class="bg-[#0d1117] border border-gray-800 rounded-lg px-2.5 py-2">
+          <div class="flex items-center justify-between gap-2 mb-1">
+            <div class="text-[11px] text-gray-500 font-mono">${x.at ? x.at.split(' ')[0] : ''} · ${x.category || '기타'}</div>
+            <div class="flex items-center gap-1.5">
+              <span class="px-1.5 py-0.5 rounded border text-[10px] font-bold whitespace-nowrap ${tone(x.state)}">${x.state || '접수'}</span>
+              ${(x.state || '접수') === '접수'
+                ? `<button onclick="deleteSuggestion('${encodeURIComponent(x.content)}')" class="text-[11px] text-gray-500 hover:text-red-400 transition">삭제</button>`
+                : ''}
+            </div>
+          </div>
+          <div class="text-xs text-gray-300 leading-relaxed whitespace-pre-wrap">${x.content}</div>
+        </div>
+      `).join('');
+    }
+
+    // 접수 상태인 본인 건의만 삭제할 수 있다.
+    // 전송 직후 낙관적으로 추가된 항목은 접수일시가 실제 시트값과 다를 수 있으므로
+    // 내용으로 대상을 특정한다.
+    async function deleteSuggestion(contentEncoded) {
+      const content = decodeURIComponent(contentEncoded);
+      if (!confirm('이 건의를 삭제할까요?')) return;
+
+      const base = selectedUser.split('(')[0].trim();
+      let removedOne = false;
+      suggestionsData = suggestionsData.filter(x => {
+        if (removedOne) return true;
+        const mine = x.user.split('(')[0].trim() === base;
+        if (mine && x.content === content && (x.state || '접수') === '접수') {
+          removedOne = true;
+          return false;
+        }
+        return true;
+      });
+      renderSuggestMyList();
+
+      try {
+        await fetch(APPS_SCRIPT_WEB_APP_URL, {
+          method: 'POST',
+          mode: 'no-cors',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'deleteSuggestion',
+            user: selectedUser,
+            content: content
+          })
+        });
+      } catch (err) {
+        console.error('건의 삭제 오류:', err);
+      }
+    }
+
+    function selectSuggestCategory(cat) {
+      pendingSuggestCategory = cat;
+      renderSuggestForm();
+    }
+
+    function updateSuggestState() {
+      const ta = document.getElementById('suggestContent');
+      const btn = document.getElementById('suggestSubmitBtn');
+      const cnt = document.getElementById('suggestCount');
+      const len = ta ? ta.value.trim().length : 0;
+      if (cnt) cnt.textContent = `${len} / 500`;
+      if (btn) btn.disabled = len < 5;
+    }
+
+    async function submitSuggestion() {
+      const ta = document.getElementById('suggestContent');
+      const result = document.getElementById('suggestResult');
+      const content = ta ? ta.value.trim() : '';
+      if (content.length < 5 || !selectedUser) return;
+
+      // 응답을 읽을 수 없는 no-cors 요청이므로 화면을 먼저 정리한다
+      if (ta) ta.value = '';
+      updateSuggestState();
+      const p = n => String(n).padStart(2, '0');
+      const d = new Date();
+      suggestionsData.push({
+        at: `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:00`,
+        user: selectedUser,
+        category: pendingSuggestCategory,
+        content: content,
+        state: '접수'
+      });
+      renderSuggestMyList();
+      if (result) result.textContent = '접수되었습니다. 감사합니다!';
+      setTimeout(() => { if (result) result.textContent = ''; }, 4000);
+
+      try {
+        await fetch(APPS_SCRIPT_WEB_APP_URL, {
+          method: 'POST',
+          mode: 'no-cors',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'submitSuggestion',
+            user: selectedUser,
+            category: pendingSuggestCategory,
+            content: content
+          })
+        });
+      } catch (err) {
+        console.error('건의사항 전송 오류:', err);
+        if (result) result.textContent = '';
+      }
+    }
+
+    function switchInfoTab(tab) {
+      const on = 'px-4 py-2 text-sm font-semibold border-b-2 border-yellow-500 text-yellow-400 transition';
+      const off = 'px-4 py-2 text-sm font-semibold text-gray-400 hover:text-white transition';
+      const tabs = { guide: 'Guide', changelog: 'Changelog', suggest: 'Suggest' };
+      const active = tabs[tab] ? tab : 'guide';
+
+      Object.keys(tabs).forEach(key => {
+        const btn = document.getElementById('infoTabBtn' + tabs[key]);
+        const box = document.getElementById('infoContent' + tabs[key]);
+        if (btn) btn.className = (key === active) ? on : off;
+        if (box) box.classList.toggle('hidden', key !== active);
+      });
+
+      if (active === 'suggest') {
+        renderSuggestForm();
+        // 처리상태를 최신으로 보여주기 위해 이 탭을 열 때만 받아온다
+        refreshSheets(['Suggestions']);
+      }
+    }
+
+  </script>
+</body>
+</html>
