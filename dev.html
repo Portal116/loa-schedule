@@ -94,7 +94,7 @@
           <i data-lucide="flask-conical" class="w-6 h-6 text-purple-400"></i>
           <span class="font-bold text-lg text-white tracking-wide whitespace-nowrap">로아 공대</span>
           <button onclick="openInfoModal('changelog')" class="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/30 hover:bg-purple-500/20 transition cursor-pointer" title="클릭하여 업데이트 이력 확인">
-            v1.1.4
+            v1.1.5
           </button>
         </div>
 
@@ -779,6 +779,32 @@
       });
       calculateGoldEligibilities(all);
       window.allRaidInstancesStore = all;
+    }
+
+    // 화면에서 슬롯을 편집한 뒤, 그 시트의 편성 인스턴스를 다시 만들고 골드 판정을 재계산한다.
+    // 이 과정을 빼면 새로 넣은 슬롯의 골드 뱃지가 X 로, 교체한 슬롯은 이전 캐릭 기준으로 남는다.
+    function rebuildInstancesForSheet(sheetId) {
+      const cur = sheetsDataStore[sheetId];
+      if (!cur) return;
+      const list = [];
+      cur.blocks.forEach(b => {
+        b.slots.forEach(s => {
+          list.push({
+            charName: s.name,
+            slotUid: s.slotUid,
+            raidTitle: b.title,
+            sheetTitle: cur.config.fixedTitle || sheetId,
+            sheetId: sheetId,
+            sheetRow: s.sheetRow,
+            party: s.party,
+            user: s.user,
+            job: s.job,
+            level: s.level
+          });
+        });
+      });
+      allRaidInstancesBySheet[sheetId] = list;
+      recalcGoldFromStore();
     }
 
     // 현재 보고 있는 화면만 다시 그린다.
@@ -1988,6 +2014,7 @@
       const cur = sheetsDataStore[t.sheetId];
       if (cur) {
         cur.blocks.forEach(b => { b.slots = b.slots.filter(s => s.slotUid !== t.slotUid); });
+        rebuildInstancesForSheet(t.sheetId);
         renderActiveTabContent();
       }
 
@@ -2121,11 +2148,12 @@
             user: newChar.user,
             name: newChar.name,
             job: newChar.job,
-            level: newChar.level.toFixed(2),
+            level: newChar.level.toLocaleString('ko-KR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
             pos: newChar.pos,
             raidTitle: info.raidTitle,
             rawRaidTitle: info.rawRaidTitle
           });
+          rebuildInstancesForSheet(info.sheetId);
           renderActiveTabContent();
         }
       }
@@ -2182,6 +2210,7 @@
             }
           });
         });
+        rebuildInstancesForSheet(target.sheetId);
         renderActiveTabContent();
       }
 
