@@ -924,8 +924,12 @@
           fetchSheetCsv('Config', bust).catch(() => null)
         ]);
 
-        SHEET_CONFIG.forEach((config, idx) => processScheduleSheet(config, sheetRows[idx]));
+        // processScheduleSheet(enrichSlotFromPool 포함)가 characterPoolData 를 조회하므로,
+        // 반드시 parseCharacterPool 을 먼저 실행해야 한다. 순서가 바뀌면 첫 로딩 시
+        // characterPoolData 가 비어 있는 채로 조회되어 전부 '정보 없음'으로 나온다
+        // (새로고침을 누르면 직전 호출의 characterPoolData 가 남아있어 우연히 정상으로 보였다).
         parseCharacterPool(poolRows);
+        SHEET_CONFIG.forEach((config, idx) => processScheduleSheet(config, sheetRows[idx]));
 
         // Attendance / Raid_Info / Config 는 없어도 나머지 기능이 동작해야 한다
         if (attRows) parseAttendance(attRows); else attendanceData = [];
