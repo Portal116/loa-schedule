@@ -94,7 +94,7 @@
           <i data-lucide="flask-conical" class="w-6 h-6 text-purple-400"></i>
           <span class="font-bold text-lg text-white tracking-wide whitespace-nowrap">로아 공대</span>
           <button onclick="openInfoModal('changelog')" class="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/30 hover:bg-purple-500/20 transition cursor-pointer" title="클릭하여 업데이트 이력 확인">
-            v1.1.5
+            v1.1.7
           </button>
         </div>
 
@@ -317,7 +317,15 @@
       </div>
 
       <div class="space-y-2">
-        <label class="block text-xs font-semibold text-gray-400" id="swapModalUserLabel">교체할 내 캐릭터 선택</label>
+        <div class="flex items-center justify-between gap-2">
+          <label class="block text-xs font-semibold text-gray-400" id="swapModalUserLabel">교체할 내 캐릭터 선택</label>
+          <span class="text-[11px] text-gray-500" id="swapSearchCount"></span>
+        </div>
+        <div class="relative">
+          <i data-lucide="search" class="w-3.5 h-3.5 text-gray-500 absolute left-2.5 top-1/2 -translate-y-1/2"></i>
+          <input type="text" id="swapSearchInput" oninput="filterSwapCandidates()" placeholder="캐릭터명 검색"
+            class="w-full bg-[#0d1117] border border-gray-700 rounded-lg pl-8 pr-3 py-1.5 text-xs text-gray-200 placeholder-gray-600 focus:outline-none focus:border-yellow-500 transition" />
+        </div>
         <div class="space-y-2 max-h-64 overflow-y-auto modal-scroll pr-1.5" id="swapCharListContainer"></div>
       </div>
 
@@ -1306,9 +1314,18 @@
         const isSupporter = slot.pos === '서포터';
         const isSwap = slot.pos === '스왑가능';
         const goldStatus = slotGoldStatusMap[slot.slotUid] || 'NONE';
+
+        // 일정표 시트의 레벨 칸은 그 캐릭이 처음 편성될 때 값이 그대로 박제되고,
+        // 이후 캐릭터 풀이 API로 갱신돼도 일정표까지는 다시 쓰이지 않는다.
+        // 골드 판정(calculateGoldEligibilities)은 이미 캐릭터 풀 최신 레벨을 쓰므로 항상 정확하지만,
+        // 화면에 보이는 숫자는 옛 값일 수 있어 여기서 최신 값으로 바꿔 보여준다.
+        const poolChar = characterPoolData.find(c => c.name === slot.name);
+        const displayLevel = poolChar
+          ? poolChar.level.toLocaleString('ko-KR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+          : slot.level;
+
         let slotMaybeDesc = '';
         if (goldStatus === 'MAYBE') {
-          const poolChar = characterPoolData.find(c => c.name === slot.name);
           slotMaybeDesc = getMaybePairDesc(poolChar ? poolChar.level : parseFloat(slot.level) || 0);
         }
 
@@ -1361,7 +1378,7 @@
             <div class="flex items-center space-x-2.5 sm:space-x-3 text-right">
               ${renderGoldBadge(goldStatus, slotMaybeDesc)}
               <span class="text-xs text-gray-400 hidden sm:inline">${slot.job}</span>
-              <span class="text-sm font-mono font-medium text-yellow-500/90">${slot.level}</span>
+              <span class="text-sm font-mono font-medium text-yellow-500/90">${displayLevel}</span>
             </div>
           </div>
         `;
@@ -1944,12 +1961,44 @@
         .filter(x => !x.blockReason);
     }
 
+    // 캐릭터가 많은 계정에서 원하는 캐릭을 찾기 쉽도록 검색을 지원한다.
+    // 원본 후보 목록(window.__swapAllCandidates)은 그대로 두고, 검색 시에는
+    // 필터링된 결과만 다시 그린다. 인덱스는 항상 '필터링된 목록' 기준으로 매긴다
+    // (selectSwapCandidate 가 그 인덱스로 caridate를 찾기 때문).
     function renderSwapCandidateList(cands, currentCharName) {
+      window.__swapAllCandidates = cands;
+      window.__swapCurrentCharName = currentCharName;
+
+      const searchInput = document.getElementById('swapSearchInput');
+      if (searchInput) searchInput.value = '';
+
+      renderFilteredSwapList(cands);
+    }
+
+    function filterSwapCandidates() {
+      const all = window.__swapAllCandidates || [];
+      const keyword = (document.getElementById('swapSearchInput').value || '').trim().toLowerCase();
+      const filtered = keyword
+        ? all.filter(x => x.c.name.toLowerCase().includes(keyword))
+        : all;
+      renderFilteredSwapList(filtered);
+    }
+
+    function renderFilteredSwapList(cands) {
       const container = document.getElementById('swapCharListContainer');
+      const countEl = document.getElementById('swapSearchCount');
       window.__swapUserPool = cands.map(x => x.c);
 
+      const all = window.__swapAllCandidates || [];
+      if (countEl) {
+        countEl.textContent = (cands.length === all.length) ? `${all.length}명` : `${cands.length} / ${all.length}명`;
+      }
+
       if (cands.length === 0) {
-        container.innerHTML = `<div class="text-center py-6 text-xs text-gray-500">넣을 수 있는 캐릭터가 없습니다.<br><span class="text-[11px]">입장 레벨이 되고 이번 주 해당 레이드에 참여하지 않은 캐릭터만 표시됩니다.</span></div>`;
+        const noResultReason = (all.length > 0)
+          ? '검색 결과가 없습니다.'
+          : '넣을 수 있는 캐릭터가 없습니다.<br><span class="text-[11px]">입장 레벨이 되고 이번 주 해당 레이드에 참여하지 않은 캐릭터만 표시됩니다.</span>';
+        container.innerHTML = `<div class="text-center py-6 text-xs text-gray-500">${noResultReason}</div>`;
         return;
       }
 
@@ -1973,6 +2022,7 @@
           </div>
         `;
       }).join('');
+      drawIcons();
     }
 
     function openAddSlotModal(payloadEncoded) {
