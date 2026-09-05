@@ -749,6 +749,29 @@
     }
 
     // 일정표 시트 1개를 파싱해서 저장소에 반영한다.
+    // 시트에는 유저명(본/부 구분 없는 base 가능)과 캐릭터명만 있다.
+    // 직업/레벨/포지션, 그리고 정확한 유저명(본/부 포함)은 캐릭터명으로 Character_Pool 을
+    // 조회해서 슬롯 자체에 채워 넣는다. 이후 모든 코드는 slot.user/job/level/pos 를
+    // 그냥 읽으면 되고, "어디서 조회하나"를 신경 쓸 필요가 없다.
+    // 풀에서 못 찾으면(오타·탈퇴 등) 시트의 유저명만 살리고 나머지는 '정보 없음'.
+    function enrichSlotFromPool(slot) {
+      const poolChar = characterPoolData.find(c => c.name === slot.name);
+      if (poolChar) {
+        slot.user = poolChar.user;
+        slot.job = poolChar.job;
+        slot.level = poolChar.level;
+        slot.pos = poolChar.pos;
+        slot.foundInPool = true;
+      } else {
+        slot.user = slot.user || '(알 수 없음)';
+        slot.job = '정보 없음';
+        slot.level = 0;
+        slot.pos = '딜러'; // 배지 판단이 깨지지 않도록 기본값
+        slot.foundInPool = false;
+      }
+      return slot;
+    }
+
     function processScheduleSheet(config, rows) {
       const blocks = parseRaidBlocksRobust(rows, config.is8Man, config.id);
       const groupUsers = new Set();
@@ -756,6 +779,7 @@
 
       blocks.forEach(b => {
         b.slots.forEach(sl => {
+          enrichSlotFromPool(sl);
           if (sl.user && !isHeaderWord(sl.user)) {
             const baseUser = sl.user.split('(')[0].trim();
             if (baseUser) {
@@ -771,7 +795,7 @@
               sheetTitle: config.fixedTitle || config.id,
               sheetId: config.id,
               sheetRow: sl.sheetRow,
-              party: sl.party,
+              colIndex: sl.colIndex,
               user: sl.user,
               job: sl.job,
               level: sl.level
@@ -815,7 +839,7 @@
             sheetTitle: cur.config.fixedTitle || sheetId,
             sheetId: sheetId,
             sheetRow: s.sheetRow,
-            party: s.party,
+            colIndex: s.colIndex,
             user: s.user,
             job: s.job,
             level: s.level
@@ -1007,110 +1031,62 @@
       return rawTitle.replace(/(유저명|캐릭터명|직업|레벨|포지션)/g, '').trim();
     }
 
+    // ─── 새 시트 구조 파서 ─────────────────────────────────────
+    // 레이드 블록 하나 = 2행.
+    //   1행: A열에 레이드명(대괄호), B열부터 유저명이 가로로 나열
+    //   2행: A열은 레이드명과 병합(비어있음), B열부터 캐릭터명이 가로로 나열
+    // 직업/레벨/포지션은 시트에 저장하지 않고, 캐릭터명으로 characterPoolData 에서 조회한다
+    // (renderPartySlots 렌더링 시점에 처리 — 여기서는 user/name/slotUid 등 골격만 만든다).
+    // 파티(1/2) 개념은 없다. 열 하나가 곧 한 자리다.
     function parseRaidBlocksRobust(rows, is8Man, sheetId) {
       const blocks = [];
       let r = 0;
       let blockIdx = 0;
+      const maxCap = is8Man ? 8 : 8; // 정원은 Raid_Info 로 나중에 다시 제한하므로 넉넉히 스캔
 
       while (r < rows.length) {
         const row = rows[r] || [];
-        
-        let foundTitle = '';
-        for (let col = 0; col < (is8Man ? 10 : 5); col++) {
-          const val = (row[col] || '').toString().trim();
-          if (val.startsWith('[') && val.includes(']')) {
-            foundTitle = val;
-            break;
-          }
-        }
+        const titleCell = (row[0] || '').toString().trim();
 
-        if (foundTitle) {
-          const cleanTitle = sanitizeTitle(foundTitle);
-          const rawTitle = foundTitle;
+        if (titleCell.startsWith('[') && titleCell.includes(']')) {
+          const rawTitle = titleCell;
+          const cleanTitle = sanitizeTitle(rawTitle);
+          const nameRow = row;                 // 1행: 유저명
+          const charRow = rows[r + 1] || [];    // 2행: 캐릭터명
           const slots = [];
-          
-          r++;
 
-          if (r < rows.length) {
-            const checkRow = rows[r] || [];
-            const isHeader = isHeaderWord((checkRow[0] || '').toString()) || isHeaderWord((checkRow[1] || '').toString());
-            if (isHeader) r++;
-          }
+          for (let col = 1; col <= maxCap; col++) {
+            const user = (nameRow[col] || '').toString().trim();
+            const name = (charRow[col] || '').toString().trim();
+            if (!name || isHeaderWord(name)) continue;
 
-          for (let slotIdx = 0; slotIdx < 4 && r < rows.length; slotIdx++, r++) {
-            const curRow = rows[r] || [];
-            const actualSheetRow = r + 1;
-
-            let nextTitleCheck = '';
-            for (let col = 0; col < (is8Man ? 10 : 5); col++) {
-              const val = (curRow[col] || '').toString().trim();
-              if (val.startsWith('[') && val.includes(']')) {
-                nextTitleCheck = val;
-                break;
-              }
-            }
-            if (nextTitleCheck) {
-              r--;
-              break;
-            }
-
-            const user1 = (curRow[0] || '').toString().trim();
-            const char1 = (curRow[1] || '').toString().trim();
-            const job1  = (curRow[2] || '').toString().trim();
-            const lvl1  = (curRow[3] || '').toString().trim();
-            const pos1  = (curRow[4] || '').toString().trim();
-
-            const user2 = (curRow[5] || '').toString().trim();
-            const char2 = (curRow[6] || '').toString().trim();
-            const job2  = (curRow[7] || '').toString().trim();
-            const lvl2  = (curRow[8] || '').toString().trim();
-            const pos2  = (curRow[9] || '').toString().trim();
-
-            if (char1 && !isHeaderWord(char1)) {
-              slots.push({
-                slotUid: `${sheetId}_b${blockIdx}_p1_s${slotIdx}_${char1}`,
-                sheetId: sheetId,
-                sheetRow: actualSheetRow,
-                slotIndex: slotIdx,
-                party: 1,
-                user: user1,
-                name: char1,
-                job: job1,
-                level: lvl1,
-                pos: pos1 || (slotIdx === 3 ? '서포터' : '딜러'),
-                raidTitle: cleanTitle,
-                rawRaidTitle: rawTitle
-              });
-            }
-
-            if (is8Man && char2 && !isHeaderWord(char2)) {
-              slots.push({
-                slotUid: `${sheetId}_b${blockIdx}_p2_s${slotIdx}_${char2}`,
-                sheetId: sheetId,
-                sheetRow: actualSheetRow,
-                slotIndex: slotIdx,
-                party: 2,
-                user: user2,
-                name: char2,
-                job: job2,
-                level: lvl2,
-                pos: pos2 || (slotIdx === 3 ? '서포터' : '딜러'),
-                raidTitle: cleanTitle,
-                rawRaidTitle: rawTitle
-              });
-            }
+            slots.push({
+              slotUid: `${sheetId}_b${blockIdx}_c${col}_${name}`,
+              sheetId: sheetId,
+              sheetRow: r + 1,        // 레이드명이 있는 행(1행 기준, 2행은 +1)
+              colIndex: col,          // B열=1, C열=2 ...
+              blockIndex: blockIdx,
+              user: user,
+              name: name,
+              // 직업/레벨/포지션은 렌더링 시점에 characterPoolData 조회로 채운다 (아래 placeholder)
+              job: '',
+              level: '',
+              pos: '',
+              raidTitle: cleanTitle,
+              rawRaidTitle: rawTitle
+            });
           }
 
           if (slots.length > 0) {
-            // 같은 제목의 블록이 여러 개일 때 시트에서 정확한 블록을 찾기 위한 순번
-            slots.forEach(sl => { sl.blockIndex = blockIdx; });
             blocks.push({ title: cleanTitle, rawTitle, slots, is8Man, sheetId: sheetId });
             blockIdx++;
           }
+          r += 2; // 레이드 블록은 항상 2행
         } else {
           r++;
         }
       }
+
       // 같은 레이드가 한 시트에 여러 번 나오면 등장 순서대로 'N회차'를 붙인다.
       // 시트에 이미 회차가 적혀 있으면 그대로 두고, 1번만 나오는 레이드에는 붙이지 않는다.
       // rawTitle(시트 원본 문자열)은 슬롯 덮어쓰기 매칭에 쓰이므로 절대 바꾸지 않는다.
@@ -1130,6 +1106,7 @@
     }
 
     function populateUserSelector() {
+
       const select = document.getElementById('userSelector');
       const poolUserSelect = document.getElementById('poolUserFilter');
 
@@ -1324,23 +1301,22 @@
 
     function renderPartySlots(slots) {
       return slots.map(slot => {
-        const isMe = selectedUser && slot.user.startsWith(selectedUser);
+        // slot.user/job/level/pos 는 enrichSlotFromPool 이 이미 Character_Pool 기준으로
+        // 채워둔 값이다 (풀에서 못 찾았으면 job='정보 없음', level=0).
+        const displayUser = slot.user;
+        const displayJob = slot.job;
+        const displayLevel = slot.foundInPool
+          ? slot.level.toLocaleString('ko-KR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+          : '정보 없음';
+
+        const isMe = selectedUser && displayUser.startsWith(selectedUser);
         const isSupporter = slot.pos === '서포터';
         const isSwap = slot.pos === '스왑가능';
         const goldStatus = slotGoldStatusMap[slot.slotUid] || 'NONE';
 
-        // 일정표 시트의 레벨 칸은 그 캐릭이 처음 편성될 때 값이 그대로 박제되고,
-        // 이후 캐릭터 풀이 API로 갱신돼도 일정표까지는 다시 쓰이지 않는다.
-        // 골드 판정(calculateGoldEligibilities)은 이미 캐릭터 풀 최신 레벨을 쓰므로 항상 정확하지만,
-        // 화면에 보이는 숫자는 옛 값일 수 있어 여기서 최신 값으로 바꿔 보여준다.
-        const poolChar = characterPoolData.find(c => c.name === slot.name);
-        const displayLevel = poolChar
-          ? poolChar.level.toLocaleString('ko-KR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-          : slot.level;
-
         let slotMaybeDesc = '';
         if (goldStatus === 'MAYBE') {
-          slotMaybeDesc = getMaybePairDesc(poolChar ? poolChar.level : parseFloat(slot.level) || 0);
+          slotMaybeDesc = getMaybePairDesc(slot.foundInPool ? slot.level : 0);
         }
 
         let posBadge = `<span class="badge-dealer text-[11px] font-semibold px-2 py-0.5 rounded">딜러</span>`;
@@ -1362,7 +1338,7 @@
         let attTag = '';
         let attDim = '';
         if (slot.sheetId === 'Main_8Man') {
-          const att = getAttendanceFor(slot.user, getCurrentSaturdayKey());
+          const att = getAttendanceFor(displayUser, getCurrentSaturdayKey());
           if (att) {
             const tone = att.status === '불참'
               ? 'bg-red-500/20 text-red-300 border-red-500/60'
@@ -1384,14 +1360,14 @@
             <div class="flex items-center space-x-3">
               ${posBadge}
               <div class="flex flex-col sm:flex-row sm:items-center sm:space-x-2">
-                <span class="text-xs text-gray-400 font-medium">${slot.user}</span>
+                <span class="text-xs text-gray-400 font-medium">${displayUser}</span>
                 <span class="text-sm font-semibold text-gray-200">${slot.name}</span>
               </div>
               ${attTag}
             </div>
             <div class="flex items-center space-x-2.5 sm:space-x-3 text-right">
               ${renderGoldBadge(goldStatus, slotMaybeDesc)}
-              <span class="text-xs text-gray-400 hidden sm:inline">${slot.job}</span>
+              <span class="text-xs text-gray-400 hidden sm:inline">${displayJob}</span>
               <span class="text-sm font-mono font-medium text-yellow-500/90">${displayLevel}</span>
             </div>
           </div>
@@ -2132,7 +2108,7 @@
             action: 'clearSlot',
             sheetId: t.sheetId,
             sheetRow: t.sheetRow,
-            party: t.party,
+            colIndex: t.colIndex,
             blockIndex: t.blockIndex,
             rawRaidTitle: t.rawRaidTitle || t.raidTitle,
             targetRaid: `[${t.sheetId}] ${t.raidTitle}`,
@@ -2247,13 +2223,13 @@
             slotUid: `${info.sheetId}_pending_${newChar.name}`,
             sheetId: info.sheetId,
             sheetRow: 0,
-            slotIndex: blk.slots.length,
+            colIndex: blk.slots.length + 1, // 실제 열은 서버가 정하므로 대략값. 갱신 시 정확한 값으로 덮임
             blockIndex: info.blockIndex,
-            party: 1,
             user: newChar.user,
             name: newChar.name,
             job: newChar.job,
-            level: newChar.level.toLocaleString('ko-KR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+            level: newChar.level,
+            foundInPool: true,
             pos: newChar.pos,
             raidTitle: info.raidTitle,
             rawRaidTitle: info.rawRaidTitle
@@ -2324,8 +2300,7 @@
         sheetId: target.sheetId,
         sheetRow: target.sheetRow,
         blockIndex: target.blockIndex,
-        slotIndex: target.slotIndex,
-        party: target.party,
+        colIndex: target.colIndex,
         user: target.user,
         targetRaid: `[${target.sheetId}] ${target.raidTitle}`,
         rawRaidTitle: target.rawRaidTitle || target.raidTitle,
