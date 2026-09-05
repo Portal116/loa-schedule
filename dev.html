@@ -15,7 +15,7 @@
       const ID = '1dDM5LoLM75hhojd8p1vA-095J-HcOgFQPTQiaErXHi0';
       const bust = Date.now();
       const names = ['Main_8Man', 'Sub_Group1', 'Sub_Group2', 'Sub_Group3', 'Sub_Group4',
-                     'Character_Pool', 'Attendance', 'Raid_Info'];
+                     'Character_Pool', 'Attendance', 'Raid_Info', 'Config'];
       const map = {};
       names.forEach(n => {
         const url = `https://docs.google.com/spreadsheets/d/${ID}/gviz/tq?tqx=out:csv&sheet=${encodeURI(n)}&t=${bust}`;
@@ -133,6 +133,15 @@
       </div>
     </div>
   </header>
+
+  <!-- 점검 안내 배너. Config 시트의 '점검모드'/'공지문구' 값을 그대로 표시한다.
+       재배포 없이 시트 값만 바꾸면 켜고 끌 수 있다. dev 빌드는 문구 앞에 [DEV] 를 붙여 구분한다. -->
+  <div id="maintenanceBanner" class="hidden bg-amber-500/15 border-b border-amber-600/40">
+    <div class="max-w-7xl mx-auto px-4 py-2.5 flex items-center gap-2 text-xs text-amber-300">
+      <i data-lucide="alert-triangle" class="w-4 h-4 shrink-0"></i>
+      <span id="maintenanceBannerText"></span>
+    </div>
+  </div>
 
   <main class="max-w-7xl mx-auto px-4 mt-6">
     <!-- 1. 일정표 뷰 -->
@@ -536,6 +545,7 @@
   </div>
 
   <script>
+    const IS_DEV = true;  // 테스트(dev.html). 정식 index.html 은 false 로 되어 있다.
     const SPREADSHEET_ID = '1dDM5LoLM75hhojd8p1vA-095J-HcOgFQPTQiaErXHi0';
     // 테스트 배포(dev) 전용 엔드포인트. 정식(index.html)은 별도 배포 URL을 쓴다.
     const APPS_SCRIPT_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbyMFY1uL2u_rxVtrOqgDLVkQOCBQBO_58MlXWJI8lZgnqMXa95EDJXnxnoISFnsi8GG/exec';
@@ -604,6 +614,7 @@
     let activeAddTarget = null;   // 'add' 모드의 대상 블록 정보
     let goldEligibleCharNames = new Set();
     let attendanceData = [];          // Attendance 시트 원본
+    let siteConfig = { maintenanceMode: false, noticeText: '' };  // Config 시트 원본
     let suggestionsData = [];         // Suggestions 시트 원본
     // 시트별로 편성 인스턴스를 나눠 보관한다. 한 시트만 다시 받아도 골드 재계산이 가능해진다.
     let allRaidInstancesBySheet = {};
@@ -881,19 +892,22 @@
       try {
         // 시트를 순차로 받으면 왕복 8번이 그대로 더해진다. 서로 의존하지 않으므로 전부 병렬로 받는다.
         const bust = Date.now();
-        const [sheetRows, poolRows, attRows, raidRows] = await Promise.all([
+        const [sheetRows, poolRows, attRows, raidRows, configRows] = await Promise.all([
           Promise.all(SHEET_CONFIG.map(cfg => fetchSheetCsv(cfg.id, bust))),
           fetchSheetCsv('Character_Pool', bust),
           fetchSheetCsv('Attendance', bust).catch(() => null),
-          fetchSheetCsv('Raid_Info', bust).catch(() => null)
+          fetchSheetCsv('Raid_Info', bust).catch(() => null),
+          fetchSheetCsv('Config', bust).catch(() => null)
         ]);
 
         SHEET_CONFIG.forEach((config, idx) => processScheduleSheet(config, sheetRows[idx]));
         parseCharacterPool(poolRows);
 
-        // Attendance / Raid_Info 는 없어도 나머지 기능이 동작해야 한다
+        // Attendance / Raid_Info / Config 는 없어도 나머지 기능이 동작해야 한다
         if (attRows) parseAttendance(attRows); else attendanceData = [];
         if (raidRows) parseRaidInfo(raidRows);
+        parseSiteConfig(configRows);
+        renderMaintenanceBanner();
 
         recalcGoldFromStore();
         renderCurrentViews();
@@ -1781,6 +1795,47 @@
 
     // ─── Attendance 시트 파싱 ─────────────────────────────────
     // 열: A신청일시 B유저명 C구분 D대상 E상태 F메모
+    // Config 시트 파싱. 재배포 없이 시트 값만 바꿔서 대시보드 동작(점검 배너 등)을
+    // 조정할 수 있도록 하는 설정용 시트. 없거나 값이 비어 있으면 기본값(정상 상태)으로 둔다.
+    function parseSiteConfig(rows) {
+      siteConfig = { maintenanceMode: false, noticeText: '' };
+      if (!rows || rows.length < 2) return;
+
+      const map = {};
+      for (let r = 1; r < rows.length; r++) {
+        const row = rows[r] || [];
+        const key = (row[0] || '').toString().trim();
+        const val = (row[1] || '').toString().trim();
+        if (key) map[key] = val;
+      }
+
+      siteConfig.maintenanceMode = (map['점검모드'] || '').toUpperCase() === 'TRUE';
+      siteConfig.noticeText = map['공지문구'] || '';
+    }
+
+    // 점검 배너 표시.
+    // dev 빌드는 공대원이 아니라 나 혼자 테스트하는 환경이라, 실제 정식 화면이
+    // 어떻게 보이는지 그대로 재현해야 검증 의미가 있다. 배너가 dev 에도 뜨면
+    // '정상 상태의 정식 화면'을 확인할 방법이 없어지므로, dev 에서는 항상 숨긴다.
+    function renderMaintenanceBanner() {
+      const banner = document.getElementById('maintenanceBanner');
+      if (!banner) return;
+
+      if (typeof IS_DEV !== 'undefined' && IS_DEV) {
+        banner.classList.add('hidden');
+        return;
+      }
+
+      const textEl = document.getElementById('maintenanceBannerText');
+      if (!siteConfig.maintenanceMode || !siteConfig.noticeText) {
+        banner.classList.add('hidden');
+        return;
+      }
+
+      textEl.textContent = siteConfig.noticeText;
+      banner.classList.remove('hidden');
+    }
+
     function parseAttendance(rows) {
       attendanceData = [];
       // 시트가 없으면 gviz가 오류 페이지를 반환한다(예외가 아님). 헤더로 유효성을 확인한다.
