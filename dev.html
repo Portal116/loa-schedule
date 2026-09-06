@@ -94,7 +94,7 @@
           <i data-lucide="flask-conical" class="w-6 h-6 text-purple-400"></i>
           <span class="font-bold text-lg text-white tracking-wide whitespace-nowrap">로아 공대</span>
           <button onclick="openInfoModal('changelog')" class="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/30 hover:bg-purple-500/20 transition cursor-pointer" title="클릭하여 업데이트 이력 확인">
-            v1.1.27
+            v1.1.28
           </button>
         </div>
 
@@ -3313,6 +3313,22 @@
       }
     }
 
+    // Raid_Info 의 축약어(abbr 열)와 짧은 난이도 표기로 블록 제목을 만든다 -
+    // 기존에 수동으로 만들어진 블록들이 전부 "[성당 3단]", "[세르카 나메]" 처럼 축약형이라
+    // 새로 추가하는 블록도 같은 형식으로 맞춰야 같은 계열로 인식되고 회차 번호도 자연스럽게 이어진다.
+    function getAbbrRaidTitleParts(name, diff) {
+      const row = raidInfoData.find(r => r.name === name && r.diff === diff);
+      const abbrName = (row && row.abbr) ? row.abbr : name;
+      let abbrDiff = (diff || '').toString();
+      if (abbrDiff.includes('나이트메어')) {
+        abbrDiff = '나메';
+      } else {
+        const m = abbrDiff.match(/^([0-9])단계$/);
+        if (m) abbrDiff = `${m[1]}단`;
+      }
+      return { abbrName, abbrDiff };
+    }
+
     async function confirmAddBlock() {
       if (!addBlockCurrentRaid || addBlockSelectedChars.size === 0) return;
       const sheetId = currentActiveTab;
@@ -3321,6 +3337,7 @@
         return { user: c ? c.user : '', name: name };
       });
       const raid = addBlockCurrentRaid;
+      const { abbrName, abbrDiff } = getAbbrRaidTitleParts(raid.name, raid.diff);
 
       closeAddBlockModal();
 
@@ -3332,8 +3349,8 @@
           body: JSON.stringify({
             action: 'addBlock',
             sheetId: sheetId,
-            raidName: raid.name,
-            diff: raid.diff,
+            raidName: abbrName,
+            diff: abbrDiff,
             requestedBy: selectedUser,
             characters: chars
           })
