@@ -94,7 +94,7 @@
           <i data-lucide="flask-conical" class="w-6 h-6 text-purple-400"></i>
           <span class="font-bold text-lg text-white tracking-wide whitespace-nowrap">로아 공대</span>
           <button onclick="openInfoModal('changelog')" class="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/30 hover:bg-purple-500/20 transition cursor-pointer" title="클릭하여 업데이트 이력 확인">
-            v1.1.16
+            v1.1.19
           </button>
         </div>
 
@@ -1344,7 +1344,9 @@
 
         // 레이아웃(2열 그리드냐 1열 목록이냐)은 시트가 아니라 이 블록의 실제 정원(Raid_Info 기준)으로
         // 정한다 - 서브조도 8인 레이드면 Main_8Man 처럼 2열로 넓게 보여준다.
-        const isWide = getBlockCapacity(block) > 4;
+        // 여기서 한 번만 계산해서 renderAddSlotRow 에도 그대로 넘긴다 (블록당 반복 조회 방지).
+        const cap = getBlockCapacity(block);
+        const isWide = cap > 4;
 
         const blockIndex = block.slots.length ? block.slots[0].blockIndex : 0;
         const blockKey = `${block.sheetId}_${blockIndex}`;
@@ -1386,7 +1388,7 @@
                 ${renderPartySlots(orderSlotsFor8Man(block.slots))}
               </div>
             `;
-            innerHTML += renderAddSlotRow(block);
+            innerHTML += renderAddSlotRow(block, cap);
           } else {
             const sortedSlots = [...block.slots].sort((a, b) => {
               const isSuppA = (a.pos === '서포터' || a.pos === '스왑가능');
@@ -1399,7 +1401,7 @@
             innerHTML += `
               <div class="space-y-1.5 max-w-2xl">
                 ${renderPartySlots(sortedSlots)}
-                ${renderAddSlotRow(block)}
+                ${renderAddSlotRow(block, cap)}
               </div>
             `;
           }
@@ -1724,7 +1726,14 @@
     //
     // status: 'V' = 일정표 자동 등록, 'W' = 개별 수동 완료, '' = 미완료
     // goldTier: 'EARN' | 'MAYBE' | 'NONE' | undefined
-    function renderRaidTag(label, status, charLevel, raidKey, charName, goldTier, maybeDesc) {
+    // 지금 이 캐릭터가 일정표에 이 레이드 계열(famKey)로 편성되어 있는지 (완료 여부 무관).
+    function isScheduledInFamily(charName, famKey) {
+      return (window.allRaidInstancesStore || []).some(i =>
+        i.charName === charName && getRaidFamilyKey(i.raidTitle) === famKey
+      );
+    }
+
+    function renderRaidTag(label, status, charLevel, raidKey, charName, goldTier, maybeDesc, isScheduled) {
       const minCut = getRaidMinLevel(raidKey);
       const canEnter = charLevel >= minCut;
       const base = 'px-1.5 py-0.5 rounded text-[10px] font-bold select-none';
@@ -1758,7 +1767,13 @@
         return `<span onclick="toggleManualHomework('${esc}','${raidKey}')" class="${base} ${tone.fill} border border-dashed ${tone.border} cursor-pointer hover:brightness-125 transition"${tip}>${label} ✓</span>`;
       }
 
-      // 3) 미완료 — 속이 빈 상태. 골드 대상이면 색으로 남아 우선순위가 보인다.
+      // 3) 편성됨(완료 전) — 일정표에 이 레이드로 편성되어 있어 개별 체크를 못 쓰는 상태.
+      // 실선 테두리로 'V처럼 잠겨있음'을 나타내고, 🔗로 "이 레이드에 묶여있음"을 표시한다.
+      if (isScheduled) {
+        return `<span class="${base} bg-transparent border ${tone.border} ${tone.hollow} cursor-not-allowed opacity-90" title="일정표에 편성되어 있어 개별 체크를 쓸 수 없습니다 - 해당 블록을 완료 처리하면 자동으로 체크됩니다">${label} 🔗</span>`;
+      }
+
+      // 4) 미완료(편성도 안 됨) — 속이 빈 상태. 골드 대상이면 색으로 남아 우선순위가 보인다.
       return `<span onclick="toggleManualHomework('${esc}','${raidKey}')" class="${base} bg-transparent border border-dashed ${tone.border} ${tone.hollow}${help} font-medium cursor-pointer hover:brightness-125 transition"${tip}>${label}</span>`;
     }
 
@@ -1769,6 +1784,13 @@
 
       const curStatus = charObj.raids[raidKey];
       if (curStatus === 'V') return; // 공대 일정 종속 상태는 웹에서 해제 불가
+
+      // 완료 여부와 무관하게, 지금 일정표에 이 레이드 계열로 편성되어 있으면 개별 체크를 못 쓴다 -
+      // 그 레이드는 해당 블록의 완료 처리로만 체크되어야 한다. (슬롯에서 빼면 다시 가능해짐 - 정상 경로)
+      if (isScheduledInFamily(charName, raidKey)) {
+        alert('이 캐릭터는 지금 일정표에 편성되어 있어요. 이 레이드는 해당 블록의 완료 처리로만 체크됩니다.');
+        return;
+      }
 
       const minCut = getRaidMinLevel(raidKey);
       if (curStatus !== 'W' && charObj.level < minCut) return; // 입장 불가 레벨이면 클릭 무시
@@ -1924,11 +1946,11 @@
                 ${isMe ? `onclick="editPlannedLevel('${c.name.replace(/'/g, "\\'")}')" title="클릭해서 예정 레벨 수정"` : ''}
               >${c.level.toLocaleString('ko-KR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
               <div class="flex items-center flex-wrap justify-end gap-1">
-                ${renderRaidTag('종막', c.raids.final, c.level, 'final', c.name, tierMap.final, maybeDesc)}
-                ${renderRaidTag('4막', c.raids.act4, c.level, 'act4', c.name, tierMap.act4, maybeDesc)}
-                ${renderRaidTag('성당', c.raids.cathedral, c.level, 'cathedral', c.name, tierMap.cathedral, maybeDesc)}
-                ${renderRaidTag('세르카', c.raids.serka, c.level, 'serka', c.name, tierMap.serka, maybeDesc)}
-                ${renderRaidTag('벨가', c.raids.belga, c.level, 'belga', c.name, tierMap.belga, maybeDesc)}
+                ${renderRaidTag('종막', c.raids.final, c.level, 'final', c.name, tierMap.final, maybeDesc, isScheduledInFamily(c.name, 'final'))}
+                ${renderRaidTag('4막', c.raids.act4, c.level, 'act4', c.name, tierMap.act4, maybeDesc, isScheduledInFamily(c.name, 'act4'))}
+                ${renderRaidTag('성당', c.raids.cathedral, c.level, 'cathedral', c.name, tierMap.cathedral, maybeDesc, isScheduledInFamily(c.name, 'cathedral'))}
+                ${renderRaidTag('세르카', c.raids.serka, c.level, 'serka', c.name, tierMap.serka, maybeDesc, isScheduledInFamily(c.name, 'serka'))}
+                ${renderRaidTag('벨가', c.raids.belga, c.level, 'belga', c.name, tierMap.belga, maybeDesc, isScheduledInFamily(c.name, 'belga'))}
               </div>
             </div>
           </div>
@@ -2351,9 +2373,10 @@
     // ─── 빈 자리에 본인 추가 ──────────────────────────────────
     // 정원이 남아 있고 본인이 그 블록에 없을 때만 한 줄 노출한다.
     // 빈 칸이 몇 개든 화면에는 한 줄이고, 실제 기록할 행은 서버가 찾는다.
-    function renderAddSlotRow(block) {
+    // cap은 호출자(renderActiveTabContent)가 이미 계산해둔 값을 그대로 받는다 -
+    // 블록당 Raid_Info 조회를 여러 번 반복하지 않기 위해서다.
+    function renderAddSlotRow(block, cap) {
       if (!selectedUser) return '';
-      const cap = getBlockCapacity(block);
       if (block.slots.length >= cap) return '';
       if (userInBlock(block)) return '';
 
@@ -2362,7 +2385,7 @@
         blockIndex: block.slots.length ? block.slots[0].blockIndex : 0,
         rawRaidTitle: block.rawTitle,
         raidTitle: block.title,
-        is8Man: getBlockCapacity(block) > 4 // 참고용 - 실제 정원 판정은 서버가 Raid_Info 로 다시 한다
+        is8Man: cap > 4 // 참고용 - 실제 정원 판정은 서버가 Raid_Info 로 다시 한다
       }));
 
       return `
