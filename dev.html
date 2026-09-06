@@ -94,7 +94,7 @@
           <i data-lucide="flask-conical" class="w-6 h-6 text-purple-400"></i>
           <span class="font-bold text-lg text-white tracking-wide whitespace-nowrap">로아 공대</span>
           <button onclick="openInfoModal('changelog')" class="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/30 hover:bg-purple-500/20 transition cursor-pointer" title="클릭하여 업데이트 이력 확인">
-            v2.2.1
+            v2.3.1
           </button>
         </div>
 
@@ -1722,13 +1722,18 @@
       if (rosterEl) {
         rosterEl.innerHTML = !block || block.slots.length === 0
           ? ''
-          : block.slots.map(s => `
-              <div class="grid grid-cols-[90px_1fr_96px] items-center gap-2 px-2.5 py-1.5 rounded-lg bg-[#0d1117] border border-gray-800 text-xs">
-                <span class="text-gray-400 text-left truncate">${s.user || '-'}</span>
-                <span class="font-semibold text-white text-left truncate">${s.name || '-'}</span>
-                <span class="text-gray-500 text-right truncate">${s.job || ''} · ${s.pos || ''}</span>
-              </div>
-            `).join('');
+          : block.slots.map(s => {
+              const goldStatus = slotGoldStatusMap[s.slotUid] || 'NONE';
+              const maybeDesc = goldStatus === 'MAYBE' ? getMaybePairDesc(s.foundInPool ? s.level : 0) : '';
+              return `
+                <div class="grid grid-cols-[90px_1fr_96px_24px] items-center gap-2 px-2.5 py-1.5 rounded-lg bg-[#0d1117] border border-gray-800 text-xs">
+                  <span class="text-gray-400 text-left truncate">${s.user || '-'}</span>
+                  <span class="font-semibold text-white text-left truncate">${s.name || '-'}</span>
+                  <span class="text-gray-500 text-right truncate">${s.job || ''} · ${s.pos || ''}</span>
+                  <span class="flex justify-end">${renderGoldBadge(goldStatus, maybeDesc)}</span>
+                </div>
+              `;
+            }).join('');
       }
 
       document.body.style.overflow = 'hidden';
