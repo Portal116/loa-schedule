@@ -94,7 +94,7 @@
           <i data-lucide="flask-conical" class="w-6 h-6 text-purple-400"></i>
           <span class="font-bold text-lg text-white tracking-wide whitespace-nowrap">로아 공대</span>
           <button onclick="openInfoModal('changelog')" class="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/30 hover:bg-purple-500/20 transition cursor-pointer" title="클릭하여 업데이트 이력 확인">
-            v1.1.19
+            v1.1.20
           </button>
         </div>
 
@@ -436,6 +436,49 @@
       </div>
 
       <div id="currentRaidsList" class="space-y-2 overflow-y-auto modal-scroll pr-1.5 flex-1"></div>
+    </div>
+  </div>
+
+  <!-- 커스텀 알림/확인/입력 모달 (네이티브 alert/confirm/prompt 대체) -->
+  <div id="customAlertModal" class="fixed inset-0 z-[60] bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="card-bg w-full max-w-sm rounded-2xl p-6 border border-gray-700 shadow-2xl relative">
+      <div class="flex items-center space-x-2 text-amber-400 mb-3">
+        <i data-lucide="alert-circle" class="w-5 h-5"></i>
+        <h3 class="text-sm font-bold text-white" id="customAlertTitle">알림</h3>
+      </div>
+      <p class="text-sm text-gray-300 mb-5 whitespace-pre-wrap" id="customAlertMessage"></p>
+      <div class="flex justify-end">
+        <button id="customAlertOkBtn" class="px-4 py-2 rounded-lg text-xs font-bold text-black bg-amber-400 hover:bg-amber-300 transition">확인</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="customConfirmModal" class="fixed inset-0 z-[60] bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="card-bg w-full max-w-sm rounded-2xl p-6 border border-gray-700 shadow-2xl relative">
+      <div class="flex items-center space-x-2 text-amber-400 mb-3">
+        <i data-lucide="help-circle" class="w-5 h-5"></i>
+        <h3 class="text-sm font-bold text-white" id="customConfirmTitle">확인</h3>
+      </div>
+      <p class="text-sm text-gray-300 mb-5 whitespace-pre-wrap" id="customConfirmMessage"></p>
+      <div class="flex items-center justify-end gap-2">
+        <button id="customConfirmCancelBtn" class="px-3 py-2 rounded-lg text-xs font-semibold text-gray-300 hover:text-white bg-gray-800 border border-gray-700 transition">취소</button>
+        <button id="customConfirmOkBtn" class="px-4 py-2 rounded-lg text-xs font-bold text-black bg-amber-400 hover:bg-amber-300 transition">확인</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="customPromptModal" class="fixed inset-0 z-[60] bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="card-bg w-full max-w-sm rounded-2xl p-6 border border-gray-700 shadow-2xl relative">
+      <div class="flex items-center space-x-2 text-amber-400 mb-3">
+        <i data-lucide="edit-3" class="w-5 h-5"></i>
+        <h3 class="text-sm font-bold text-white" id="customPromptTitle">입력</h3>
+      </div>
+      <p class="text-xs text-gray-400 mb-3 whitespace-pre-wrap" id="customPromptMessage"></p>
+      <input id="customPromptInput" type="text" class="w-full mb-5 px-3 py-2 rounded-lg bg-gray-900 border border-gray-700 text-sm text-white focus:outline-none focus:border-amber-400" />
+      <div class="flex items-center justify-end gap-2">
+        <button id="customPromptCancelBtn" class="px-3 py-2 rounded-lg text-xs font-semibold text-gray-300 hover:text-white bg-gray-800 border border-gray-700 transition">취소</button>
+        <button id="customPromptOkBtn" class="px-4 py-2 rounded-lg text-xs font-bold text-black bg-amber-400 hover:bg-amber-300 transition">확인</button>
+      </div>
     </div>
   </div>
 
@@ -1423,11 +1466,102 @@
       renderActiveTabContent();
     }
 
+    // ─── 커스텀 알림/확인/입력 모달 (alert/confirm/prompt 대체) ─────
+    // 네이티브 다이얼로그는 다크 테마와 어울리지 않고 브라우저 자동화(Claude in Chrome) 입력도 막아버리므로
+    // 동일한 역할을 하는 in-app 모달로 대체한다. 각각 Promise를 반환해 기존 동기 호출부를 await로 바꿔 쓴다.
+    function customAlert(message, title) {
+      return new Promise(resolve => {
+        document.getElementById('customAlertTitle').textContent = title || '알림';
+        document.getElementById('customAlertMessage').textContent = message;
+        const modal = document.getElementById('customAlertModal');
+        const okBtn = document.getElementById('customAlertOkBtn');
+        modal.classList.remove('hidden');
+        const cleanup = () => {
+          modal.classList.add('hidden');
+          okBtn.removeEventListener('click', onOk);
+          modal.removeEventListener('click', onBackdrop);
+          document.removeEventListener('keydown', onKey);
+          resolve();
+        };
+        const onOk = () => cleanup();
+        const onBackdrop = (e) => { if (e.target === modal) cleanup(); };
+        const onKey = (e) => { if (e.key === 'Enter' || e.key === 'Escape') cleanup(); };
+        okBtn.addEventListener('click', onOk);
+        modal.addEventListener('click', onBackdrop);
+        document.addEventListener('keydown', onKey);
+        okBtn.focus();
+      });
+    }
+
+    function customConfirm(message, title) {
+      return new Promise(resolve => {
+        document.getElementById('customConfirmTitle').textContent = title || '확인';
+        document.getElementById('customConfirmMessage').textContent = message;
+        const modal = document.getElementById('customConfirmModal');
+        const okBtn = document.getElementById('customConfirmOkBtn');
+        const cancelBtn = document.getElementById('customConfirmCancelBtn');
+        modal.classList.remove('hidden');
+        const cleanup = (result) => {
+          modal.classList.add('hidden');
+          okBtn.removeEventListener('click', onOk);
+          cancelBtn.removeEventListener('click', onCancel);
+          modal.removeEventListener('click', onBackdrop);
+          document.removeEventListener('keydown', onKey);
+          resolve(result);
+        };
+        const onOk = () => cleanup(true);
+        const onCancel = () => cleanup(false);
+        const onBackdrop = (e) => { if (e.target === modal) cleanup(false); };
+        const onKey = (e) => {
+          if (e.key === 'Enter') cleanup(true);
+          else if (e.key === 'Escape') cleanup(false);
+        };
+        okBtn.addEventListener('click', onOk);
+        cancelBtn.addEventListener('click', onCancel);
+        modal.addEventListener('click', onBackdrop);
+        document.addEventListener('keydown', onKey);
+        okBtn.focus();
+      });
+    }
+
+    function customPrompt(message, defaultValue, title) {
+      return new Promise(resolve => {
+        document.getElementById('customPromptTitle').textContent = title || '입력';
+        document.getElementById('customPromptMessage').textContent = message;
+        const modal = document.getElementById('customPromptModal');
+        const input = document.getElementById('customPromptInput');
+        const okBtn = document.getElementById('customPromptOkBtn');
+        const cancelBtn = document.getElementById('customPromptCancelBtn');
+        input.value = defaultValue || '';
+        modal.classList.remove('hidden');
+        const cleanup = (result) => {
+          modal.classList.add('hidden');
+          okBtn.removeEventListener('click', onOk);
+          cancelBtn.removeEventListener('click', onCancel);
+          modal.removeEventListener('click', onBackdrop);
+          input.removeEventListener('keydown', onKey);
+          resolve(result);
+        };
+        const onOk = () => cleanup(input.value);
+        const onCancel = () => cleanup(null);
+        const onBackdrop = (e) => { if (e.target === modal) cleanup(null); };
+        const onKey = (e) => {
+          if (e.key === 'Enter') cleanup(input.value);
+          else if (e.key === 'Escape') cleanup(null);
+        };
+        okBtn.addEventListener('click', onOk);
+        cancelBtn.addEventListener('click', onCancel);
+        modal.addEventListener('click', onBackdrop);
+        input.addEventListener('keydown', onKey);
+        setTimeout(() => { input.focus(); input.select(); }, 50);
+      });
+    }
+
     // ─── 레이드 진행/완료 관리 ─────────────────────────────────
     // '진행' 버튼 - 진행중으로 표시하고 곧바로 관리 모달을 연다(누른 사람 입장에서는 즉시 확인).
     async function startRaidBlock(sheetId, blockIndex, rawRaidTitle, displayTitle) {
       if (!selectedUser) {
-        alert("상단 헤더의 [내 캐릭터 강조]에서 본인 계정을 먼저 선택해 주세요!");
+        customAlert("상단 헤더의 [내 캐릭터 강조]에서 본인 계정을 먼저 선택해 주세요!");
         return;
       }
 
@@ -1509,7 +1643,7 @@
     async function cancelRaidBlock() {
       if (!activeProgressTarget) return;
       const { sheetId, blockIndex, rawRaidTitle } = activeProgressTarget;
-      if (!confirm('이 레이드의 진행 상태를 취소할까요?')) return;
+      if (!(await customConfirm('이 레이드의 진행 상태를 취소할까요?'))) return;
       closeRaidProgressModal();
 
       raidStatusData = raidStatusData.filter(s =>
@@ -1788,7 +1922,7 @@
       // 완료 여부와 무관하게, 지금 일정표에 이 레이드 계열로 편성되어 있으면 개별 체크를 못 쓴다 -
       // 그 레이드는 해당 블록의 완료 처리로만 체크되어야 한다. (슬롯에서 빼면 다시 가능해짐 - 정상 경로)
       if (isScheduledInFamily(charName, raidKey)) {
-        alert('이 캐릭터는 지금 일정표에 편성되어 있어요. 이 레이드는 해당 블록의 완료 처리로만 체크됩니다.');
+        customAlert('이 캐릭터는 지금 일정표에 편성되어 있어요. 이 레이드는 해당 블록의 완료 처리로만 체크됩니다.');
         return;
       }
 
@@ -1822,9 +1956,10 @@
       const charObj = characterPoolData.find(c => c.name === charName);
       if (!charObj) return;
 
-      const input = prompt(
+      const input = await customPrompt(
         `${charName} 의 예정 레벨을 입력해 주세요.\n(현재 레벨: ${charObj.currentLevel.toFixed(2)} / 비워두면 예정 레벨 해제)`,
-        charObj.plannedLevel ? charObj.plannedLevel.toFixed(2) : ''
+        charObj.plannedLevel ? charObj.plannedLevel.toFixed(2) : '',
+        '예정 레벨 수정'
       );
       if (input === null) return; // 취소
 
@@ -1833,7 +1968,7 @@
       if (trimmed !== '') {
         newPlanned = parseFloat(trimmed.replace(/,/g, ''));
         if (isNaN(newPlanned) || newPlanned < 0) {
-          alert('숫자로 입력해 주세요.');
+          customAlert('숫자로 입력해 주세요.');
           return;
         }
       }
@@ -2550,7 +2685,7 @@
 
     function openAddSlotModal(payloadEncoded) {
       if (!selectedUser) {
-        alert("상단 헤더의 [내 캐릭터 강조]에서 본인 계정을 먼저 선택해 주세요!");
+        customAlert("상단 헤더의 [내 캐릭터 강조]에서 본인 계정을 먼저 선택해 주세요!");
         return;
       }
       const info = JSON.parse(decodeURIComponent(payloadEncoded));
@@ -2579,7 +2714,7 @@
     async function removeMySlot() {
       if (swapMode !== 'swap' || !activeSwapTarget) return;
       const t = activeSwapTarget;
-      if (!confirm(`[${t.raidTitle}] 에서 ${t.name} 을(를) 빼고 자리를 비울까요?`)) return;
+      if (!(await customConfirm(`[${t.raidTitle}] 에서 ${t.name} 을(를) 빼고 자리를 비울까요?`))) return;
 
       closeQuickSwapModal();
 
@@ -2616,7 +2751,7 @@
 
     function openQuickSwapModal(slotJsonEncoded) {
       if (!selectedUser) {
-        alert("상단 헤더의 [내 캐릭터 강조]에서 본인 계정을 먼저 선택해 주세요!");
+        customAlert("상단 헤더의 [내 캐릭터 강조]에서 본인 계정을 먼저 선택해 주세요!");
         return;
       }
 
@@ -2624,7 +2759,7 @@
 
       // 본인 슬롯이 아니면 열지 않는다 (슬롯 클릭이 이미 막혀 있지만 이중 방어)
       if (!slot.user.startsWith(selectedUser)) {
-        alert(`다른 유저(${slot.user})의 슬롯은 변경할 수 없습니다.`);
+        customAlert(`다른 유저(${slot.user})의 슬롯은 변경할 수 없습니다.`);
         return;
       }
 
@@ -2854,7 +2989,7 @@
     // 본인 캐릭터로 제한하지 않는다 - 공대 전체 편성을 짜는 용도라 아무 캐릭터나 고를 수 있어야 한다.
     function openAddBlockModal() {
       if (!selectedUser) {
-        alert("상단 헤더의 [내 캐릭터 강조]에서 본인 계정을 먼저 선택해 주세요!");
+        customAlert("상단 헤더의 [내 캐릭터 강조]에서 본인 계정을 먼저 선택해 주세요!");
         return;
       }
       addBlockCurrentRaid = null;
@@ -2989,7 +3124,7 @@
         addBlockSelectedChars.delete(name);
       } else {
         if (addBlockSelectedChars.size >= addBlockCurrentCap) {
-          alert(`이 레이드는 최대 ${addBlockCurrentCap}명까지만 가능합니다.`);
+          customAlert(`이 레이드는 최대 ${addBlockCurrentCap}명까지만 가능합니다.`);
           return;
         }
         addBlockSelectedChars.add(name);
@@ -3061,7 +3196,7 @@
 // ─── 참여 상태 모달 ───────────────────────────────────────
     function openAttendanceModal() {
       if (!selectedUser) {
-        alert("상단 헤더의 [내 캐릭터 강조]에서 본인 계정을 먼저 선택해 주세요!");
+        customAlert("상단 헤더의 [내 캐릭터 강조]에서 본인 계정을 먼저 선택해 주세요!");
         return;
       }
       pendingAttendance = { date: '', status: '', memo: '' };
@@ -3203,7 +3338,7 @@
 
     async function cancelAttendance(dateKey) {
       const label = fmtDateLabel(new Date(dateKey + 'T00:00:00'));
-      if (!confirm(`${label} 참여 상태 등록을 삭제할까요?`)) return;
+      if (!(await customConfirm(`${label} 참여 상태 등록을 삭제할까요?`))) return;
 
       const base = selectedUser.split('(')[0].trim();
       attendanceData = attendanceData.filter(a =>
@@ -3306,7 +3441,7 @@
     // 내용으로 대상을 특정한다.
     async function deleteSuggestion(contentEncoded) {
       const content = decodeURIComponent(contentEncoded);
-      if (!confirm('이 건의를 삭제할까요?')) return;
+      if (!(await customConfirm('이 건의를 삭제할까요?'))) return;
 
       const base = selectedUser.split('(')[0].trim();
       let removedOne = false;
