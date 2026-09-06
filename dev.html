@@ -94,7 +94,7 @@
           <i data-lucide="flask-conical" class="w-6 h-6 text-purple-400"></i>
           <span class="font-bold text-lg text-white tracking-wide whitespace-nowrap">로아 공대</span>
           <button onclick="openInfoModal('changelog')" class="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/30 hover:bg-purple-500/20 transition cursor-pointer" title="클릭하여 업데이트 이력 확인">
-            v2.1.5
+            v2.1.6
           </button>
         </div>
 
@@ -1657,6 +1657,17 @@
       // 앵커는 평소엔 항상 오늘 이전이지만, 수동으로 미리 다음 주차를 세팅해둔 경우 등 방어 차원.
       if (siteConfig.raidWeekAnchor && fmtDate(new Date()) < siteConfig.raidWeekAnchor) {
         customAlert(`아직 시작되지 않은 주차입니다. (${siteConfig.raidWeekAnchor} 주차 시작 예정)`);
+        return;
+      }
+
+      // 같은 그룹(시트) 안에서는 한 번에 하나의 레이드만 진행중일 수 있다 - 같은 인원이
+      // 실제로 두 레이드를 동시에 뛸 수는 없으므로, 다른 블록이 이미 진행중이면 막는다.
+      const otherInProgress = raidStatusData.find(s =>
+        s.sheetId === sheetId && s.status === '진행중' &&
+        !(s.blockIndex === blockIndex && s.rawRaidTitle === rawRaidTitle)
+      );
+      if (otherInProgress) {
+        customAlert(`이 그룹은 이미 [${sanitizeTitle(otherInProgress.rawRaidTitle)}] 레이드가 진행 중입니다. 완료 처리 후 다시 시도해 주세요.`);
         return;
       }
 
