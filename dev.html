@@ -94,7 +94,7 @@
           <i data-lucide="flask-conical" class="w-6 h-6 text-purple-400"></i>
           <span class="font-bold text-lg text-white tracking-wide whitespace-nowrap">로아 공대</span>
           <button onclick="openInfoModal('changelog')" class="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/30 hover:bg-purple-500/20 transition cursor-pointer" title="클릭하여 업데이트 이력 확인">
-            v2.0.2
+            v2.1.1
           </button>
         </div>
 
@@ -418,7 +418,9 @@
         <i data-lucide="play-circle" class="w-5 h-5"></i>
         <h3 class="text-lg font-bold text-white" id="raidProgressTitle">-</h3>
       </div>
-      <p class="text-xs text-gray-400 mb-5" id="raidProgressStatusText"></p>
+      <p class="text-xs text-gray-400 mb-3" id="raidProgressStatusText"></p>
+
+      <div id="raidProgressRoster" class="mb-5 space-y-1"></div>
 
       <div class="flex items-center justify-between gap-2">
         <button onclick="cancelRaidBlock()" class="px-3 py-2 rounded-lg text-xs font-semibold text-red-400 hover:text-red-300 bg-red-950/40 border border-red-900/60 transition">되돌리기</button>
@@ -1685,6 +1687,21 @@
           : `진행 중${info.startedBy ? ' · ' + info.startedBy + ' 시작' : ''}${info.startedAt ? ' (' + info.startedAt + ')' : ''}`);
       document.getElementById('raidProgressStatusText').textContent = statusText;
 
+      // 어떤 레이드인지 뿐 아니라 누가/어떤 캐릭터로 가야 하는지도 바로 보이게 편성 명단을 보여준다.
+      const rosterEl = document.getElementById('raidProgressRoster');
+      const block = (sheetsDataStore[sheetId] && sheetsDataStore[sheetId].blocks[blockIndex]) || null;
+      if (rosterEl) {
+        rosterEl.innerHTML = !block || block.slots.length === 0
+          ? ''
+          : block.slots.map(s => `
+              <div class="flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-[#0d1117] border border-gray-800 text-xs">
+                <span class="text-gray-400">${s.user || '-'}</span>
+                <span class="font-semibold text-white">${s.name || '-'}</span>
+                <span class="text-gray-500">${s.job || ''} · ${s.pos || ''}</span>
+              </div>
+            `).join('');
+      }
+
       document.body.style.overflow = 'hidden';
       document.getElementById('raidProgressModal').classList.remove('hidden');
       drawIcons();
@@ -1764,8 +1781,16 @@
     }
 
     function openCurrentRaidsModal() {
-      const list = document.getElementById('currentRaidsList');
       const inProgress = raidStatusData.filter(s => s.status === '진행중');
+
+      // 진행중인 게 딱 하나면 목록을 거칠 필요 없이 바로 그 레이드 상세(편성 명단 포함)로 이동한다.
+      if (inProgress.length === 1) {
+        const s = inProgress[0];
+        jumpToRaidProgress(s.sheetId, s.blockIndex, s.rawRaidTitle, sanitizeTitle(s.rawRaidTitle));
+        return;
+      }
+
+      const list = document.getElementById('currentRaidsList');
 
       if (inProgress.length === 0) {
         list.innerHTML = `<div class="text-center py-6 text-xs text-gray-500">지금 진행 중인 레이드가 없습니다.</div>`;
