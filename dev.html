@@ -94,7 +94,7 @@
           <i data-lucide="flask-conical" class="w-6 h-6 text-purple-400"></i>
           <span class="font-bold text-lg text-white tracking-wide whitespace-nowrap">로아 공대</span>
           <button onclick="openInfoModal('changelog')" class="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/30 hover:bg-purple-500/20 transition cursor-pointer" title="클릭하여 업데이트 이력 확인">
-            v1.1.29
+            v1.1.30
           </button>
         </div>
 
@@ -2395,6 +2395,21 @@
       return getUpcomingWeekdays(6, count);
     }
 
+    // 참여 상태 알리기 모달의 날짜 목록. 탭 날짜 라벨과 마찬가지로 '이번 주기' 앵커
+    // 기준으로 맞춰서, 완료 상태 리셋과 항상 같은 주기를 가리키게 한다.
+    // 앵커가 없으면(첫 리셋 전) 예전 방식(오늘 기준 다음 토요일)으로 대체한다.
+    function getAttendanceSaturdays(count = ATTENDANCE_WEEKS) {
+      const anchorSat = getAnchorWeekDate(6);
+      if (!anchorSat) return getUpcomingSaturdays(count);
+      const list = [];
+      for (let i = 0; i < count; i++) {
+        const d = new Date(anchorSat);
+        d.setDate(anchorSat.getDate() + i * 7);
+        list.push(d);
+      }
+      return list;
+    }
+
     // 요일 한글 표기 -> 인덱스(0=일 ~ 6=토). 못 알아들으면 null.
     const WEEKDAY_NAME_TO_INDEX = { '일요일': 0, '월요일': 1, '화요일': 2, '수요일': 3, '목요일': 4, '금요일': 5, '토요일': 6 };
     function weekdayNameToIndex(name) {
@@ -3401,7 +3416,7 @@
     function renderAttendanceDateList() {
       const box = document.getElementById('attendanceDateList');
       if (!box) return;
-      box.innerHTML = getUpcomingSaturdays().map(d => {
+      box.innerHTML = getAttendanceSaturdays().map(d => {
         const key = fmtDate(d);
         const on = pendingAttendance.date === key;
         return `<button onclick="selectAttendanceDate('${key}')" class="px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition ${
@@ -3426,7 +3441,7 @@
       const box = document.getElementById('attendanceMyList');
       if (!box) return;
       const base = selectedUser.split('(')[0].trim();
-      const validKeys = getUpcomingSaturdays().map(fmtDate);
+      const validKeys = getAttendanceSaturdays().map(fmtDate);
 
       const latest = {};
       attendanceData.forEach(a => {
