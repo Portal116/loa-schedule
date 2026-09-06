@@ -94,7 +94,7 @@
           <i data-lucide="flask-conical" class="w-6 h-6 text-purple-400"></i>
           <span class="font-bold text-lg text-white tracking-wide whitespace-nowrap">로아 공대</span>
           <button onclick="openInfoModal('changelog')" class="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/30 hover:bg-purple-500/20 transition cursor-pointer" title="클릭하여 업데이트 이력 확인">
-            v2.1.3
+            v2.1.5
           </button>
         </div>
 
@@ -115,6 +115,10 @@
         </div>
 
         <button onclick="openCurrentRaidsModal()" id="currentRaidsBtn" class="hidden relative flex items-center space-x-1 bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white border border-gray-700 text-xs font-semibold px-2.5 py-1.5 rounded-lg transition">
+          <span class="absolute -top-1 -right-1 flex h-3 w-3">
+            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+            <span class="relative inline-flex rounded-full h-3 w-3 bg-amber-500"></span>
+          </span>
           <i data-lucide="radio" class="w-3.5 h-3.5 text-amber-400"></i>
           <span>현재 레이드</span>
           <span id="currentRaidsBadgeCount" class="ml-0.5 min-w-[1.1rem] h-[1.1rem] px-1 rounded-full bg-amber-500 text-black text-[10px] font-bold flex items-center justify-center">0</span>
@@ -755,6 +759,8 @@
 
     // 표/툴팁용 짧은 레이드명
     const RAID_SHORT_NAME = { belga: '벨가', serka: '세르카', cathedral: '성당', final: '종막', act4: '4막' };
+    // 진행중인 레이드가 있을 때 다른 탭을 보고 있어도 눈에 띄게, 탭 제목 앞에 표시를 붙인다.
+    const BASE_TITLE = document.title;
 
     // lucide 스크립트 로드가 실패해도 렌더링이 중단되지 않도록 감싼다.
     // (아이콘만 안 보이고 나머지 기능은 정상 동작)
@@ -1694,7 +1700,7 @@
         rosterEl.innerHTML = !block || block.slots.length === 0
           ? ''
           : block.slots.map(s => `
-              <div class="grid grid-cols-[64px_1fr_96px] items-center gap-2 px-2.5 py-1.5 rounded-lg bg-[#0d1117] border border-gray-800 text-xs">
+              <div class="grid grid-cols-[90px_1fr_96px] items-center gap-2 px-2.5 py-1.5 rounded-lg bg-[#0d1117] border border-gray-800 text-xs">
                 <span class="text-gray-400 text-left truncate">${s.user || '-'}</span>
                 <span class="font-semibold text-white text-left truncate">${s.name || '-'}</span>
                 <span class="text-gray-500 text-right truncate">${s.job || ''} · ${s.pos || ''}</span>
@@ -1778,6 +1784,8 @@
       const inProgress = raidStatusData.filter(s => s.status === '진행중');
       countEl.textContent = inProgress.length;
       btn.classList.toggle('hidden', inProgress.length === 0);
+
+      document.title = inProgress.length > 0 ? `🔴(${inProgress.length}) ${BASE_TITLE}` : BASE_TITLE;
     }
 
     function openCurrentRaidsModal() {
