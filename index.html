@@ -140,16 +140,15 @@
     </div>
   </header>
 
-  <!-- 점검 안내 배너. Config 시트의 '점검모드'/'공지문구' 값을 그대로 표시한다.
-       재배포 없이 시트 값만 바꾸면 켜고 끌 수 있다. dev 빌드는 문구 앞에 [DEV] 를 붙여 구분한다. -->
-  <div id="maintenanceBanner" class="hidden bg-amber-500/15 border-b border-amber-600/40">
-    <div class="max-w-7xl mx-auto px-4 py-2.5 flex items-center gap-2 text-xs text-amber-300">
-      <i data-lucide="alert-triangle" class="w-4 h-4 shrink-0"></i>
-      <span id="maintenanceBannerText"></span>
-    </div>
+  <!-- 점검 화면. Config 시트의 '점검모드'가 TRUE면 데이터 파싱/렌더링을 아예 하지 않고
+       이 화면만 보여준다 (fetchSheetData 참고). 재배포 없이 시트 값만 바꾸면 켜고 끌 수 있다. -->
+  <div id="maintenanceScreen" class="hidden max-w-xl mx-auto mt-20 px-4 text-center">
+    <i data-lucide="alert-triangle" class="w-10 h-10 text-amber-400 mx-auto mb-4"></i>
+    <h2 class="text-lg font-bold text-white mb-2">점검 중입니다</h2>
+    <p id="maintenanceScreenText" class="text-sm text-gray-400 leading-relaxed"></p>
   </div>
 
-  <main class="max-w-7xl mx-auto px-4 mt-6">
+  <main id="mainContent" class="max-w-7xl mx-auto px-4 mt-6">
     <!-- 1. 일정표 뷰 -->
     <div id="sectionSchedule">
       <div class="flex items-center justify-between flex-wrap gap-3 border-b border-gray-800 pb-2">
@@ -1142,6 +1141,15 @@
           fetchSheetCsv('Raid_Status', bust).catch(() => null)
         ]);
 
+        // 점검모드면 그 뒤 어떤 파싱/렌더링도 하지 않고 점검 화면만 보여준다.
+        // Config 를 가장 먼저 확인해서, 데이터가 이상한 상태로 화면에 잠깐이라도
+        // 노출되는 일이 없게 한다 (재배포 없이 시트 값만 바꿔서 켜고 끌 수 있다).
+        parseSiteConfig(configRows);
+        if (siteConfig.maintenanceMode) {
+          renderMaintenanceScreen();
+          return;
+        }
+
         // processScheduleSheet(enrichSlotFromPool 포함)가 characterPoolData 를 조회하므로,
         // 반드시 parseCharacterPool 을 먼저 실행해야 한다. 순서가 바뀌면 첫 로딩 시
         // characterPoolData 가 비어 있는 채로 조회되어 전부 '정보 없음'으로 나온다
@@ -1149,12 +1157,12 @@
         parseCharacterPool(poolRows);
         SHEET_CONFIG.forEach((config, idx) => processScheduleSheet(config, sheetRows[idx]));
 
-        // Attendance / Raid_Info / Config / Raid_Status 는 없어도 나머지 기능이 동작해야 한다
+        // Attendance / Raid_Info / Raid_Status 는 없어도 나머지 기능이 동작해야 한다
         if (attRows) parseAttendance(attRows); else attendanceData = [];
         if (raidRows) parseRaidInfo(raidRows);
-        parseSiteConfig(configRows);
         if (statusRows) parseRaidStatus(statusRows); else raidStatusData = [];
-        renderMaintenanceBanner();
+        document.getElementById('mainContent').classList.remove('hidden');
+        document.getElementById('maintenanceScreen').classList.add('hidden');
 
         recalcGoldFromStore();
         renderCurrentViews();
@@ -2514,27 +2522,18 @@
       });
     }
 
-    // 점검 배너 표시.
-    // dev 빌드는 공대원이 아니라 나 혼자 테스트하는 환경이라, 실제 정식 화면이
-    // 어떻게 보이는지 그대로 재현해야 검증 의미가 있다. 배너가 dev 에도 뜨면
-    // '정상 상태의 정식 화면'을 확인할 방법이 없어지므로, dev 에서는 항상 숨긴다.
-    function renderMaintenanceBanner() {
-      const banner = document.getElementById('maintenanceBanner');
-      if (!banner) return;
+    // 점검모드 전체 화면. fetchSheetData 가 Config 를 가장 먼저 확인해서, 점검모드면
+    // 이후 어떤 파싱/렌더링도 하지 않고 이 화면만 띄운 채로 멈춘다.
+    function renderMaintenanceScreen() {
+      const screen = document.getElementById('maintenanceScreen');
+      const main = document.getElementById('mainContent');
+      if (!screen || !main) return;
 
-      if (typeof IS_DEV !== 'undefined' && IS_DEV) {
-        banner.classList.add('hidden');
-        return;
-      }
-
-      const textEl = document.getElementById('maintenanceBannerText');
-      if (!siteConfig.maintenanceMode || !siteConfig.noticeText) {
-        banner.classList.add('hidden');
-        return;
-      }
-
-      textEl.textContent = siteConfig.noticeText;
-      banner.classList.remove('hidden');
+      const textEl = document.getElementById('maintenanceScreenText');
+      textEl.textContent = siteConfig.noticeText || '잠시 후 다시 시도해 주세요.';
+      main.classList.add('hidden');
+      screen.classList.remove('hidden');
+      drawIcons();
     }
 
     function parseAttendance(rows) {
