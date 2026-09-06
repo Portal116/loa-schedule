@@ -94,7 +94,7 @@
           <i data-lucide="flask-conical" class="w-6 h-6 text-purple-400"></i>
           <span class="font-bold text-lg text-white tracking-wide whitespace-nowrap">로아 공대</span>
           <button onclick="openInfoModal('changelog')" class="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/30 hover:bg-purple-500/20 transition cursor-pointer" title="클릭하여 업데이트 이력 확인">
-            v1.1.28
+            v1.1.29
           </button>
         </div>
 
@@ -3336,6 +3336,16 @@
         const c = characterPoolData.find(x => x.name === name);
         return { user: c ? c.user : '', name: name };
       });
+      if (addBlockFixedRoster) {
+        // 서브그룹은 시트에 이미 정해진 유저-컬럼 순서(A블록에서부터 써온 순서)가 있으므로,
+        // 클릭한 순서가 아니라 그 순서에 맞춰 써야 다른 블록들과 컬럼이 어긋나지 않는다.
+        const order = (sheetsDataStore[sheetId] && sheetsDataStore[sheetId].users) || [];
+        chars.sort((a, b) => {
+          const ua = (a.user || '').split('(')[0].trim();
+          const ub = (b.user || '').split('(')[0].trim();
+          return order.indexOf(ua) - order.indexOf(ub);
+        });
+      }
       const raid = addBlockCurrentRaid;
       const { abbrName, abbrDiff } = getAbbrRaidTitleParts(raid.name, raid.diff);
 
