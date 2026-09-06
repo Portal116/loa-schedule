@@ -94,7 +94,7 @@
           <i data-lucide="flask-conical" class="w-6 h-6 text-purple-400"></i>
           <span class="font-bold text-lg text-white tracking-wide whitespace-nowrap">로아 공대</span>
           <button onclick="openInfoModal('changelog')" class="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/30 hover:bg-purple-500/20 transition cursor-pointer" title="클릭하여 업데이트 이력 확인">
-            v1.1.15
+            v1.1.16
           </button>
         </div>
 
@@ -715,7 +715,7 @@
     // 여기 없으면 기본값(완료 상태면 접힘)을 그대로 쓴다.
     let collapsedOverride = new Map();
     let activeProgressTarget = null;  // 진행/완료 모달이 대상으로 하는 블록 정보
-    let siteConfig = { maintenanceMode: false, noticeText: '', subGroupDays: {} };  // Config 시트 원본
+    let siteConfig = { maintenanceMode: false, noticeText: '', subGroupDays: {}, raidWeekAnchor: '' };  // Config 시트 원본
     let suggestionsData = [];         // Suggestions 시트 원본
     // 시트별로 편성 인스턴스를 나눠 보관한다. 한 시트만 다시 받아도 골드 재계산이 가능해진다.
     let allRaidInstancesBySheet = {};
@@ -1273,20 +1273,22 @@
             : 'text-gray-400 hover:text-white hover:bg-gray-800'
         }`;
         // 토요일 고정 탭에는 참여 상태의 기준 날짜를, 서브조 탭에는 해당 요일의
-        // 다가오는 날짜를 함께 표시한다 (Config 의 서브그룹N_요일 설정, 기본값 있음).
+        // 날짜를 함께 표시한다 (Config 의 서브그룹N_요일 설정, 기본값 있음).
+        // 둘 다 '이번 주기' 앵커(현재레이드주차) 기준으로 계산해서, 완료 상태 리셋 시점과
+        // 항상 같이 넘어간다 - 앵커가 아직 없으면(첫 리셋 전) 예전 방식(다음 돌아오는 날짜)으로 대체.
         let dateSuffix = '';
         if (cfg.id === 'Main_8Man') {
-          const satList = getUpcomingSaturdays(1);
-          if (satList.length) {
-            dateSuffix = `<span class="text-[11px] font-normal ${isActive ? 'text-yellow-500/70' : 'text-gray-500'}">${fmtDateLabel(satList[0])}</span>`;
+          const satDate = getAnchorWeekDate(6) || getUpcomingSaturdays(1)[0];
+          if (satDate) {
+            dateSuffix = `<span class="text-[11px] font-normal ${isActive ? 'text-yellow-500/70' : 'text-gray-500'}">${fmtDateLabel(satDate)}</span>`;
           }
         } else {
           const dayName = siteConfig.subGroupDays && siteConfig.subGroupDays[cfg.id];
           const dayIdx = weekdayNameToIndex(dayName);
           if (dayIdx !== null) {
-            const dList = getUpcomingWeekdays(dayIdx, 1);
-            if (dList.length) {
-              dateSuffix = `<span class="text-[11px] font-normal ${isActive ? 'text-yellow-500/70' : 'text-gray-500'}">${fmtDateLabel(dList[0])}</span>`;
+            const d = getAnchorWeekDate(dayIdx) || getUpcomingWeekdays(dayIdx, 1)[0];
+            if (d) {
+              dateSuffix = `<span class="text-[11px] font-normal ${isActive ? 'text-yellow-500/70' : 'text-gray-500'}">${fmtDateLabel(d)}</span>`;
             }
           }
         }
@@ -2156,10 +2158,26 @@
       return (idx === undefined) ? null : idx;
     }
 
-    // 가장 가까운 토요일. 슬롯에 참여 상태를 표시할 기준 날짜.
+    // '이번 주기'에 해당하는 날짜. Config 의 '현재레이드주차' 앵커(이번 주기가 시작된
+    // 수요일 날짜)를 기준으로 계산한다 - 완료 상태 리셋과 항상 같은 주기를 가리키게 하기 위해서다.
+    // (getUpcomingSaturdays 처럼 '오늘 기준 다음 토요일'로 따로 계산하면, 토요일이 지난 뒤
+    // 수요일 리셋 전까지 탭 날짜만 먼저 다음 주로 넘어가 버려 완료 상태와 안 맞아 보인다.)
+    // 앵커가 아직 없으면(첫 리셋 전) 예전 방식으로 대체한다.
+    function getAnchorWeekDate(weekdayIndex) {
+      const anchor = siteConfig.raidWeekAnchor;
+      if (!anchor) return null;
+      const anchorDate = new Date(anchor + 'T00:00:00');
+      if (isNaN(anchorDate.getTime())) return null;
+      const offset = (weekdayIndex - 3 + 7) % 7; // 앵커는 항상 수요일(인덱스 3) 날짜
+      const d = new Date(anchorDate);
+      d.setDate(anchorDate.getDate() + offset);
+      return d;
+    }
+
+    // 이번 주기의 토요일. 슬롯에 참여 상태를 표시할 기준 날짜.
     function getCurrentSaturdayKey() {
-      const list = getUpcomingSaturdays(1);
-      return list.length ? fmtDate(list[0]) : '';
+      const d = getAnchorWeekDate(6) || (getUpcomingSaturdays(1)[0] || null);
+      return d ? fmtDate(d) : '';
     }
 
     // ─── Attendance 시트 파싱 ─────────────────────────────────
@@ -2175,7 +2193,7 @@
     };
 
     function parseSiteConfig(rows) {
-      siteConfig = { maintenanceMode: false, noticeText: '', subGroupDays: { ...DEFAULT_SUB_GROUP_DAYS } };
+      siteConfig = { maintenanceMode: false, noticeText: '', subGroupDays: { ...DEFAULT_SUB_GROUP_DAYS }, raidWeekAnchor: '' };
       if (!rows || rows.length < 2) return;
 
       const map = {};
@@ -2188,6 +2206,7 @@
 
       siteConfig.maintenanceMode = (map['점검모드'] || '').toUpperCase() === 'TRUE';
       siteConfig.noticeText = map['공지문구'] || '';
+      siteConfig.raidWeekAnchor = map['현재레이드주차'] || '';
 
       Object.keys(DEFAULT_SUB_GROUP_DAYS).forEach(sheetId => {
         const num = sheetId.replace('Sub_Group', '');
