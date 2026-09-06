@@ -94,7 +94,7 @@
           <i data-lucide="flask-conical" class="w-6 h-6 text-purple-400"></i>
           <span class="font-bold text-lg text-white tracking-wide whitespace-nowrap">로아 공대</span>
           <button onclick="openInfoModal('changelog')" class="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/30 hover:bg-purple-500/20 transition cursor-pointer" title="클릭하여 업데이트 이력 확인">
-            v1.1.23
+            v1.1.24
           </button>
         </div>
 
@@ -1350,20 +1350,23 @@
         // 둘 다 '이번 주기' 앵커(현재레이드주차) 기준으로 계산해서, 완료 상태 리셋 시점과
         // 항상 같이 넘어간다 - 앵커가 아직 없으면(첫 리셋 전) 예전 방식(다음 돌아오는 날짜)으로 대체.
         let dateSuffix = '';
+        const dateColor = isActive ? 'text-yellow-500/70' : 'text-gray-500';
         if (cfg.id === 'Main_8Man') {
           const satDate = getAnchorWeekDate(6) || getUpcomingSaturdays(1)[0];
           if (satDate) {
-            dateSuffix = `<span class="text-[11px] font-normal ${isActive ? 'text-yellow-500/70' : 'text-gray-500'}">${fmtDateLabel(satDate)}</span>`;
+            dateSuffix = `<span class="text-[11px] font-normal ${dateColor}">${fmtDateLabel(satDate)}</span>`;
           }
         } else {
+          // 서브조 탭의 날짜는 클릭해서 요일을 바로 바꿀 수 있게, 밑줄 힌트를 준 버튼으로 그린다.
           const dayName = siteConfig.subGroupDays && siteConfig.subGroupDays[cfg.id];
           const dayIdx = weekdayNameToIndex(dayName);
+          const escTitle = tabTitle.replace(/'/g, "\\'");
+          let dateLabel = '요일 설정';
           if (dayIdx !== null) {
             const d = getAnchorWeekDate(dayIdx) || getUpcomingWeekdays(dayIdx, 1)[0];
-            if (d) {
-              dateSuffix = `<span class="text-[11px] font-normal ${isActive ? 'text-yellow-500/70' : 'text-gray-500'}">${fmtDateLabel(d)}</span>`;
-            }
+            if (d) dateLabel = fmtDateLabel(d);
           }
+          dateSuffix = `<span onclick="event.stopPropagation(); openSubGroupDayModal('${cfg.id}', '${escTitle}')" title="클릭해서 요일 변경" class="text-[11px] font-normal ${dateColor} underline decoration-dotted underline-offset-2 hover:text-yellow-400">${dateLabel}</span>`;
         }
         btn.innerHTML = `<span>${tabTitle}</span>${dateSuffix}`;
         btn.onclick = () => {
@@ -1375,27 +1378,7 @@
           const targets = cfg.id === 'Main_8Man' ? [cfg.id, 'Attendance', 'Raid_Status'] : [cfg.id, 'Raid_Status'];
           refreshSheets(targets);
         };
-
-        if (cfg.id === 'Main_8Man') {
-          nav.appendChild(btn);
-        } else {
-          // 서브그룹 탭에는 요일 설정 아이콘을 옆에 붙인다.
-          const wrap = document.createElement('div');
-          wrap.className = 'flex items-center shrink-0';
-          wrap.appendChild(btn);
-
-          const gearBtn = document.createElement('button');
-          gearBtn.className = 'ml-1 p-1.5 rounded-lg text-gray-500 hover:text-yellow-400 hover:bg-gray-800 transition shrink-0';
-          gearBtn.title = '이 조의 요일 설정';
-          gearBtn.innerHTML = '<i data-lucide="settings" class="w-3.5 h-3.5"></i>';
-          gearBtn.onclick = (e) => {
-            e.stopPropagation();
-            openSubGroupDayModal(cfg.id, tabTitle);
-          };
-          wrap.appendChild(gearBtn);
-
-          nav.appendChild(wrap);
-        }
+        nav.appendChild(btn);
       });
       drawIcons();
     }
