@@ -94,7 +94,7 @@
           <i data-lucide="flask-conical" class="w-6 h-6 text-purple-400"></i>
           <span class="font-bold text-lg text-white tracking-wide whitespace-nowrap">로아 공대</span>
           <button onclick="openInfoModal('changelog')" class="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/30 hover:bg-purple-500/20 transition cursor-pointer" title="클릭하여 업데이트 이력 확인">
-            v1.1.20
+            v1.1.21
           </button>
         </div>
 
@@ -1562,6 +1562,13 @@
     async function startRaidBlock(sheetId, blockIndex, rawRaidTitle, displayTitle) {
       if (!selectedUser) {
         customAlert("상단 헤더의 [내 캐릭터 강조]에서 본인 계정을 먼저 선택해 주세요!");
+        return;
+      }
+
+      // 아직 시작되지 않은 주차(앵커가 미래 날짜)면 진행 처리를 막는다 -
+      // 앵커는 평소엔 항상 오늘 이전이지만, 수동으로 미리 다음 주차를 세팅해둔 경우 등 방어 차원.
+      if (siteConfig.raidWeekAnchor && fmtDate(new Date()) < siteConfig.raidWeekAnchor) {
+        customAlert(`아직 시작되지 않은 주차입니다. (${siteConfig.raidWeekAnchor} 주차 시작 예정)`);
         return;
       }
 
