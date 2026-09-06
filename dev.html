@@ -94,7 +94,7 @@
           <i data-lucide="flask-conical" class="w-6 h-6 text-purple-400"></i>
           <span class="font-bold text-lg text-white tracking-wide whitespace-nowrap">로아 공대</span>
           <button onclick="openInfoModal('changelog')" class="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/30 hover:bg-purple-500/20 transition cursor-pointer" title="클릭하여 업데이트 이력 확인">
-            v1.1.26
+            v1.1.27
           </button>
         </div>
 
@@ -369,10 +369,13 @@
         <i data-lucide="plus-circle" class="w-5 h-5"></i>
         <h3 class="text-lg font-bold text-white">레이드 블록 추가</h3>
       </div>
-      <p class="text-xs text-gray-400 mb-4">
+      <p class="text-xs text-gray-400 mb-3">
         현재 탭(<span id="addBlockSheetLabel" class="text-gray-300 font-semibold">-</span>)에 새 레이드를 추가합니다. 이미 있는 레이드를 또 골라도 자동으로 회차가 붙어서 구분됩니다.
-        <span id="addBlockScopeNote" class="hidden mt-1 text-amber-400">이 조는 인원이 고정돼 있어, 소속 조원(유저)의 캐릭터 중에서만 고를 수 있고 전원이 빠짐없이 들어가야 합니다. (부캐는 매번 직접 골라 주세요)</span>
       </p>
+      <div id="addBlockScopeNote" class="hidden items-start gap-2 mb-4 p-2.5 rounded-lg border border-amber-500/30 bg-amber-500/10 text-xs text-amber-400 leading-relaxed">
+        <i data-lucide="info" class="w-3.5 h-3.5 mt-0.5 shrink-0"></i>
+        <span>이 조는 인원이 고정돼 있어, 소속 조원(유저)의 캐릭터 중에서만 고를 수 있고 전원이 빠짐없이 들어가야 합니다.<br>부캐는 매번 직접 골라 주세요.</span>
+      </div>
 
       <div class="space-y-3 overflow-y-auto modal-scroll pr-1.5 flex-1">
         <div>
@@ -3086,7 +3089,11 @@
       const label = document.getElementById('addBlockSheetLabel');
       if (label) label.textContent = sheetInfo ? sheetInfo.title : currentActiveTab;
       const scopeNote = document.getElementById('addBlockScopeNote');
-      if (scopeNote) scopeNote.classList.toggle('hidden', currentActiveTab === 'Main_8Man');
+      if (scopeNote) {
+        const showScopeNote = currentActiveTab !== 'Main_8Man';
+        scopeNote.classList.toggle('hidden', !showScopeNote);
+        scopeNote.classList.toggle('flex', showScopeNote);
+      }
 
       const select = document.getElementById('addBlockRaidSelect');
       select.innerHTML = '<option value="" class="bg-[#161b22]">레이드를 선택해 주세요</option>' + buildAddBlockRaidOptions();
