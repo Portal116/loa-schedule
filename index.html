@@ -15,7 +15,7 @@
       const ID = '1dDM5LoLM75hhojd8p1vA-095J-HcOgFQPTQiaErXHi0';
       const bust = Date.now();
       const names = ['Main_8Man', 'Sub_Group1', 'Sub_Group2', 'Sub_Group3', 'Sub_Group4',
-                     'Character_Pool', 'Attendance', 'Raid_Info', 'Config'];
+                     'Character_Pool', 'Attendance', 'Raid_Info', 'Config', 'Raid_Status'];
       const map = {};
       names.forEach(n => {
         const url = `https://docs.google.com/spreadsheets/d/${ID}/gviz/tq?tqx=out:csv&sheet=${encodeURI(n)}&t=${bust}`;
@@ -94,7 +94,7 @@
           <i data-lucide="shield" class="w-6 h-6 text-yellow-500"></i>
           <span class="font-bold text-lg text-white tracking-wide whitespace-nowrap">로아 공대</span>
           <button onclick="openInfoModal('changelog')" class="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-yellow-500/10 text-yellow-400 border border-yellow-500/30 hover:bg-yellow-500/20 transition cursor-pointer" title="클릭하여 업데이트 이력 확인">
-            v1.1
+            v1.2
           </button>
         </div>
 
@@ -113,6 +113,12 @@
             <option value="" class="bg-[#161b22] text-gray-300">선택 안 함 (전체)</option>
           </select>
         </div>
+
+        <button onclick="openCurrentRaidsModal()" id="currentRaidsBtn" class="hidden relative flex items-center space-x-1 bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white border border-gray-700 text-xs font-semibold px-2.5 py-1.5 rounded-lg transition">
+          <i data-lucide="radio" class="w-3.5 h-3.5 text-amber-400"></i>
+          <span>현재 레이드</span>
+          <span id="currentRaidsBadgeCount" class="ml-0.5 min-w-[1.1rem] h-[1.1rem] px-1 rounded-full bg-amber-500 text-black text-[10px] font-bold flex items-center justify-center">0</span>
+        </button>
 
         <button onclick="openAttendanceModal()" class="flex items-center space-x-1 bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white border border-gray-700 text-xs font-semibold px-2.5 py-1.5 rounded-lg transition">
           <i data-lucide="calendar-x" class="w-3.5 h-3.5 text-orange-400"></i>
@@ -135,7 +141,7 @@
   </header>
 
   <!-- 점검 안내 배너. Config 시트의 '점검모드'/'공지문구' 값을 그대로 표시한다.
-       재배포 없이 시트 값만 바꾸면 켜고 끌 수 있다. -->
+       재배포 없이 시트 값만 바꾸면 켜고 끌 수 있다. dev 빌드는 문구 앞에 [DEV] 를 붙여 구분한다. -->
   <div id="maintenanceBanner" class="hidden bg-amber-500/15 border-b border-amber-600/40">
     <div class="max-w-7xl mx-auto px-4 py-2.5 flex items-center gap-2 text-xs text-amber-300">
       <i data-lucide="alert-triangle" class="w-4 h-4 shrink-0"></i>
@@ -157,6 +163,10 @@
             <input type="checkbox" id="filterMySubToggle" class="rounded bg-gray-800 border-gray-600 text-yellow-500 focus:ring-0 cursor-pointer" />
             <span>내 서브 조만 보기</span>
           </label>
+          <button onclick="openAddBlockModal()" class="flex items-center space-x-1 bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white border border-gray-700 text-xs font-semibold px-2.5 py-1.5 rounded-lg transition">
+            <i data-lucide="plus-circle" class="w-3.5 h-3.5 text-yellow-400"></i>
+            <span>블록 추가</span>
+          </button>
         </div>
       </div>
 
@@ -311,7 +321,7 @@
 
       <div class="flex items-center space-x-2 text-yellow-400 mb-2">
         <i data-lucide="refresh-cw" class="w-5 h-5"></i>
-        <h3 class="text-lg font-bold text-white">내 캐릭터 즉시 변경</h3>
+        <h3 class="text-lg font-bold text-white" id="swapModalTitle">내 캐릭터 즉시 변경</h3>
       </div>
       <p class="text-xs text-gray-400 mb-4" id="swapModalDesc">
         본인 원정대 캐릭터로만 교체할 수 있습니다. 캐릭터를 먼저 선택한 뒤, 하단의 <strong>확정 버튼</strong>을 눌러야 실제로 반영됩니다.
@@ -326,13 +336,179 @@
       </div>
 
       <div class="space-y-2">
-        <label class="block text-xs font-semibold text-gray-400" id="swapModalUserLabel">교체할 내 캐릭터 선택</label>
+        <div class="flex items-center justify-between gap-2">
+          <label class="block text-xs font-semibold text-gray-400" id="swapModalUserLabel">교체할 내 캐릭터 선택</label>
+          <span class="text-[11px] text-gray-500" id="swapSearchCount"></span>
+        </div>
+        <div class="relative">
+          <i data-lucide="search" class="w-3.5 h-3.5 text-gray-500 absolute left-2.5 top-1/2 -translate-y-1/2"></i>
+          <input type="text" id="swapSearchInput" oninput="filterSwapCandidates()" placeholder="캐릭터명 검색"
+            class="w-full bg-[#0d1117] border border-gray-700 rounded-lg pl-8 pr-3 py-1.5 text-xs text-gray-200 placeholder-gray-600 focus:outline-none focus:border-yellow-500 transition" />
+        </div>
         <div class="space-y-2 max-h-64 overflow-y-auto modal-scroll pr-1.5" id="swapCharListContainer"></div>
       </div>
 
       <div class="mt-5 flex items-center justify-between gap-2">
-        <button onclick="closeQuickSwapModal()" class="px-4 py-2 rounded-lg text-xs font-semibold text-gray-400 hover:text-white bg-gray-800 transition">취소</button>
+        <div class="flex items-center gap-2">
+          <button onclick="closeQuickSwapModal()" class="px-4 py-2 rounded-lg text-xs font-semibold text-gray-400 hover:text-white bg-gray-800 transition">취소</button>
+          <button id="swapRemoveBtn" onclick="removeMySlot()" class="px-3 py-2 rounded-lg text-xs font-semibold text-red-400 hover:text-red-300 bg-red-950/40 border border-red-900/60 transition">이 자리에서 빼기</button>
+        </div>
         <button id="swapConfirmBtn" onclick="confirmQuickSwap()" disabled class="px-4 py-2 rounded-lg text-xs font-bold text-black bg-yellow-400 hover:bg-yellow-300 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-yellow-400 transition">캐릭터를 선택해 주세요</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 레이드 블록 추가 모달 -->
+  <div id="addBlockModal" onclick="if (event.target === this) closeAddBlockModal()" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="card-bg w-full max-w-lg max-h-[85vh] rounded-2xl p-6 border border-gray-700 shadow-2xl relative flex flex-col">
+      <button onclick="closeAddBlockModal()" class="absolute top-4 right-4 text-gray-400 hover:text-white">
+        <i data-lucide="x" class="w-5 h-5"></i>
+      </button>
+
+      <div class="flex items-center space-x-2 text-yellow-400 mb-2">
+        <i data-lucide="plus-circle" class="w-5 h-5"></i>
+        <h3 class="text-lg font-bold text-white">레이드 블록 추가</h3>
+      </div>
+      <p class="text-xs text-gray-400 mb-3">
+        현재 탭(<span id="addBlockSheetLabel" class="text-gray-300 font-semibold">-</span>)에 새 레이드를 추가합니다. 이미 있는 레이드를 또 골라도 자동으로 회차가 붙어서 구분됩니다.
+      </p>
+      <div id="addBlockScopeNote" class="hidden items-start gap-2 mb-4 p-2.5 rounded-lg border border-amber-500/30 bg-amber-500/10 text-xs text-amber-400 leading-relaxed">
+        <i data-lucide="info" class="w-3.5 h-3.5 mt-0.5 shrink-0"></i>
+        <span>이 조는 인원이 고정돼 있어, 소속 조원(유저)의 캐릭터 중에서만 고를 수 있고 전원이 빠짐없이 들어가야 합니다.<br>부캐는 매번 직접 골라 주세요.</span>
+      </div>
+
+      <div class="space-y-3 overflow-y-auto modal-scroll pr-1.5 flex-1">
+        <div>
+          <label class="block text-xs font-semibold text-gray-400 mb-1.5">레이드 선택</label>
+          <select id="addBlockRaidSelect" onchange="onAddBlockRaidChange()"
+            class="w-full bg-[#0d1117] border border-gray-700 rounded-lg px-3 py-2 text-xs text-gray-200 focus:outline-none focus:border-yellow-500 transition">
+            <option value="" class="bg-[#161b22]">레이드를 선택해 주세요</option>
+          </select>
+        </div>
+
+        <div id="addBlockCapacitySection" class="hidden space-y-2">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-semibold text-gray-400"><span id="addBlockListLabel">캐릭터 선택</span> <span id="addBlockSelectedCount" class="text-yellow-400 font-mono"></span></span>
+            <span class="text-[11px] text-gray-500" id="addBlockSearchCount"></span>
+          </div>
+          <div class="relative" id="addBlockSearchWrap">
+            <i data-lucide="search" class="w-3.5 h-3.5 text-gray-500 absolute left-2.5 top-1/2 -translate-y-1/2"></i>
+            <input type="text" id="addBlockSearchInput" oninput="filterAddBlockCandidates()" placeholder="캐릭터명 검색"
+              class="w-full bg-[#0d1117] border border-gray-700 rounded-lg pl-8 pr-3 py-1.5 text-xs text-gray-200 placeholder-gray-600 focus:outline-none focus:border-yellow-500 transition" />
+          </div>
+          <div class="space-y-1.5 max-h-64 overflow-y-auto modal-scroll pr-1.5" id="addBlockCharListContainer"></div>
+        </div>
+      </div>
+
+      <div class="mt-4 pt-3 border-t border-gray-800 flex items-center justify-end gap-2">
+        <button onclick="closeAddBlockModal()" class="px-4 py-2 rounded-lg text-xs font-semibold text-gray-400 hover:text-white bg-gray-800 transition">취소</button>
+        <button id="addBlockConfirmBtn" onclick="confirmAddBlock()" disabled class="px-4 py-2 rounded-lg text-xs font-bold text-black bg-yellow-400 hover:bg-yellow-300 disabled:opacity-40 disabled:cursor-not-allowed transition">레이드를 먼저 선택해 주세요</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 레이드 진행/완료 관리 모달 -->
+  <div id="raidProgressModal" onclick="if (event.target === this) closeRaidProgressModal()" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="card-bg w-full max-w-md rounded-2xl p-6 border border-gray-700 shadow-2xl relative">
+      <button onclick="closeRaidProgressModal()" class="absolute top-4 right-4 text-gray-400 hover:text-white">
+        <i data-lucide="x" class="w-5 h-5"></i>
+      </button>
+
+      <div class="flex items-center space-x-2 text-amber-400 mb-2">
+        <i data-lucide="play-circle" class="w-5 h-5"></i>
+        <h3 class="text-lg font-bold text-white" id="raidProgressTitle">-</h3>
+      </div>
+      <p class="text-xs text-gray-400 mb-5" id="raidProgressStatusText"></p>
+
+      <div class="flex items-center justify-between gap-2">
+        <button onclick="cancelRaidBlock()" class="px-3 py-2 rounded-lg text-xs font-semibold text-red-400 hover:text-red-300 bg-red-950/40 border border-red-900/60 transition">되돌리기</button>
+        <button onclick="completeRaidBlock()" class="px-4 py-2 rounded-lg text-xs font-bold text-black bg-emerald-400 hover:bg-emerald-300 transition">완료 처리</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 현재 진행 중인 레이드 목록 모달 -->
+  <div id="currentRaidsModal" onclick="if (event.target === this) closeCurrentRaidsModal()" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="card-bg w-full max-w-md max-h-[80vh] rounded-2xl p-6 border border-gray-700 shadow-2xl relative flex flex-col">
+      <button onclick="closeCurrentRaidsModal()" class="absolute top-4 right-4 text-gray-400 hover:text-white">
+        <i data-lucide="x" class="w-5 h-5"></i>
+      </button>
+
+      <div class="flex items-center space-x-2 text-amber-400 mb-4">
+        <i data-lucide="radio" class="w-5 h-5"></i>
+        <h3 class="text-lg font-bold text-white">현재 진행 중인 레이드</h3>
+      </div>
+
+      <div id="currentRaidsList" class="space-y-2 overflow-y-auto modal-scroll pr-1.5 flex-1"></div>
+    </div>
+  </div>
+
+  <!-- 서브그룹 요일 설정 모달 -->
+  <div id="subGroupDayModal" onclick="if (event.target === this) closeSubGroupDayModal()" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="card-bg w-full max-w-sm rounded-2xl p-6 border border-gray-700 shadow-2xl relative">
+      <button onclick="closeSubGroupDayModal()" class="absolute top-4 right-4 text-gray-400 hover:text-white">
+        <i data-lucide="x" class="w-5 h-5"></i>
+      </button>
+      <div class="flex items-center space-x-2 text-yellow-400 mb-2">
+        <i data-lucide="settings" class="w-5 h-5"></i>
+        <h3 class="text-sm font-bold text-white"><span id="subGroupDayModalLabel">-</span> 요일 설정</h3>
+      </div>
+      <p class="text-xs text-gray-400 mb-4">이 조가 레이드하는 요일을 선택하세요. 탭에 표시되는 날짜 계산에만 쓰이고, 실제 일정에는 영향을 주지 않습니다.</p>
+      <select id="subGroupDaySelect" class="w-full bg-[#0d1117] border border-gray-700 rounded-lg px-3 py-2 text-xs text-gray-200 focus:outline-none focus:border-yellow-500 transition mb-5">
+        <option value="수요일" class="bg-[#161b22]">수요일</option>
+        <option value="목요일" class="bg-[#161b22]">목요일</option>
+        <option value="금요일" class="bg-[#161b22]">금요일</option>
+        <option value="토요일" class="bg-[#161b22]">토요일</option>
+        <option value="일요일" class="bg-[#161b22]">일요일</option>
+        <option value="월요일" class="bg-[#161b22]">월요일</option>
+        <option value="화요일" class="bg-[#161b22]">화요일</option>
+      </select>
+      <div class="flex items-center justify-end gap-2">
+        <button onclick="closeSubGroupDayModal()" class="px-3 py-2 rounded-lg text-xs font-semibold text-gray-300 hover:text-white bg-gray-800 border border-gray-700 transition">취소</button>
+        <button onclick="confirmSubGroupDay()" class="px-4 py-2 rounded-lg text-xs font-bold text-black bg-yellow-400 hover:bg-yellow-300 transition">저장</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 커스텀 알림/확인/입력 모달 (네이티브 alert/confirm/prompt 대체) -->
+  <div id="customAlertModal" class="fixed inset-0 z-[60] bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="card-bg w-full max-w-sm rounded-2xl p-6 border border-gray-700 shadow-2xl relative">
+      <div class="flex items-center space-x-2 text-amber-400 mb-3">
+        <i data-lucide="alert-circle" class="w-5 h-5"></i>
+        <h3 class="text-sm font-bold text-white" id="customAlertTitle">알림</h3>
+      </div>
+      <p class="text-sm text-gray-300 mb-5 whitespace-pre-wrap" id="customAlertMessage"></p>
+      <div class="flex justify-end">
+        <button id="customAlertOkBtn" class="px-4 py-2 rounded-lg text-xs font-bold text-black bg-amber-400 hover:bg-amber-300 transition">확인</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="customConfirmModal" class="fixed inset-0 z-[60] bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="card-bg w-full max-w-sm rounded-2xl p-6 border border-gray-700 shadow-2xl relative">
+      <div class="flex items-center space-x-2 text-amber-400 mb-3">
+        <i data-lucide="help-circle" class="w-5 h-5"></i>
+        <h3 class="text-sm font-bold text-white" id="customConfirmTitle">확인</h3>
+      </div>
+      <p class="text-sm text-gray-300 mb-5 whitespace-pre-wrap" id="customConfirmMessage"></p>
+      <div class="flex items-center justify-end gap-2">
+        <button id="customConfirmCancelBtn" class="px-3 py-2 rounded-lg text-xs font-semibold text-gray-300 hover:text-white bg-gray-800 border border-gray-700 transition">취소</button>
+        <button id="customConfirmOkBtn" class="px-4 py-2 rounded-lg text-xs font-bold text-black bg-amber-400 hover:bg-amber-300 transition">확인</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="customPromptModal" class="fixed inset-0 z-[60] bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="card-bg w-full max-w-sm rounded-2xl p-6 border border-gray-700 shadow-2xl relative">
+      <div class="flex items-center space-x-2 text-amber-400 mb-3">
+        <i data-lucide="edit-3" class="w-5 h-5"></i>
+        <h3 class="text-sm font-bold text-white" id="customPromptTitle">입력</h3>
+      </div>
+      <p class="text-xs text-gray-400 mb-3 whitespace-pre-wrap" id="customPromptMessage"></p>
+      <input id="customPromptInput" type="text" class="w-full mb-5 px-3 py-2 rounded-lg bg-gray-900 border border-gray-700 text-sm text-white focus:outline-none focus:border-amber-400" />
+      <div class="flex items-center justify-end gap-2">
+        <button id="customPromptCancelBtn" class="px-3 py-2 rounded-lg text-xs font-semibold text-gray-300 hover:text-white bg-gray-800 border border-gray-700 transition">취소</button>
+        <button id="customPromptOkBtn" class="px-4 py-2 rounded-lg text-xs font-bold text-black bg-amber-400 hover:bg-amber-300 transition">확인</button>
       </div>
     </div>
   </div>
@@ -441,9 +617,10 @@
             <h4 class="font-bold text-xs mb-1.5 text-yellow-400">Q. [캐릭터 현황] 탭의 레이드 뱃지는 무슨 의미인가요?</h4>
             <ul class="text-xs text-gray-300 space-y-1 list-disc pl-4">
               <li><strong>색상 = 골드 여부</strong> : <span class="text-amber-300">호박색</span> 확정 / <span class="text-cyan-300">청록색</span> 선택 구간 / <span class="text-gray-400">회색</span> 골드 대상 아님</li>
-              <li><strong>테두리 = 체크 출처</strong> : 실선은 일정표 자동 (해제 불가) / 점선은 수동 체크 (클릭 시 취소)</li>
+              <li><strong>테두리 = 체크 출처</strong> : 실선은 레이드 완료 처리 시 자동 (해제 불가) / 점선은 수동 체크 (클릭 시 취소)</li>
               <li><strong>속이 빈 뱃지</strong> : 미완료</li>
               <li><strong>취소선</strong> : 레벨 부족으로 입장 불가</li>
+              <li><strong>🔗 표시</strong> : 일정표에 편성되어 있어 개별 체크를 못 쓰는 상태. 해당 레이드 블록을 완료 처리하면 자동으로 체크됩니다 (슬롯에서 빼면 다시 개별 체크 가능)</li>
             </ul>
           </div>
           <div class="bg-[#0d1117] p-3.5 rounded-xl border border-gray-800">
@@ -452,6 +629,30 @@
               <li><strong>(2/3)</strong> : 이번 주 골드 3칸 중 채운 개수입니다. 선택 구간 2개를 다 돌아도 골드는 1칸이라 1로 셉니다.</li>
               <li><strong>골드 제외</strong> : 골드 획득 캐릭터 6개 밖이라는 뜻입니다. 계정별 최종레벨 상위 6개로 자동 판정하므로 실제 지정과 다를 수 있습니다.</li>
             </ul>
+          </div>
+          <div class="bg-[#0d1117] p-3.5 rounded-xl border border-gray-800">
+            <h4 class="font-bold text-xs mb-1.5 text-yellow-400">Q. 예정 레벨은 어떻게 설정하나요?</h4>
+            <p class="text-xs text-gray-300 leading-relaxed">
+              캐릭터 현황 탭에서 레벨 숫자를 클릭하면 예정 레벨을 입력하거나 해제할 수 있습니다. 스왑 시 레벨이 부족한 캐릭터를 선택하면 예정 레벨이 자동으로 그 레이드 입장 레벨까지 올라갑니다 (낮아지지는 않습니다).
+            </p>
+          </div>
+          <div class="bg-[#0d1117] p-3.5 rounded-xl border border-gray-800">
+            <h4 class="font-bold text-xs mb-1.5 text-yellow-400">Q. [진행] / [완료 처리] 버튼은 무엇인가요?</h4>
+            <p class="text-xs text-gray-300 leading-relaxed">
+              레이드를 시작하면 <strong>[진행]</strong> 버튼을 눌러 진행중으로 표시하고, 끝나면 <strong>[완료 처리]</strong>를 눌러주세요. 완료 처리해야 캐릭터 현황의 체크(V)가 반영됩니다. 헤더의 <strong>[현재 레이드]</strong> 배지에서 지금 진행중인 레이드를 한눈에 볼 수 있습니다.
+            </p>
+          </div>
+          <div class="bg-[#0d1117] p-3.5 rounded-xl border border-gray-800">
+            <h4 class="font-bold text-xs mb-1.5 text-yellow-400">Q. [블록 추가]는 어떻게 쓰나요?</h4>
+            <p class="text-xs text-gray-300 leading-relaxed">
+              현재 탭에 새 레이드 회차를 통째로 등록할 수 있습니다. [토요일 고정]은 아무 캐릭터나 자유롭게 고를 수 있고, 서브그룹은 소속 조원의 캐릭터 중에서만 골라야 하며 전원이 빠짐없이 들어가야 합니다.
+            </p>
+          </div>
+          <div class="bg-[#0d1117] p-3.5 rounded-xl border border-gray-800">
+            <h4 class="font-bold text-xs mb-1.5 text-yellow-400">Q. 서브그룹 탭 옆 날짜는 어떻게 바꾸나요?</h4>
+            <p class="text-xs text-gray-300 leading-relaxed">
+              날짜 텍스트를 클릭하면 이 조가 레이드하는 요일을 바꿀 수 있습니다. 탭에 표시되는 날짜 계산에만 쓰이고 실제 일정에는 영향을 주지 않습니다.
+            </p>
           </div>
           <div class="bg-[#0d1117] p-3.5 rounded-xl border border-gray-800">
             <h4 class="font-bold text-xs mb-1.5 text-yellow-400">Q. 원하는 기능이 없어요!</h4>
@@ -465,10 +666,24 @@
         <div id="infoContentChangelog" class="space-y-3 hidden">
           <div class="border-l-2 border-yellow-500 pl-3 py-1 mb-3">
             <div class="flex items-center justify-between">
-              <span class="font-bold text-white text-xs">v1.1 - 캐릭터 교체 오류 수정</span>
-              <span class="text-[11px] text-gray-500">2026.09.01</span>
+              <span class="font-bold text-white text-xs">v1.2 - 레이드 진행 관리 기능 추가</span>
+              <span class="text-[11px] text-gray-500">2026.09.06</span>
             </div>
             <ul class="text-xs text-gray-400 mt-1 space-y-0.5 list-disc pl-3">
+              <li>[진행/완료 처리] 기능 추가 - 헤더에 [현재 레이드] 배지로 진행중인 레이드 확인 가능 (완료 처리해야 캐릭터 현황 체크가 반영됩니다)</li>
+              <li>캐릭터 현황에서 예정 레벨 직접 설정 기능 추가</li>
+              <li>[블록 추가] 기능 - 레이드 회차를 한 번에 새로 등록</li>
+              <li>서브그룹 탭에 요일 설정 기능 추가 (탭 날짜 클릭)</li>
+              <li>그 외 사소한 오류 수정 및 UI 개선</li>
+            </ul>
+          </div>
+
+          <div class="border-l-2 border-gray-700 pl-3 py-1 mb-3">
+            <div class="flex items-center justify-between">
+              <span class="font-bold text-gray-300 text-xs">v1.1 - 캐릭터 교체 오류 수정</span>
+              <span class="text-[11px] text-gray-500">2026.09.01</span>
+            </div>
+            <ul class="text-xs text-gray-500 mt-1 space-y-0.5 list-disc pl-3">
               <li>같은 레이드가 여러 회차 편성된 경우, 캐릭터를 바꾸면 다른 회차가 변경되던 문제 수정</li>
             </ul>
           </div>
@@ -598,9 +813,23 @@
     let raidInfoData = [];
     let activeSwapTarget = null;
     let pendingSwapChar = null;
+    let pendingSwapNeedsLevelUp = false; // 선택한 캐릭이 이 레이드 입장 레벨에 못 미치는지
+    let pendingSwapRequiredLevel = 0;    // 그 경우 자동으로 올려줄 예정 레벨(=이 레이드 입장 레벨)
+    let swapMode = 'swap';        // 'swap' = 기존 슬롯 교체, 'add' = 빈 자리에 본인 추가
+    let activeAddTarget = null;   // 'add' 모드의 대상 블록 정보
+    let addBlockCurrentRaid = null;      // 블록 추가 모달에서 선택한 { name, diff }
+    let addBlockCurrentCap = 0;          // 그 레이드의 정원
+    let addBlockSelectedChars = new Set(); // 블록 추가 모달에서 선택한 캐릭터명들
+    let addBlockFixedRoster = false;     // 서브그룹 탭이라 소속 인원 전체가 강제 편성되는 모드인지
+    let addBlockRosterOverflow = false;  // 고정 인원이 이 레이드 정원보다 많아서 추가 불가능한 상태인지
     let goldEligibleCharNames = new Set();
     let attendanceData = [];          // Attendance 시트 원본
-    let siteConfig = { maintenanceMode: false, noticeText: '' };  // Config 시트 원본
+    let raidStatusData = [];          // Raid_Status 시트 원본 (레이드 진행중/완료 상태)
+    // 블록 접기/펼치기를 사용자가 수동으로 뒤집은 기록 (sheetId_blockIndex -> true=접힘/false=펼침).
+    // 여기 없으면 기본값(완료 상태면 접힘)을 그대로 쓴다.
+    let collapsedOverride = new Map();
+    let activeProgressTarget = null;  // 진행/완료 모달이 대상으로 하는 블록 정보
+    let siteConfig = { maintenanceMode: false, noticeText: '', subGroupDays: {}, raidWeekAnchor: '' };  // Config 시트 원본
     let suggestionsData = [];         // Suggestions 시트 원본
     // 시트별로 편성 인스턴스를 나눠 보관한다. 한 시트만 다시 받아도 골드 재계산이 가능해진다.
     let allRaidInstancesBySheet = {};
@@ -679,7 +908,7 @@
       if (view === 'pool') refreshSheets(['Character_Pool']);
       if (view === 'gold') refreshSheets(['Raid_Info']);
       if (view === 'schedule') {
-        const targets = currentActiveTab === 'Main_8Man' ? [currentActiveTab, 'Attendance'] : [currentActiveTab];
+        const targets = currentActiveTab === 'Main_8Man' ? [currentActiveTab, 'Attendance', 'Raid_Status'] : [currentActiveTab, 'Raid_Status'];
         refreshSheets(targets);
       }
     }
@@ -735,6 +964,29 @@
     }
 
     // 일정표 시트 1개를 파싱해서 저장소에 반영한다.
+    // 시트에는 유저명(본/부 구분 없는 base 가능)과 캐릭터명만 있다.
+    // 직업/레벨/포지션, 그리고 정확한 유저명(본/부 포함)은 캐릭터명으로 Character_Pool 을
+    // 조회해서 슬롯 자체에 채워 넣는다. 이후 모든 코드는 slot.user/job/level/pos 를
+    // 그냥 읽으면 되고, "어디서 조회하나"를 신경 쓸 필요가 없다.
+    // 풀에서 못 찾으면(오타·탈퇴 등) 시트의 유저명만 살리고 나머지는 '정보 없음'.
+    function enrichSlotFromPool(slot) {
+      const poolChar = characterPoolData.find(c => c.name === slot.name);
+      if (poolChar) {
+        slot.user = poolChar.user;
+        slot.job = poolChar.job;
+        slot.level = poolChar.level;
+        slot.pos = poolChar.pos;
+        slot.foundInPool = true;
+      } else {
+        slot.user = slot.user || '(알 수 없음)';
+        slot.job = '정보 없음';
+        slot.level = 0;
+        slot.pos = '딜러'; // 배지 판단이 깨지지 않도록 기본값
+        slot.foundInPool = false;
+      }
+      return slot;
+    }
+
     function processScheduleSheet(config, rows) {
       const blocks = parseRaidBlocksRobust(rows, config.is8Man, config.id);
       const groupUsers = new Set();
@@ -742,6 +994,7 @@
 
       blocks.forEach(b => {
         b.slots.forEach(sl => {
+          enrichSlotFromPool(sl);
           if (sl.user && !isHeaderWord(sl.user)) {
             const baseUser = sl.user.split('(')[0].trim();
             if (baseUser) {
@@ -757,7 +1010,7 @@
               sheetTitle: config.fixedTitle || config.id,
               sheetId: config.id,
               sheetRow: sl.sheetRow,
-              party: sl.party,
+              colIndex: sl.colIndex,
               user: sl.user,
               job: sl.job,
               level: sl.level
@@ -786,11 +1039,38 @@
       window.allRaidInstancesStore = all;
     }
 
+    // 화면에서 슬롯을 편집한 뒤, 그 시트의 편성 인스턴스를 다시 만들고 골드 판정을 재계산한다.
+    // 이 과정을 빼면 새로 넣은 슬롯의 골드 뱃지가 X 로, 교체한 슬롯은 이전 캐릭 기준으로 남는다.
+    function rebuildInstancesForSheet(sheetId) {
+      const cur = sheetsDataStore[sheetId];
+      if (!cur) return;
+      const list = [];
+      cur.blocks.forEach(b => {
+        b.slots.forEach(s => {
+          list.push({
+            charName: s.name,
+            slotUid: s.slotUid,
+            raidTitle: b.title,
+            sheetTitle: cur.config.fixedTitle || sheetId,
+            sheetId: sheetId,
+            sheetRow: s.sheetRow,
+            colIndex: s.colIndex,
+            user: s.user,
+            job: s.job,
+            level: s.level
+          });
+        });
+      });
+      allRaidInstancesBySheet[sheetId] = list;
+      recalcGoldFromStore();
+    }
+
     // 현재 보고 있는 화면만 다시 그린다.
     function renderCurrentViews() {
       populateUserSelector();
       renderTabs();
       renderActiveTabContent();
+      renderCurrentRaidsBadge();
       if (currentMainView === 'pool') renderPoolView();
       if (currentMainView === 'gold') renderGoldTableView();
       // 도움말 모달의 건의사항 탭이 열려 있으면 목록도 갱신
@@ -827,6 +1107,7 @@
           else if (name === 'Raid_Info') parseRaidInfo(rows);
           else if (name === 'Attendance') parseAttendance(rows);
           else if (name === 'Suggestions') parseSuggestions(rows);
+          else if (name === 'Raid_Status') parseRaidStatus(rows);
           changed = true;
         });
 
@@ -852,21 +1133,27 @@
       try {
         // 시트를 순차로 받으면 왕복 8번이 그대로 더해진다. 서로 의존하지 않으므로 전부 병렬로 받는다.
         const bust = Date.now();
-        const [sheetRows, poolRows, attRows, raidRows, configRows] = await Promise.all([
+        const [sheetRows, poolRows, attRows, raidRows, configRows, statusRows] = await Promise.all([
           Promise.all(SHEET_CONFIG.map(cfg => fetchSheetCsv(cfg.id, bust))),
           fetchSheetCsv('Character_Pool', bust),
           fetchSheetCsv('Attendance', bust).catch(() => null),
           fetchSheetCsv('Raid_Info', bust).catch(() => null),
-          fetchSheetCsv('Config', bust).catch(() => null)
+          fetchSheetCsv('Config', bust).catch(() => null),
+          fetchSheetCsv('Raid_Status', bust).catch(() => null)
         ]);
 
-        SHEET_CONFIG.forEach((config, idx) => processScheduleSheet(config, sheetRows[idx]));
+        // processScheduleSheet(enrichSlotFromPool 포함)가 characterPoolData 를 조회하므로,
+        // 반드시 parseCharacterPool 을 먼저 실행해야 한다. 순서가 바뀌면 첫 로딩 시
+        // characterPoolData 가 비어 있는 채로 조회되어 전부 '정보 없음'으로 나온다
+        // (새로고침을 누르면 직전 호출의 characterPoolData 가 남아있어 우연히 정상으로 보였다).
         parseCharacterPool(poolRows);
+        SHEET_CONFIG.forEach((config, idx) => processScheduleSheet(config, sheetRows[idx]));
 
-        // Attendance / Raid_Info / Config 는 없어도 나머지 기능이 동작해야 한다
+        // Attendance / Raid_Info / Config / Raid_Status 는 없어도 나머지 기능이 동작해야 한다
         if (attRows) parseAttendance(attRows); else attendanceData = [];
         if (raidRows) parseRaidInfo(raidRows);
         parseSiteConfig(configRows);
+        if (statusRows) parseRaidStatus(statusRows); else raidStatusData = [];
         renderMaintenanceBanner();
 
         recalcGoldFromStore();
@@ -875,7 +1162,7 @@
         const now = Date.now();
         lastFullSyncAt = now;
         SHEET_CONFIG.forEach(cfg => { lastSheetFetchAt[cfg.id] = now; });
-        ['Character_Pool', 'Attendance', 'Raid_Info'].forEach(n => { lastSheetFetchAt[n] = now; });
+        ['Character_Pool', 'Attendance', 'Raid_Info', 'Raid_Status'].forEach(n => { lastSheetFetchAt[n] = now; });
       } catch (err) {
         console.error(err);
       } finally {
@@ -918,6 +1205,8 @@
           const charObj = {
             user, server, name, job,
             level: finalLevel,
+            currentLevel: valE,   // E열: API로 갱신되는 실제 현재 레벨 (참고용, 수정 불가)
+            plannedLevel: valF,   // F열: 예정 레벨 (대시보드에서 직접 수정 가능)
             pos,
             raids: { final: stFinal, act4: stAct4, cathedral: stCathedral, serka: stSerka, belga: stBelga }
           };
@@ -967,110 +1256,62 @@
       return rawTitle.replace(/(유저명|캐릭터명|직업|레벨|포지션)/g, '').trim();
     }
 
+    // ─── 새 시트 구조 파서 ─────────────────────────────────────
+    // 레이드 블록 하나 = 2행.
+    //   1행: A열에 레이드명(대괄호), B열부터 유저명이 가로로 나열
+    //   2행: A열은 레이드명과 병합(비어있음), B열부터 캐릭터명이 가로로 나열
+    // 직업/레벨/포지션은 시트에 저장하지 않고, 캐릭터명으로 characterPoolData 에서 조회한다
+    // (renderPartySlots 렌더링 시점에 처리 — 여기서는 user/name/slotUid 등 골격만 만든다).
+    // 파티(1/2) 개념은 없다. 열 하나가 곧 한 자리다.
     function parseRaidBlocksRobust(rows, is8Man, sheetId) {
       const blocks = [];
       let r = 0;
       let blockIdx = 0;
+      const maxCap = is8Man ? 8 : 8; // 정원은 Raid_Info 로 나중에 다시 제한하므로 넉넉히 스캔
 
       while (r < rows.length) {
         const row = rows[r] || [];
-        
-        let foundTitle = '';
-        for (let col = 0; col < (is8Man ? 10 : 5); col++) {
-          const val = (row[col] || '').toString().trim();
-          if (val.startsWith('[') && val.includes(']')) {
-            foundTitle = val;
-            break;
-          }
-        }
+        const titleCell = (row[0] || '').toString().trim();
 
-        if (foundTitle) {
-          const cleanTitle = sanitizeTitle(foundTitle);
-          const rawTitle = foundTitle;
+        if (titleCell.startsWith('[') && titleCell.includes(']')) {
+          const rawTitle = titleCell;
+          const cleanTitle = sanitizeTitle(rawTitle);
+          const nameRow = row;                 // 1행: 유저명
+          const charRow = rows[r + 1] || [];    // 2행: 캐릭터명
           const slots = [];
-          
-          r++;
 
-          if (r < rows.length) {
-            const checkRow = rows[r] || [];
-            const isHeader = isHeaderWord((checkRow[0] || '').toString()) || isHeaderWord((checkRow[1] || '').toString());
-            if (isHeader) r++;
-          }
+          for (let col = 1; col <= maxCap; col++) {
+            const user = (nameRow[col] || '').toString().trim();
+            const name = (charRow[col] || '').toString().trim();
+            if (!name || isHeaderWord(name)) continue;
 
-          for (let slotIdx = 0; slotIdx < 4 && r < rows.length; slotIdx++, r++) {
-            const curRow = rows[r] || [];
-            const actualSheetRow = r + 1;
-
-            let nextTitleCheck = '';
-            for (let col = 0; col < (is8Man ? 10 : 5); col++) {
-              const val = (curRow[col] || '').toString().trim();
-              if (val.startsWith('[') && val.includes(']')) {
-                nextTitleCheck = val;
-                break;
-              }
-            }
-            if (nextTitleCheck) {
-              r--;
-              break;
-            }
-
-            const user1 = (curRow[0] || '').toString().trim();
-            const char1 = (curRow[1] || '').toString().trim();
-            const job1  = (curRow[2] || '').toString().trim();
-            const lvl1  = (curRow[3] || '').toString().trim();
-            const pos1  = (curRow[4] || '').toString().trim();
-
-            const user2 = (curRow[5] || '').toString().trim();
-            const char2 = (curRow[6] || '').toString().trim();
-            const job2  = (curRow[7] || '').toString().trim();
-            const lvl2  = (curRow[8] || '').toString().trim();
-            const pos2  = (curRow[9] || '').toString().trim();
-
-            if (char1 && !isHeaderWord(char1)) {
-              slots.push({
-                slotUid: `${sheetId}_b${blockIdx}_p1_s${slotIdx}_${char1}`,
-                sheetId: sheetId,
-                sheetRow: actualSheetRow,
-                slotIndex: slotIdx,
-                party: 1,
-                user: user1,
-                name: char1,
-                job: job1,
-                level: lvl1,
-                pos: pos1 || (slotIdx === 3 ? '서포터' : '딜러'),
-                raidTitle: cleanTitle,
-                rawRaidTitle: rawTitle
-              });
-            }
-
-            if (is8Man && char2 && !isHeaderWord(char2)) {
-              slots.push({
-                slotUid: `${sheetId}_b${blockIdx}_p2_s${slotIdx}_${char2}`,
-                sheetId: sheetId,
-                sheetRow: actualSheetRow,
-                slotIndex: slotIdx,
-                party: 2,
-                user: user2,
-                name: char2,
-                job: job2,
-                level: lvl2,
-                pos: pos2 || (slotIdx === 3 ? '서포터' : '딜러'),
-                raidTitle: cleanTitle,
-                rawRaidTitle: rawTitle
-              });
-            }
+            slots.push({
+              slotUid: `${sheetId}_b${blockIdx}_c${col}_${name}`,
+              sheetId: sheetId,
+              sheetRow: r + 1,        // 레이드명이 있는 행(1행 기준, 2행은 +1)
+              colIndex: col,          // B열=1, C열=2 ...
+              blockIndex: blockIdx,
+              user: user,
+              name: name,
+              // 직업/레벨/포지션은 렌더링 시점에 characterPoolData 조회로 채운다 (아래 placeholder)
+              job: '',
+              level: '',
+              pos: '',
+              raidTitle: cleanTitle,
+              rawRaidTitle: rawTitle
+            });
           }
 
           if (slots.length > 0) {
-            // 같은 제목의 블록이 여러 개일 때 시트에서 정확한 블록을 찾기 위한 순번
-            slots.forEach(sl => { sl.blockIndex = blockIdx; });
             blocks.push({ title: cleanTitle, rawTitle, slots, is8Man, sheetId: sheetId });
             blockIdx++;
           }
+          r += 2; // 레이드 블록은 항상 2행
         } else {
           r++;
         }
       }
+
       // 같은 레이드가 한 시트에 여러 번 나오면 등장 순서대로 'N회차'를 붙인다.
       // 시트에 이미 회차가 적혀 있으면 그대로 두고, 1번만 나오는 레이드에는 붙이지 않는다.
       // rawTitle(시트 원본 문자열)은 슬롯 덮어쓰기 매칭에 쓰이므로 절대 바꾸지 않는다.
@@ -1090,6 +1331,7 @@
     }
 
     function populateUserSelector() {
+
       const select = document.getElementById('userSelector');
       const poolUserSelect = document.getElementById('poolUserFilter');
 
@@ -1144,14 +1386,28 @@
             ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/50'
             : 'text-gray-400 hover:text-white hover:bg-gray-800'
         }`;
-        // 토요일 고정 탭에는 참여 상태의 기준 날짜를 함께 표시한다.
-        // 슬롯의 불참/지각 태그가 어느 날짜 기준인지 알 수 있어야 한다.
+        // 토요일 고정 탭에는 참여 상태의 기준 날짜를, 서브조 탭에는 해당 요일의
+        // 날짜를 함께 표시한다 (Config 의 서브그룹N_요일 설정, 기본값 있음).
+        // 둘 다 '이번 주기' 앵커(현재레이드주차) 기준으로 계산해서, 완료 상태 리셋 시점과
+        // 항상 같이 넘어간다 - 앵커가 아직 없으면(첫 리셋 전) 예전 방식(다음 돌아오는 날짜)으로 대체.
         let dateSuffix = '';
+        const dateColor = isActive ? 'text-yellow-500/70' : 'text-gray-500';
         if (cfg.id === 'Main_8Man') {
-          const satList = getUpcomingSaturdays(1);
-          if (satList.length) {
-            dateSuffix = `<span class="text-[11px] font-normal ${isActive ? 'text-yellow-500/70' : 'text-gray-500'}">${fmtDateLabel(satList[0])}</span>`;
+          const satDate = getAnchorWeekDate(6) || getUpcomingSaturdays(1)[0];
+          if (satDate) {
+            dateSuffix = `<span class="text-[11px] font-normal ${dateColor}">${fmtDateLabel(satDate)}</span>`;
           }
+        } else {
+          // 서브조 탭의 날짜는 클릭해서 요일을 바로 바꿀 수 있게, 밑줄 힌트를 준 버튼으로 그린다.
+          const dayName = siteConfig.subGroupDays && siteConfig.subGroupDays[cfg.id];
+          const dayIdx = weekdayNameToIndex(dayName);
+          const escTitle = tabTitle.replace(/'/g, "\\'");
+          let dateLabel = '요일 설정';
+          if (dayIdx !== null) {
+            const d = getAnchorWeekDate(dayIdx) || getUpcomingWeekdays(dayIdx, 1)[0];
+            if (d) dateLabel = fmtDateLabel(d);
+          }
+          dateSuffix = `<span onclick="event.stopPropagation(); openSubGroupDayModal('${cfg.id}', '${escTitle}')" title="클릭해서 요일 변경" class="text-[11px] font-normal ${dateColor} underline decoration-dotted underline-offset-2 hover:text-yellow-400">${dateLabel}</span>`;
         }
         btn.innerHTML = `<span>${tabTitle}</span>${dateSuffix}`;
         btn.onclick = () => {
@@ -1160,37 +1416,73 @@
           renderActiveTabContent();
           // 화면을 먼저 그린 뒤 해당 시트만 조용히 갱신한다.
           // 불참/지각 태그는 토요일 고정에만 쓰이므로 Attendance 도 그때만 함께 받는다.
-          const targets = cfg.id === 'Main_8Man' ? [cfg.id, 'Attendance'] : [cfg.id];
+          const targets = cfg.id === 'Main_8Man' ? [cfg.id, 'Attendance', 'Raid_Status'] : [cfg.id, 'Raid_Status'];
           refreshSheets(targets);
         };
         nav.appendChild(btn);
       });
+      drawIcons();
     }
 
-    function balanceSlotsFor8Man(slots) {
-      const sorted = [...slots].sort((a, b) => {
-        const getPriority = (item) => {
-          if (item.pos === '서포터') return 3;
-          if (item.pos === '스왑가능') return 2;
-          return 1;
-        };
-        const pDiff = getPriority(b) - getPriority(a);
+    // ─── 서브그룹 요일 설정 모달 ─────────────────────────────────
+    let subGroupDayEditingSheetId = null;
+
+    function openSubGroupDayModal(sheetId, tabTitle) {
+      subGroupDayEditingSheetId = sheetId;
+      document.getElementById('subGroupDayModalLabel').textContent = tabTitle;
+      const select = document.getElementById('subGroupDaySelect');
+      select.value = (siteConfig.subGroupDays && siteConfig.subGroupDays[sheetId]) || DEFAULT_SUB_GROUP_DAYS[sheetId] || '목요일';
+      document.body.style.overflow = 'hidden';
+      document.getElementById('subGroupDayModal').classList.remove('hidden');
+      drawIcons();
+    }
+
+    function closeSubGroupDayModal() {
+      subGroupDayEditingSheetId = null;
+      document.body.style.overflow = '';
+      document.getElementById('subGroupDayModal').classList.add('hidden');
+    }
+
+    async function confirmSubGroupDay() {
+      if (!subGroupDayEditingSheetId) return;
+      const sheetId = subGroupDayEditingSheetId;
+      const dayName = document.getElementById('subGroupDaySelect').value;
+
+      closeSubGroupDayModal();
+
+      // 낙관적 반영: 탭 날짜 표시를 바로 갱신한다.
+      siteConfig.subGroupDays = siteConfig.subGroupDays || {};
+      siteConfig.subGroupDays[sheetId] = dayName;
+      renderTabs();
+
+      try {
+        await fetch(APPS_SCRIPT_WEB_APP_URL, {
+          method: 'POST',
+          mode: 'no-cors',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'updateSubGroupDay', sheetId, dayName })
+        });
+      } catch (err) {
+        console.error('서브그룹 요일 저장 오류:', err);
+      }
+    }
+
+    // 8인 레이드 슬롯 정렬: 서포터 → 스왑가능 → 딜러, 같은 등급이면 레벨 내림차순.
+    // 좌우 열로 미리 나누지 않고 정렬된 순서만 반환한다.
+    // 2열 그리드가 행 우선으로 채우므로 이 순서를 그대로 넣으면
+    // 데스크탑에서는 왼쪽 열 0·2·4·6 / 오른쪽 열 1·3·5·7 로 배치되고,
+    // 모바일(1열)에서는 정렬 순서대로 세로로 쌓인다.
+    function orderSlotsFor8Man(slots) {
+      const priority = (item) => {
+        if (item.pos === '서포터') return 3;
+        if (item.pos === '스왑가능') return 2;
+        return 1;
+      };
+      return [...slots].sort((a, b) => {
+        const pDiff = priority(b) - priority(a);
         if (pDiff !== 0) return pDiff;
         return parseFloat(b.level) - parseFloat(a.level);
       });
-
-      const colLeft = [];
-      const colRight = [];
-
-      sorted.forEach((slot, idx) => {
-        if (idx % 2 === 0) {
-          colLeft.push(slot);
-        } else {
-          colRight.push(slot);
-        }
-      });
-
-      return { colLeft, colRight };
     }
 
     function renderActiveTabContent() {
@@ -1211,36 +1503,69 @@
         const card = document.createElement('div');
         card.className = 'card-bg rounded-xl p-5 shadow-lg';
 
+        // 레이아웃(2열 그리드냐 1열 목록이냐)은 시트가 아니라 이 블록의 실제 정원(Raid_Info 기준)으로
+        // 정한다 - 서브조도 8인 레이드면 Main_8Man 처럼 2열로 넓게 보여준다.
+        // 여기서 한 번만 계산해서 renderAddSlotRow 에도 그대로 넘긴다 (블록당 반복 조회 방지).
+        const cap = getBlockCapacity(block);
+        const isWide = cap > 4;
+
+        const blockIndex = block.slots.length ? block.slots[0].blockIndex : 0;
+        const blockKey = `${block.sheetId}_${blockIndex}`;
+        const statusInfo = getRaidStatusFor(block.sheetId, blockIndex, block.rawTitle);
+        const defaultCollapsed = !!(statusInfo && statusInfo.status === '완료');
+        const isCollapsed = collapsedOverride.has(blockKey) ? collapsedOverride.get(blockKey) : defaultCollapsed;
+
+        const escRawTitle = block.rawTitle.replace(/'/g, "\\'");
+        const escDisplayTitle = block.title.replace(/'/g, "\\'");
+
+        let progressControl = '';
+        if (!statusInfo) {
+          progressControl = `<button onclick="startRaidBlock('${block.sheetId}', ${blockIndex}, '${escRawTitle}', '${escDisplayTitle}')" class="text-[11px] font-semibold px-2 py-1 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-300 border border-gray-700 transition">진행</button>`;
+        } else if (statusInfo.status === '진행중') {
+          progressControl = `<button onclick="openRaidProgressModal('${block.sheetId}', ${blockIndex}, '${escRawTitle}', '${escDisplayTitle}')" class="text-[11px] font-bold px-2 py-1 rounded-lg bg-amber-500/20 text-amber-300 border border-amber-500/60">진행 중</button>`;
+        } else {
+          progressControl = `<button onclick="openRaidProgressModal('${block.sheetId}', ${blockIndex}, '${escRawTitle}', '${escDisplayTitle}')" class="text-[11px] font-bold px-2 py-1 rounded-lg bg-emerald-500/20 text-emerald-300 border border-emerald-500/60">완료</button>`;
+        }
+
         let innerHTML = `
-          <div class="flex items-center space-x-2 border-b border-gray-800 pb-3 mb-4">
-            <span class="w-2.5 h-2.5 rounded-full ${block.is8Man ? 'bg-orange-400' : 'bg-blue-400'}"></span>
-            <h2 class="text-lg font-bold text-white tracking-wide">${block.title}</h2>
+          <div class="flex items-center justify-between ${isCollapsed ? '' : 'border-b border-gray-800 pb-3 mb-4'}">
+            <div class="flex items-center space-x-2">
+              <span class="w-2.5 h-2.5 rounded-full ${isWide ? 'bg-orange-400' : 'bg-blue-400'}"></span>
+              <h2 class="text-lg font-bold text-white tracking-wide">${block.title}</h2>
+            </div>
+            <div class="flex items-center gap-2">
+              ${progressControl}
+              <button onclick="toggleBlockCollapse('${block.sheetId}', ${blockIndex}, '${escRawTitle}')" class="text-gray-400 hover:text-white transition">
+                <i data-lucide="${isCollapsed ? 'chevron-down' : 'chevron-up'}" class="w-5 h-5"></i>
+              </button>
+            </div>
           </div>
         `;
 
-        if (block.is8Man) {
-          const { colLeft, colRight } = balanceSlotsFor8Man(block.slots);
+        if (!isCollapsed) {
+          if (isWide) {
+            innerHTML += `
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-1.5">
+                ${renderPartySlots(orderSlotsFor8Man(block.slots))}
+              </div>
+            `;
+            innerHTML += renderAddSlotRow(block, cap);
+          } else {
+            const sortedSlots = [...block.slots].sort((a, b) => {
+              const isSuppA = (a.pos === '서포터' || a.pos === '스왑가능');
+              const isSuppB = (b.pos === '서포터' || b.pos === '스왑가능');
+              if (isSuppA && !isSuppB) return -1;
+              if (isSuppB && !isSuppA) return 1;
+              return parseFloat(b.level) - parseFloat(a.level);
+            });
 
-          innerHTML += `
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div class="space-y-1.5">${renderPartySlots(colLeft)}</div>
-              <div class="space-y-1.5">${renderPartySlots(colRight)}</div>
-            </div>
-          `;
-        } else {
-          const sortedSlots = [...block.slots].sort((a, b) => {
-            const isSuppA = (a.pos === '서포터' || a.pos === '스왑가능');
-            const isSuppB = (b.pos === '서포터' || b.pos === '스왑가능');
-            if (isSuppA && !isSuppB) return -1;
-            if (isSuppB && !isSuppA) return 1;
-            return parseFloat(b.level) - parseFloat(a.level);
-          });
-
-          innerHTML += `
-            <div class="space-y-1.5 max-w-2xl">
-              ${renderPartySlots(sortedSlots)}
-            </div>
-          `;
+            innerHTML += `
+              <div class="space-y-1.5 max-w-2xl">
+                ${renderPartySlots(sortedSlots)}
+                ${renderAddSlotRow(block, cap)}
+              </div>
+            `;
+          }
         }
 
         card.innerHTML = innerHTML;
@@ -1248,6 +1573,279 @@
       });
 
       drawIcons();
+    }
+
+    function toggleBlockCollapse(sheetId, blockIndex, rawRaidTitle) {
+      const key = `${sheetId}_${blockIndex}`;
+      const statusInfo = getRaidStatusFor(sheetId, blockIndex, rawRaidTitle);
+      const defaultCollapsed = !!(statusInfo && statusInfo.status === '완료');
+      const current = collapsedOverride.has(key) ? collapsedOverride.get(key) : defaultCollapsed;
+      collapsedOverride.set(key, !current);
+      renderActiveTabContent();
+    }
+
+    // ─── 커스텀 알림/확인/입력 모달 (alert/confirm/prompt 대체) ─────
+    // 네이티브 다이얼로그는 다크 테마와 어울리지 않고 브라우저 자동화(Claude in Chrome) 입력도 막아버리므로
+    // 동일한 역할을 하는 in-app 모달로 대체한다. 각각 Promise를 반환해 기존 동기 호출부를 await로 바꿔 쓴다.
+    function customAlert(message, title) {
+      return new Promise(resolve => {
+        document.getElementById('customAlertTitle').textContent = title || '알림';
+        document.getElementById('customAlertMessage').textContent = message;
+        const modal = document.getElementById('customAlertModal');
+        const okBtn = document.getElementById('customAlertOkBtn');
+        modal.classList.remove('hidden');
+        const cleanup = () => {
+          modal.classList.add('hidden');
+          okBtn.removeEventListener('click', onOk);
+          modal.removeEventListener('click', onBackdrop);
+          document.removeEventListener('keydown', onKey);
+          resolve();
+        };
+        const onOk = () => cleanup();
+        const onBackdrop = (e) => { if (e.target === modal) cleanup(); };
+        const onKey = (e) => { if (e.key === 'Enter' || e.key === 'Escape') cleanup(); };
+        okBtn.addEventListener('click', onOk);
+        modal.addEventListener('click', onBackdrop);
+        document.addEventListener('keydown', onKey);
+        okBtn.focus();
+      });
+    }
+
+    function customConfirm(message, title) {
+      return new Promise(resolve => {
+        document.getElementById('customConfirmTitle').textContent = title || '확인';
+        document.getElementById('customConfirmMessage').textContent = message;
+        const modal = document.getElementById('customConfirmModal');
+        const okBtn = document.getElementById('customConfirmOkBtn');
+        const cancelBtn = document.getElementById('customConfirmCancelBtn');
+        modal.classList.remove('hidden');
+        const cleanup = (result) => {
+          modal.classList.add('hidden');
+          okBtn.removeEventListener('click', onOk);
+          cancelBtn.removeEventListener('click', onCancel);
+          modal.removeEventListener('click', onBackdrop);
+          document.removeEventListener('keydown', onKey);
+          resolve(result);
+        };
+        const onOk = () => cleanup(true);
+        const onCancel = () => cleanup(false);
+        const onBackdrop = (e) => { if (e.target === modal) cleanup(false); };
+        const onKey = (e) => {
+          if (e.key === 'Enter') cleanup(true);
+          else if (e.key === 'Escape') cleanup(false);
+        };
+        okBtn.addEventListener('click', onOk);
+        cancelBtn.addEventListener('click', onCancel);
+        modal.addEventListener('click', onBackdrop);
+        document.addEventListener('keydown', onKey);
+        okBtn.focus();
+      });
+    }
+
+    function customPrompt(message, defaultValue, title) {
+      return new Promise(resolve => {
+        document.getElementById('customPromptTitle').textContent = title || '입력';
+        document.getElementById('customPromptMessage').textContent = message;
+        const modal = document.getElementById('customPromptModal');
+        const input = document.getElementById('customPromptInput');
+        const okBtn = document.getElementById('customPromptOkBtn');
+        const cancelBtn = document.getElementById('customPromptCancelBtn');
+        input.value = defaultValue || '';
+        modal.classList.remove('hidden');
+        const cleanup = (result) => {
+          modal.classList.add('hidden');
+          okBtn.removeEventListener('click', onOk);
+          cancelBtn.removeEventListener('click', onCancel);
+          modal.removeEventListener('click', onBackdrop);
+          input.removeEventListener('keydown', onKey);
+          resolve(result);
+        };
+        const onOk = () => cleanup(input.value);
+        const onCancel = () => cleanup(null);
+        const onBackdrop = (e) => { if (e.target === modal) cleanup(null); };
+        const onKey = (e) => {
+          if (e.key === 'Enter') cleanup(input.value);
+          else if (e.key === 'Escape') cleanup(null);
+        };
+        okBtn.addEventListener('click', onOk);
+        cancelBtn.addEventListener('click', onCancel);
+        modal.addEventListener('click', onBackdrop);
+        input.addEventListener('keydown', onKey);
+        setTimeout(() => { input.focus(); input.select(); }, 50);
+      });
+    }
+
+    // ─── 레이드 진행/완료 관리 ─────────────────────────────────
+    // '진행' 버튼 - 진행중으로 표시하고 곧바로 관리 모달을 연다(누른 사람 입장에서는 즉시 확인).
+    async function startRaidBlock(sheetId, blockIndex, rawRaidTitle, displayTitle) {
+      if (!selectedUser) {
+        customAlert("상단 헤더의 [내 캐릭터 강조]에서 본인 계정을 먼저 선택해 주세요!");
+        return;
+      }
+
+      // 아직 시작되지 않은 주차(앵커가 미래 날짜)면 진행 처리를 막는다 -
+      // 앵커는 평소엔 항상 오늘 이전이지만, 수동으로 미리 다음 주차를 세팅해둔 경우 등 방어 차원.
+      if (siteConfig.raidWeekAnchor && fmtDate(new Date()) < siteConfig.raidWeekAnchor) {
+        customAlert(`아직 시작되지 않은 주차입니다. (${siteConfig.raidWeekAnchor} 주차 시작 예정)`);
+        return;
+      }
+
+      raidStatusData = raidStatusData.filter(s =>
+        !(s.sheetId === sheetId && s.blockIndex === blockIndex && s.rawRaidTitle === rawRaidTitle)
+      );
+      raidStatusData.push({ sheetId, blockIndex, rawRaidTitle, status: '진행중', startedBy: selectedUser, startedAt: '', completedAt: '' });
+      renderActiveTabContent();
+      renderCurrentRaidsBadge();
+
+      try {
+        await fetch(APPS_SCRIPT_WEB_APP_URL, {
+          method: 'POST',
+          mode: 'no-cors',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'startRaidProgress', sheetId, blockIndex, rawRaidTitle, user: selectedUser })
+        });
+      } catch (err) {
+        console.error('레이드 진행 시작 오류:', err);
+      }
+
+      openRaidProgressModal(sheetId, blockIndex, rawRaidTitle, displayTitle);
+    }
+
+    function openRaidProgressModal(sheetId, blockIndex, rawRaidTitle, displayTitle) {
+      activeProgressTarget = { sheetId, blockIndex, rawRaidTitle, displayTitle };
+      const info = getRaidStatusFor(sheetId, blockIndex, rawRaidTitle);
+
+      document.getElementById('raidProgressTitle').textContent = `[${displayTitle}]`;
+      const statusText = !info
+        ? ''
+        : (info.status === '완료'
+          ? `완료됨${info.completedAt ? ' · ' + info.completedAt : ''}`
+          : `진행 중${info.startedBy ? ' · ' + info.startedBy + ' 시작' : ''}${info.startedAt ? ' (' + info.startedAt + ')' : ''}`);
+      document.getElementById('raidProgressStatusText').textContent = statusText;
+
+      document.body.style.overflow = 'hidden';
+      document.getElementById('raidProgressModal').classList.remove('hidden');
+      drawIcons();
+    }
+
+    function closeRaidProgressModal() {
+      activeProgressTarget = null;
+      document.body.style.overflow = '';
+      document.getElementById('raidProgressModal').classList.add('hidden');
+    }
+
+    // '완료 처리' - 이 블록을 완료로 표시한다. 모든 그룹의 모든 블록이 이걸로 완료됐다면
+    // 서버가 그 자리에서 바로 다음 주기로 조기 리셋하므로, 잠시 후 Raid_Status/Config 를 다시 받는다.
+    async function completeRaidBlock() {
+      if (!activeProgressTarget) return;
+      const { sheetId, blockIndex, rawRaidTitle } = activeProgressTarget;
+      closeRaidProgressModal();
+
+      const idx = raidStatusData.findIndex(s => s.sheetId === sheetId && s.blockIndex === blockIndex && s.rawRaidTitle === rawRaidTitle);
+      if (idx === -1) {
+        raidStatusData.push({ sheetId, blockIndex, rawRaidTitle, status: '완료', startedBy: selectedUser, startedAt: '', completedAt: '' });
+      } else {
+        raidStatusData[idx].status = '완료';
+      }
+      renderActiveTabContent();
+      renderCurrentRaidsBadge();
+
+      try {
+        await fetch(APPS_SCRIPT_WEB_APP_URL, {
+          method: 'POST',
+          mode: 'no-cors',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'completeRaidProgress', sheetId, blockIndex, rawRaidTitle, user: selectedUser })
+        });
+      } catch (err) {
+        console.error('레이드 완료 처리 오류:', err);
+      }
+
+      setTimeout(() => refreshSheets(['Raid_Status'], true), 1500);
+    }
+
+    // '되돌리기' - 진행중/완료 표시 자체를 지운다.
+    async function cancelRaidBlock() {
+      if (!activeProgressTarget) return;
+      const { sheetId, blockIndex, rawRaidTitle } = activeProgressTarget;
+      if (!(await customConfirm('이 레이드의 진행 상태를 취소할까요?'))) return;
+      closeRaidProgressModal();
+
+      raidStatusData = raidStatusData.filter(s =>
+        !(s.sheetId === sheetId && s.blockIndex === blockIndex && s.rawRaidTitle === rawRaidTitle)
+      );
+      renderActiveTabContent();
+      renderCurrentRaidsBadge();
+
+      try {
+        await fetch(APPS_SCRIPT_WEB_APP_URL, {
+          method: 'POST',
+          mode: 'no-cors',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'cancelRaidProgress', sheetId, blockIndex, rawRaidTitle })
+        });
+      } catch (err) {
+        console.error('레이드 진행 취소 오류:', err);
+      }
+    }
+
+    // 헤더의 '현재 레이드' 배지. 진행중인 게 있을 때만 보여준다.
+    // 실시간 푸시 대신, 이미 도는 주기적 새로고침에 얹어서 갱신한다.
+    function renderCurrentRaidsBadge() {
+      const btn = document.getElementById('currentRaidsBtn');
+      const countEl = document.getElementById('currentRaidsBadgeCount');
+      if (!btn || !countEl) return;
+
+      const inProgress = raidStatusData.filter(s => s.status === '진행중');
+      countEl.textContent = inProgress.length;
+      btn.classList.toggle('hidden', inProgress.length === 0);
+    }
+
+    function openCurrentRaidsModal() {
+      const list = document.getElementById('currentRaidsList');
+      const inProgress = raidStatusData.filter(s => s.status === '진행중');
+
+      if (inProgress.length === 0) {
+        list.innerHTML = `<div class="text-center py-6 text-xs text-gray-500">지금 진행 중인 레이드가 없습니다.</div>`;
+      } else {
+        list.innerHTML = inProgress.map(s => {
+          const sheetInfo = sheetsDataStore[s.sheetId];
+          const sheetLabel = sheetInfo ? sheetInfo.title : s.sheetId;
+          const displayTitle = sanitizeTitle(s.rawRaidTitle);
+          const esc = s.rawRaidTitle.replace(/'/g, "\\'");
+          const escDisplay = displayTitle.replace(/'/g, "\\'");
+          return `
+            <div onclick="jumpToRaidProgress('${s.sheetId}', ${s.blockIndex}, '${esc}', '${escDisplay}')" class="flex items-center justify-between p-3 rounded-lg border border-gray-800 bg-[#0d1117] hover:border-amber-500/60 cursor-pointer transition">
+              <div>
+                <div class="text-xs text-gray-500">${sheetLabel}</div>
+                <div class="text-sm font-bold text-white">${displayTitle}</div>
+              </div>
+              <div class="text-right text-[11px] text-gray-400">
+                <div>${s.startedBy || '-'}</div>
+                <div>${s.startedAt || ''}</div>
+              </div>
+            </div>
+          `;
+        }).join('');
+      }
+
+      document.body.style.overflow = 'hidden';
+      document.getElementById('currentRaidsModal').classList.remove('hidden');
+      drawIcons();
+    }
+
+    function closeCurrentRaidsModal() {
+      document.body.style.overflow = '';
+      document.getElementById('currentRaidsModal').classList.add('hidden');
+    }
+
+    // 목록 모달에서 항목을 누르면 해당 탭으로 이동한 뒤 진행 관리 모달을 연다.
+    function jumpToRaidProgress(sheetId, blockIndex, rawRaidTitle, displayTitle) {
+      closeCurrentRaidsModal();
+      currentActiveTab = sheetId;
+      renderTabs();
+      renderActiveTabContent();
+      openRaidProgressModal(sheetId, blockIndex, rawRaidTitle, displayTitle);
     }
 
     function renderGoldBadge(status, maybeDesc) {
@@ -1292,15 +1890,29 @@
     }
 
     function renderPartySlots(slots) {
+      // 이 블록에 실제 '서포터'가 한 명도 없으면, '스왑가능' 캐릭터를 서포터처럼 배경 처리한다
+      // (뱃지는 그대로 '스왑'로 둔다 - 실제 직업 유연성은 그대로 알려주고, 배경만 지금 이 블록에서
+      // 사실상 서포터 역할을 하고 있다는 걸 표시하는 것).
+      const hasRealSupporter = slots.some(s => s.pos === '서포터');
+
       return slots.map(slot => {
-        const isMe = selectedUser && slot.user.startsWith(selectedUser);
+        // slot.user/job/level/pos 는 enrichSlotFromPool 이 이미 Character_Pool 기준으로
+        // 채워둔 값이다 (풀에서 못 찾았으면 job='정보 없음', level=0).
+        const displayUser = slot.user;
+        const displayJob = slot.job;
+        const displayLevel = slot.foundInPool
+          ? slot.level.toLocaleString('ko-KR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+          : '정보 없음';
+
+        const isMe = selectedUser && displayUser.startsWith(selectedUser);
         const isSupporter = slot.pos === '서포터';
         const isSwap = slot.pos === '스왑가능';
+        const actsAsSupporter = isSupporter || (isSwap && !hasRealSupporter);
         const goldStatus = slotGoldStatusMap[slot.slotUid] || 'NONE';
+
         let slotMaybeDesc = '';
         if (goldStatus === 'MAYBE') {
-          const poolChar = characterPoolData.find(c => c.name === slot.name);
-          slotMaybeDesc = getMaybePairDesc(poolChar ? poolChar.level : parseFloat(slot.level) || 0);
+          slotMaybeDesc = getMaybePairDesc(slot.foundInPool ? slot.level : 0);
         }
 
         let posBadge = `<span class="badge-dealer text-[11px] font-semibold px-2 py-0.5 rounded">딜러</span>`;
@@ -1312,7 +1924,7 @@
 
         const rowStyle = isMe
           ? 'my-highlight'
-          : (isSupporter ? 'supporter-row' : 'bg-[#0d1117]/60 hover:bg-[#0d1117]');
+          : (actsAsSupporter ? 'supporter-row' : 'bg-[#0d1117]/60 hover:bg-[#0d1117]');
 
         const slotJson = encodeURIComponent(JSON.stringify(slot));
 
@@ -1322,7 +1934,7 @@
         let attTag = '';
         let attDim = '';
         if (slot.sheetId === 'Main_8Man') {
-          const att = getAttendanceFor(slot.user, getCurrentSaturdayKey());
+          const att = getAttendanceFor(displayUser, getCurrentSaturdayKey());
           if (att) {
             const tone = att.status === '불참'
               ? 'bg-red-500/20 text-red-300 border-red-500/60'
@@ -1344,15 +1956,15 @@
             <div class="flex items-center space-x-3">
               ${posBadge}
               <div class="flex flex-col sm:flex-row sm:items-center sm:space-x-2">
-                <span class="text-xs text-gray-400 font-medium">${slot.user}</span>
+                <span class="text-xs text-gray-400 font-medium">${displayUser}</span>
                 <span class="text-sm font-semibold text-gray-200">${slot.name}</span>
               </div>
               ${attTag}
             </div>
             <div class="flex items-center space-x-2.5 sm:space-x-3 text-right">
               ${renderGoldBadge(goldStatus, slotMaybeDesc)}
-              <span class="text-xs text-gray-400 hidden sm:inline">${slot.job}</span>
-              <span class="text-sm font-mono font-medium text-yellow-500/90">${slot.level}</span>
+              <span class="text-xs text-gray-400 hidden sm:inline">${displayJob}</span>
+              <span class="text-sm font-mono font-medium text-yellow-500/90">${displayLevel}</span>
             </div>
           </div>
         `;
@@ -1373,7 +1985,14 @@
     //
     // status: 'V' = 일정표 자동 등록, 'W' = 개별 수동 완료, '' = 미완료
     // goldTier: 'EARN' | 'MAYBE' | 'NONE' | undefined
-    function renderRaidTag(label, status, charLevel, raidKey, charName, goldTier, maybeDesc) {
+    // 지금 이 캐릭터가 일정표에 이 레이드 계열(famKey)로 편성되어 있는지 (완료 여부 무관).
+    function isScheduledInFamily(charName, famKey) {
+      return (window.allRaidInstancesStore || []).some(i =>
+        i.charName === charName && getRaidFamilyKey(i.raidTitle) === famKey
+      );
+    }
+
+    function renderRaidTag(label, status, charLevel, raidKey, charName, goldTier, maybeDesc, isScheduled) {
       const minCut = getRaidMinLevel(raidKey);
       const canEnter = charLevel >= minCut;
       const base = 'px-1.5 py-0.5 rounded text-[10px] font-bold select-none';
@@ -1407,7 +2026,13 @@
         return `<span onclick="toggleManualHomework('${esc}','${raidKey}')" class="${base} ${tone.fill} border border-dashed ${tone.border} cursor-pointer hover:brightness-125 transition"${tip}>${label} ✓</span>`;
       }
 
-      // 3) 미완료 — 속이 빈 상태. 골드 대상이면 색으로 남아 우선순위가 보인다.
+      // 3) 편성됨(완료 전) — 일정표에 이 레이드로 편성되어 있어 개별 체크를 못 쓰는 상태.
+      // 실선 테두리로 'V처럼 잠겨있음'을 나타내고, 🔗로 "이 레이드에 묶여있음"을 표시한다.
+      if (isScheduled) {
+        return `<span class="${base} bg-transparent border ${tone.border} ${tone.hollow} cursor-not-allowed opacity-90" title="일정표에 편성되어 있어 개별 체크를 쓸 수 없습니다 - 해당 블록을 완료 처리하면 자동으로 체크됩니다">${label} 🔗</span>`;
+      }
+
+      // 4) 미완료(편성도 안 됨) — 속이 빈 상태. 골드 대상이면 색으로 남아 우선순위가 보인다.
       return `<span onclick="toggleManualHomework('${esc}','${raidKey}')" class="${base} bg-transparent border border-dashed ${tone.border} ${tone.hollow}${help} font-medium cursor-pointer hover:brightness-125 transition"${tip}>${label}</span>`;
     }
 
@@ -1418,6 +2043,13 @@
 
       const curStatus = charObj.raids[raidKey];
       if (curStatus === 'V') return; // 공대 일정 종속 상태는 웹에서 해제 불가
+
+      // 완료 여부와 무관하게, 지금 일정표에 이 레이드 계열로 편성되어 있으면 개별 체크를 못 쓴다 -
+      // 그 레이드는 해당 블록의 완료 처리로만 체크되어야 한다. (슬롯에서 빼면 다시 가능해짐 - 정상 경로)
+      if (isScheduledInFamily(charName, raidKey)) {
+        customAlert('이 캐릭터는 지금 일정표에 편성되어 있어요. 이 레이드는 해당 블록의 완료 처리로만 체크됩니다.');
+        return;
+      }
 
       const minCut = getRaidMinLevel(raidKey);
       if (curStatus !== 'W' && charObj.level < minCut) return; // 입장 불가 레벨이면 클릭 무시
@@ -1439,6 +2071,51 @@
         });
       } catch (err) {
         console.error('숙제 상태 저장 오류:', err);
+      }
+    }
+
+    // 본인 캐릭터의 예정 레벨(Character_Pool F열)을 직접 수정한다.
+    // 빈 값으로 지우면 예정 레벨을 취소하고(현재 레벨 기준으로 돌아감), 숫자를 넣으면 그 값으로 고정된다.
+    // (executeAddSlot/executeInstantSwap 이 자동으로 올려주는 것과 달리, 여기서는 낮추는 것도 가능하다.)
+    async function editPlannedLevel(charName) {
+      const charObj = characterPoolData.find(c => c.name === charName);
+      if (!charObj) return;
+
+      const input = await customPrompt(
+        `${charName} 의 예정 레벨을 입력해 주세요.\n(현재 레벨: ${charObj.currentLevel.toFixed(2)} / 비워두면 예정 레벨 해제)`,
+        charObj.plannedLevel ? charObj.plannedLevel.toFixed(2) : '',
+        '예정 레벨 수정'
+      );
+      if (input === null) return; // 취소
+
+      const trimmed = input.trim();
+      let newPlanned = 0;
+      if (trimmed !== '') {
+        newPlanned = parseFloat(trimmed.replace(/,/g, ''));
+        if (isNaN(newPlanned) || newPlanned < 0) {
+          customAlert('숫자로 입력해 주세요.');
+          return;
+        }
+      }
+
+      // 낙관적 반영
+      charObj.plannedLevel = newPlanned;
+      charObj.level = newPlanned > 0 ? newPlanned : charObj.currentLevel;
+      renderPoolView();
+
+      try {
+        await fetch(APPS_SCRIPT_WEB_APP_URL, {
+          method: 'POST',
+          mode: 'no-cors',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'setPlannedLevel',
+            charName: charName,
+            plannedLevel: newPlanned > 0 ? newPlanned.toFixed(2) : ''
+          })
+        });
+      } catch (err) {
+        console.error('예정 레벨 저장 오류:', err);
       }
     }
 
@@ -1524,13 +2201,16 @@
             ${progressHtml}
 
             <div class="flex items-center justify-between border-t border-gray-800/60 pt-2.5">
-              <span class="text-sm font-mono font-bold text-yellow-500/90">${c.level.toLocaleString('ko-KR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+              <span
+                class="text-sm font-mono font-bold text-yellow-500/90${isMe ? ' cursor-pointer hover:underline decoration-dashed' : ''}"
+                ${isMe ? `onclick="editPlannedLevel('${c.name.replace(/'/g, "\\'")}')" title="클릭해서 예정 레벨 수정"` : ''}
+              >${c.level.toLocaleString('ko-KR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
               <div class="flex items-center flex-wrap justify-end gap-1">
-                ${renderRaidTag('종막', c.raids.final, c.level, 'final', c.name, tierMap.final, maybeDesc)}
-                ${renderRaidTag('4막', c.raids.act4, c.level, 'act4', c.name, tierMap.act4, maybeDesc)}
-                ${renderRaidTag('성당', c.raids.cathedral, c.level, 'cathedral', c.name, tierMap.cathedral, maybeDesc)}
-                ${renderRaidTag('세르카', c.raids.serka, c.level, 'serka', c.name, tierMap.serka, maybeDesc)}
-                ${renderRaidTag('벨가', c.raids.belga, c.level, 'belga', c.name, tierMap.belga, maybeDesc)}
+                ${renderRaidTag('종막', c.raids.final, c.level, 'final', c.name, tierMap.final, maybeDesc, isScheduledInFamily(c.name, 'final'))}
+                ${renderRaidTag('4막', c.raids.act4, c.level, 'act4', c.name, tierMap.act4, maybeDesc, isScheduledInFamily(c.name, 'act4'))}
+                ${renderRaidTag('성당', c.raids.cathedral, c.level, 'cathedral', c.name, tierMap.cathedral, maybeDesc, isScheduledInFamily(c.name, 'cathedral'))}
+                ${renderRaidTag('세르카', c.raids.serka, c.level, 'serka', c.name, tierMap.serka, maybeDesc, isScheduledInFamily(c.name, 'serka'))}
+                ${renderRaidTag('벨가', c.raids.belga, c.level, 'belga', c.name, tierMap.belga, maybeDesc, isScheduledInFamily(c.name, 'belga'))}
               </div>
             </div>
           </div>
@@ -1668,6 +2348,43 @@
       return (b.trade - a.trade) / db;
     }
 
+    // ─── 블록 정원 계산 ───────────────────────────────────────
+    // 난이도 표기를 Raid_Info 와 맞추기 위한 정규화 (시트는 '나메', Raid_Info 는 '나이트메어')
+    function normalizeDiff(text) {
+      const t = (text || '').toString();
+      if (t.includes('나이트메어') || t.includes('나메')) return 'NM';
+      if (t.includes('하드')) return 'HARD';
+      if (t.includes('노말')) return 'NORMAL';
+      const stage = t.match(/([0-9])\s*단/);
+      if (stage) return 'STAGE' + stage[1];
+      return '';
+    }
+
+    // 블록 제목으로 Raid_Info 행을 찾아 파티유형(4인/8인)을 정원으로 쓴다.
+    // 서브조도 8인 레이드를 갈 수 있어(같은 서브조 안에서는 항상 같은 인원수) 시트 이름으로
+    // 정원을 못 정한다 - 시트 물리적 최대 칸수(8)만 상한으로 두고, Raid_Info 로 실제 정원을 판정한다.
+    function getBlockCapacity(block) {
+      const sheetCap = 8;
+      const famKey = getRaidFamilyKey(block.title);
+      const diff = normalizeDiff(block.title);
+      if (!famKey) return sheetCap;
+
+      const hit = raidInfoData.find(r =>
+        getRaidFamilyKey(r.name) === famKey && normalizeDiff(r.diff) === diff
+      );
+      if (!hit || !hit.partyType) return sheetCap;
+
+      const m = hit.partyType.match(/([0-9]+)\s*인/);
+      if (!m) return sheetCap;
+      return Math.min(sheetCap, parseInt(m[1], 10));
+    }
+
+    // 선택된 계정의 캐릭이 이 블록에 이미 들어가 있는지
+    function userInBlock(block) {
+      if (!selectedUser) return true;
+      return block.slots.some(s => (s.user || '').startsWith(selectedUser));
+    }
+
     // 선택 구간 툴팁 문구. 해당 레벨의 선택 구간 짝과 골드 액수를 보여준다.
     // 예: '선택 구간 · 성당 5.0만 귀속 ↔ 종막 4.8만 유통'
     function getMaybePairDesc(charLevel) {
@@ -1694,13 +2411,13 @@
       return `${d.getMonth() + 1}/${d.getDate()}(${days[d.getDay()]})`;
     }
 
-    // 오늘(당일 포함) 이후의 토요일을 count개 반환.
-    // 이미 지난 토요일은 신고 대상이 될 수 없으므로 후보에서 제외된다.
-    function getUpcomingSaturdays(count = ATTENDANCE_WEEKS) {
+    // 오늘(당일 포함) 이후의 특정 요일을 count개 반환.
+    // 이미 지난 날짜는 후보가 될 수 없으므로 제외된다. targetDay: 0=일 ~ 6=토.
+    function getUpcomingWeekdays(targetDay, count = ATTENDANCE_WEEKS) {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       const first = new Date(today);
-      first.setDate(first.getDate() + ((6 - today.getDay() + 7) % 7));
+      first.setDate(first.getDate() + ((targetDay - today.getDay() + 7) % 7));
 
       const list = [];
       for (let i = 0; i < count; i++) {
@@ -1711,18 +2428,69 @@
       return list;
     }
 
-    // 가장 가까운 토요일. 슬롯에 참여 상태를 표시할 기준 날짜.
+    // 토요일 전용 (참여 상태 신고용). 기존 호출부와의 호환을 위해 그대로 둔다.
+    function getUpcomingSaturdays(count = ATTENDANCE_WEEKS) {
+      return getUpcomingWeekdays(6, count);
+    }
+
+    // 참여 상태 알리기 모달의 날짜 목록. 탭 날짜 라벨과 마찬가지로 '이번 주기' 앵커
+    // 기준으로 맞춰서, 완료 상태 리셋과 항상 같은 주기를 가리키게 한다.
+    // 앵커가 없으면(첫 리셋 전) 예전 방식(오늘 기준 다음 토요일)으로 대체한다.
+    function getAttendanceSaturdays(count = ATTENDANCE_WEEKS) {
+      const anchorSat = getAnchorWeekDate(6);
+      if (!anchorSat) return getUpcomingSaturdays(count);
+      const list = [];
+      for (let i = 0; i < count; i++) {
+        const d = new Date(anchorSat);
+        d.setDate(anchorSat.getDate() + i * 7);
+        list.push(d);
+      }
+      return list;
+    }
+
+    // 요일 한글 표기 -> 인덱스(0=일 ~ 6=토). 못 알아들으면 null.
+    const WEEKDAY_NAME_TO_INDEX = { '일요일': 0, '월요일': 1, '화요일': 2, '수요일': 3, '목요일': 4, '금요일': 5, '토요일': 6 };
+    function weekdayNameToIndex(name) {
+      const idx = WEEKDAY_NAME_TO_INDEX[(name || '').toString().trim()];
+      return (idx === undefined) ? null : idx;
+    }
+
+    // '이번 주기'에 해당하는 날짜. Config 의 '현재레이드주차' 앵커(이번 주기가 시작된
+    // 수요일 날짜)를 기준으로 계산한다 - 완료 상태 리셋과 항상 같은 주기를 가리키게 하기 위해서다.
+    // (getUpcomingSaturdays 처럼 '오늘 기준 다음 토요일'로 따로 계산하면, 토요일이 지난 뒤
+    // 수요일 리셋 전까지 탭 날짜만 먼저 다음 주로 넘어가 버려 완료 상태와 안 맞아 보인다.)
+    // 앵커가 아직 없으면(첫 리셋 전) 예전 방식으로 대체한다.
+    function getAnchorWeekDate(weekdayIndex) {
+      const anchor = siteConfig.raidWeekAnchor;
+      if (!anchor) return null;
+      const anchorDate = new Date(anchor + 'T00:00:00');
+      if (isNaN(anchorDate.getTime())) return null;
+      const offset = (weekdayIndex - 3 + 7) % 7; // 앵커는 항상 수요일(인덱스 3) 날짜
+      const d = new Date(anchorDate);
+      d.setDate(anchorDate.getDate() + offset);
+      return d;
+    }
+
+    // 이번 주기의 토요일. 슬롯에 참여 상태를 표시할 기준 날짜.
     function getCurrentSaturdayKey() {
-      const list = getUpcomingSaturdays(1);
-      return list.length ? fmtDate(list[0]) : '';
+      const d = getAnchorWeekDate(6) || (getUpcomingSaturdays(1)[0] || null);
+      return d ? fmtDate(d) : '';
     }
 
     // ─── Attendance 시트 파싱 ─────────────────────────────────
     // 열: A신청일시 B유저명 C구분 D대상 E상태 F메모
     // Config 시트 파싱. 재배포 없이 시트 값만 바꿔서 대시보드 동작(점검 배너 등)을
     // 조정할 수 있도록 하는 설정용 시트. 없거나 값이 비어 있으면 기본값(정상 상태)으로 둔다.
+    // 서브조 요일 기본값. Config 시트에 '서브그룹N_요일' 키가 없으면 이 값을 쓴다.
+    const DEFAULT_SUB_GROUP_DAYS = {
+      Sub_Group1: '목요일',
+      Sub_Group2: '목요일',
+      Sub_Group3: '금요일',
+      Sub_Group4: '토요일'
+    };
+
     function parseSiteConfig(rows) {
-      siteConfig = { maintenanceMode: false, noticeText: '' };
+      siteConfig = { maintenanceMode: false, noticeText: '', subGroupDays: { ...DEFAULT_SUB_GROUP_DAYS }, raidWeekAnchor: '' };
       if (!rows || rows.length < 2) return;
 
       const map = {};
@@ -1735,14 +2503,31 @@
 
       siteConfig.maintenanceMode = (map['점검모드'] || '').toUpperCase() === 'TRUE';
       siteConfig.noticeText = map['공지문구'] || '';
+      siteConfig.raidWeekAnchor = map['현재레이드주차'] || '';
+
+      Object.keys(DEFAULT_SUB_GROUP_DAYS).forEach(sheetId => {
+        const num = sheetId.replace('Sub_Group', '');
+        const override = map[`서브그룹${num}_요일`];
+        if (override && weekdayNameToIndex(override) !== null) {
+          siteConfig.subGroupDays[sheetId] = override;
+        }
+      });
     }
 
-    // 점검 배너 표시. 실제 사용자(공대원)에게 알리는 용도이므로 정식(index.html)에서만 동작한다.
+    // 점검 배너 표시.
+    // dev 빌드는 공대원이 아니라 나 혼자 테스트하는 환경이라, 실제 정식 화면이
+    // 어떻게 보이는지 그대로 재현해야 검증 의미가 있다. 배너가 dev 에도 뜨면
+    // '정상 상태의 정식 화면'을 확인할 방법이 없어지므로, dev 에서는 항상 숨긴다.
     function renderMaintenanceBanner() {
       const banner = document.getElementById('maintenanceBanner');
-      const textEl = document.getElementById('maintenanceBannerText');
-      if (!banner || !textEl) return;
+      if (!banner) return;
 
+      if (typeof IS_DEV !== 'undefined' && IS_DEV) {
+        banner.classList.add('hidden');
+        return;
+      }
+
+      const textEl = document.getElementById('maintenanceBannerText');
       if (!siteConfig.maintenanceMode || !siteConfig.noticeText) {
         banner.classList.add('hidden');
         return;
@@ -1771,6 +2556,36 @@
           memo: (row[5] || '').toString().trim()
         });
       }
+    }
+
+    // ─── Raid_Status 시트 파싱 ────────────────────────────────
+    // 열: A시트 B블록순번 C레이드제목 D상태 E시작한사람 F시작시각 G완료시각
+    function parseRaidStatus(rows) {
+      raidStatusData = [];
+      const header = (rows[0] || []).map(c => (c || '').toString().trim());
+      if (!header.includes('상태')) return;
+
+      for (let r = 1; r < rows.length; r++) {
+        const row = rows[r] || [];
+        const sheetId = (row[0] || '').toString().trim();
+        const blockIndex = parseInt(row[1], 10);
+        const rawRaidTitle = (row[2] || '').toString().trim();
+        const status = (row[3] || '').toString().trim();
+        if (!sheetId || isNaN(blockIndex) || !rawRaidTitle || !status) continue;
+        raidStatusData.push({
+          sheetId, blockIndex, rawRaidTitle, status,
+          startedBy: (row[4] || '').toString().trim(),
+          startedAt: (row[5] || '').toString().trim(),
+          completedAt: (row[6] || '').toString().trim()
+        });
+      }
+    }
+
+    // 특정 블록의 진행/완료 상태를 찾는다.
+    function getRaidStatusFor(sheetId, blockIndex, rawRaidTitle) {
+      return raidStatusData.find(s =>
+        s.sheetId === sheetId && s.blockIndex === blockIndex && s.rawRaidTitle === rawRaidTitle
+      ) || null;
     }
 
     // ─── Suggestions 시트 파싱 ────────────────────────────────
@@ -1830,9 +2645,253 @@
       });
     }
 
+    // ─── 빈 자리에 본인 추가 ──────────────────────────────────
+    // 정원이 남아 있고 본인이 그 블록에 없을 때만 한 줄 노출한다.
+    // 빈 칸이 몇 개든 화면에는 한 줄이고, 실제 기록할 행은 서버가 찾는다.
+    // cap은 호출자(renderActiveTabContent)가 이미 계산해둔 값을 그대로 받는다 -
+    // 블록당 Raid_Info 조회를 여러 번 반복하지 않기 위해서다.
+    function renderAddSlotRow(block, cap) {
+      if (!selectedUser) return '';
+      if (block.slots.length >= cap) return '';
+      if (userInBlock(block)) return '';
+
+      const payload = encodeURIComponent(JSON.stringify({
+        sheetId: block.sheetId,
+        blockIndex: block.slots.length ? block.slots[0].blockIndex : 0,
+        rawRaidTitle: block.rawTitle,
+        raidTitle: block.title,
+        is8Man: cap > 4 // 참고용 - 실제 정원 판정은 서버가 Raid_Info 로 다시 한다
+      }));
+
+      return `
+        <div onclick="openAddSlotModal('${payload}')" class="mt-1.5 flex items-center justify-center gap-1.5 p-2.5 rounded-lg border border-dashed border-gray-700 text-gray-500 hover:border-yellow-500 hover:text-yellow-400 cursor-pointer transition">
+          <i data-lucide="plus" class="w-3.5 h-3.5"></i>
+          <span class="text-xs font-semibold">내 캐릭터 넣기</span>
+          <span class="text-[11px] text-gray-600">(${block.slots.length}/${cap})</span>
+        </div>
+      `;
+    }
+
+    // 블록에 해당하는 Raid_Info 행 (입장 레벨 확인용)
+    function getBlockRaidRow(title) {
+      const famKey = getRaidFamilyKey(title);
+      const diff = normalizeDiff(title);
+      if (!famKey) return null;
+      return raidInfoData.find(r =>
+        getRaidFamilyKey(r.name) === famKey && normalizeDiff(r.diff) === diff
+      ) || null;
+    }
+
+    // 이 캐릭이 이번 주 다른 곳에서 같은 레이드 계열을 이미 가는지 (같은 레이드 1회 규칙).
+    // 막지는 않고 어디 있는지 알려주는 용도라, 있으면 그 인스턴스를, 없으면 null 을 반환한다.
+    function findFamilyInstance(charName, famKey, exceptSlotUid) {
+      const all = window.allRaidInstancesStore || [];
+      return all.find(i =>
+        i.charName === charName &&
+        i.slotUid !== exceptSlotUid &&
+        getRaidFamilyKey(i.raidTitle) === famKey
+      ) || null;
+    }
+
+    // 같은 계열에서 이 캐릭이 입장 가능한 더 높은 난이도가 있으면 그 골드 차이를 반환한다.
+    // 하위 난이도를 고르면 그만큼 손실이므로 경고로 알려준다 (막지는 않는다).
+    function getHigherDiffLoss(charLevel, famKey, currentRow) {
+      if (!famKey || !currentRow) return 0;
+      const curTotal = parseGoldNum(currentRow.goldTotal);
+      let best = curTotal;
+      raidInfoData.forEach(r => {
+        if (getRaidFamilyKey(r.name) !== famKey) return;
+        if (charLevel < parseGoldNum(r.level)) return;
+        const t = parseGoldNum(r.goldTotal);
+        if (t > best) best = t;
+      });
+      return best - curTotal;
+    }
+
+    // 모달 캐릭터 목록 구성.
+    // 아무것도 숨기지 않고 본인 캐릭터를 전부 보여주되, 상황별로 배지만 다르게 붙인다.
+    // - 입장 레벨 미달: '레벨업 필요' 배지 (선택해서 확정하면 예정 레벨 자동 상향 - executeAddSlot/executeInstantSwap 참고)
+    // - 이번 주 같은 레이드 계열에 이미 참여 중: 막지 않고 어디 있는지만 알려준다 (원한다면 그대로 중복 편성 가능)
+    function buildSwapCandidates(raidTitle, currentCharName, exceptSlotUid) {
+      const famKey = getRaidFamilyKey(raidTitle);
+      const row = getBlockRaidRow(raidTitle);
+      const minLevel = row ? parseGoldNum(row.level) : 0;
+
+      return characterPoolData
+        .filter(c => c.user.startsWith(selectedUser))
+        .map(c => {
+          const isCurrent = c.name === currentCharName;
+
+          const existingInstance = (!isCurrent && famKey) ? findFamilyInstance(c.name, famKey, exceptSlotUid) : null;
+          const alreadyInLabel = existingInstance ? `이미 참여: [${existingInstance.sheetTitle}] ${existingInstance.raidTitle}` : '';
+
+          const needsLevelUp = !isCurrent && minLevel > 0 && c.level < minLevel;
+
+          // 경고 우선순위 (레벨업이 필요한 캐릭은 아래 경고를 계산하지 않는다 - 입장 자체가 안 되므로 의미 없음)
+          //  1) 골드 획득 캐릭 6개 밖 -> 어차피 골드가 안 나오므로 손실액 계산은 의미가 없다
+          //  2) 상위 난이도 가능 -> 실제 골드 손실이 발생
+          //  3) 주간 골드 3칸 밖
+          let warn = '';
+          if (!needsLevelUp) {
+            if (!goldEligibleCharNames.has(c.name)) {
+              warn = '골드 제외 캐릭';
+            } else {
+              const loss = getHigherDiffLoss(c.level, famKey, row);
+              if (loss > 0) {
+                warn = `상위 난이도 가능 -${(loss / 10000).toFixed(1)}만`;
+              } else if (famKey) {
+                const tier = computeGoldTiers(c.level)[famKey] || 'NONE';
+                if (tier === 'NONE') warn = '골드 대상 아님';
+              }
+            }
+          }
+          return { c, isCurrent, alreadyInLabel, warn, needsLevelUp, requiredLevel: minLevel };
+        });
+    }
+
+    // 캐릭터가 많은 계정에서 원하는 캐릭을 찾기 쉽도록 검색을 지원한다.
+    // 원본 후보 목록(window.__swapAllCandidates)은 그대로 두고, 검색 시에는
+    // 필터링된 결과만 다시 그린다. 인덱스는 항상 '필터링된 목록' 기준으로 매긴다
+    // (selectSwapCandidate 가 그 인덱스로 caridate를 찾기 때문).
+    function renderSwapCandidateList(cands, currentCharName) {
+      window.__swapAllCandidates = cands;
+      window.__swapCurrentCharName = currentCharName;
+
+      const searchInput = document.getElementById('swapSearchInput');
+      if (searchInput) searchInput.value = '';
+
+      renderFilteredSwapList(cands);
+    }
+
+    function filterSwapCandidates() {
+      const all = window.__swapAllCandidates || [];
+      const keyword = (document.getElementById('swapSearchInput').value || '').trim().toLowerCase();
+      const filtered = keyword
+        ? all.filter(x => x.c.name.toLowerCase().includes(keyword))
+        : all;
+      renderFilteredSwapList(filtered);
+    }
+
+    function renderFilteredSwapList(cands) {
+      const container = document.getElementById('swapCharListContainer');
+      const countEl = document.getElementById('swapSearchCount');
+      // c(캐릭터 객체) 뿐 아니라 needsLevelUp/requiredLevel 도 selectSwapCandidate 에서 써야 하므로
+      // x(래퍼) 전체를 보관한다.
+      window.__swapUserPool = cands;
+
+      const all = window.__swapAllCandidates || [];
+      if (countEl) {
+        countEl.textContent = (cands.length === all.length) ? `${all.length}명` : `${cands.length} / ${all.length}명`;
+      }
+
+      if (cands.length === 0) {
+        const noResultReason = (all.length > 0)
+          ? '검색 결과가 없습니다.'
+          : '본인 원정대에 캐릭터가 없습니다.';
+        container.innerHTML = `<div class="text-center py-6 text-xs text-gray-500">${noResultReason}</div>`;
+        return;
+      }
+
+      container.innerHTML = cands.map((x, idx) => {
+        const c = x.c;
+        const levelUpBadge = x.needsLevelUp
+          ? `<span class="text-[10px] font-normal px-1.5 py-0.5 rounded bg-rose-500/15 text-rose-400 border border-rose-600/40">레벨업 필요 (${x.requiredLevel.toLocaleString('ko-KR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})</span>`
+          : '';
+        const alreadyInBadge = x.alreadyInLabel
+          ? `<span class="text-[10px] font-normal px-1.5 py-0.5 rounded bg-orange-500/15 text-orange-400 border border-orange-600/40" title="같은 레이드 계열은 주간 골드가 1번만 나옵니다">${x.alreadyInLabel}</span>`
+          : '';
+        return `
+          <div id="swapRow_${idx}" onclick="selectSwapCandidate(${idx})" class="swap-candidate-row flex items-center justify-between p-3 rounded-lg border ${x.isCurrent ? 'border-yellow-500/60 bg-yellow-950/20' : 'border-gray-800 bg-[#0d1117] hover:border-gray-600'} cursor-pointer transition${x.needsLevelUp ? ' opacity-80' : ''}">
+            <div>
+              <div class="text-xs text-gray-400">${c.user} (${c.server})</div>
+              <div class="text-sm font-bold text-white flex items-center flex-wrap gap-x-2">
+                <span>${c.name}</span>
+                ${x.isCurrent ? '<span class="text-[10px] text-yellow-400 font-normal">[현재 출전 중]</span>' : ''}
+                ${levelUpBadge}
+                ${alreadyInBadge}
+                ${x.warn ? `<span class="text-[10px] font-normal px-1.5 py-0.5 rounded ${x.warn.startsWith('상위') ? 'bg-amber-500/15 text-amber-400 border border-amber-600/40' : 'bg-gray-800 text-gray-400 border border-gray-700'}">${x.warn}</span>` : ''}
+                <span class="swap-selected-tag hidden text-[10px] text-cyan-300 font-bold">[선택됨]</span>
+              </div>
+            </div>
+            <div class="text-right">
+              <span class="text-xs text-gray-400">${c.job} · ${c.pos}</span>
+              <div class="text-xs font-mono font-bold text-yellow-500">${c.level.toLocaleString('ko-KR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+            </div>
+          </div>
+        `;
+      }).join('');
+      drawIcons();
+    }
+
+    function openAddSlotModal(payloadEncoded) {
+      if (!selectedUser) {
+        customAlert("상단 헤더의 [내 캐릭터 강조]에서 본인 계정을 먼저 선택해 주세요!");
+        return;
+      }
+      const info = JSON.parse(decodeURIComponent(payloadEncoded));
+
+      swapMode = 'add';
+      activeAddTarget = info;
+      activeSwapTarget = null;
+      pendingSwapChar = null;
+
+      document.getElementById('swapModalTitle').textContent = '빈 자리에 내 캐릭터 넣기';
+      document.getElementById('swapModalDesc').textContent = '본인 캐릭터만 넣을 수 있습니다. 캐릭터를 선택한 뒤 하단의 확정 버튼을 눌러 주세요.';
+      document.getElementById('swapTargetRaidTitle').textContent = `[${info.raidTitle}]`;
+      document.getElementById('swapOldCharName').textContent = '빈 자리';
+      document.getElementById('swapModalUserLabel').textContent = `넣을 본인(${selectedUser}) 캐릭터 선택`;
+      document.getElementById('swapRemoveBtn').classList.add('hidden');
+
+      renderSwapCandidateList(buildSwapCandidates(info.raidTitle, null, null), null);
+      updateSwapConfirmButtonState();
+
+      document.body.style.overflow = 'hidden';
+      document.getElementById('quickSwapModal').classList.remove('hidden');
+      drawIcons();
+    }
+
+    // 본인 슬롯에서 빼기 (해당 행을 비운다)
+    async function removeMySlot() {
+      if (swapMode !== 'swap' || !activeSwapTarget) return;
+      const t = activeSwapTarget;
+      if (!(await customConfirm(`[${t.raidTitle}] 에서 ${t.name} 을(를) 빼고 자리를 비울까요?`))) return;
+
+      closeQuickSwapModal();
+
+      // 낙관적 반영: 화면에서 먼저 제거한다
+      const cur = sheetsDataStore[t.sheetId];
+      if (cur) {
+        cur.blocks.forEach(b => { b.slots = b.slots.filter(s => s.slotUid !== t.slotUid); });
+        rebuildInstancesForSheet(t.sheetId);
+        renderActiveTabContent();
+      }
+
+      try {
+        await fetch(APPS_SCRIPT_WEB_APP_URL, {
+          method: 'POST',
+          mode: 'no-cors',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'clearSlot',
+            sheetId: t.sheetId,
+            sheetRow: t.sheetRow,
+            colIndex: t.colIndex,
+            blockIndex: t.blockIndex,
+            rawRaidTitle: t.rawRaidTitle || t.raidTitle,
+            targetRaid: `[${t.sheetId}] ${t.raidTitle}`,
+            user: t.user,
+            oldCharName: t.name,
+            oldChar: `${t.name} (${t.job} / ${t.level} / ${t.pos})`
+          })
+        });
+      } catch (err) {
+        console.error('슬롯 비우기 오류:', err);
+      }
+    }
+
     function openQuickSwapModal(slotJsonEncoded) {
       if (!selectedUser) {
-        alert("상단 헤더의 [내 캐릭터 강조]에서 본인 계정을 먼저 선택해 주세요!");
+        customAlert("상단 헤더의 [내 캐릭터 강조]에서 본인 계정을 먼저 선택해 주세요!");
         return;
       }
 
@@ -1840,59 +2899,38 @@
 
       // 본인 슬롯이 아니면 열지 않는다 (슬롯 클릭이 이미 막혀 있지만 이중 방어)
       if (!slot.user.startsWith(selectedUser)) {
-        alert(`다른 유저(${slot.user})의 슬롯은 변경할 수 없습니다.`);
+        customAlert(`다른 유저(${slot.user})의 슬롯은 변경할 수 없습니다.`);
         return;
       }
 
+      swapMode = 'swap';
       activeSwapTarget = slot;
+      activeAddTarget = null;
       pendingSwapChar = null;
 
+      document.getElementById('swapModalTitle').textContent = '내 캐릭터 즉시 변경';
+      document.getElementById('swapModalDesc').textContent = '본인 원정대 캐릭터로만 교체할 수 있습니다. 캐릭터를 먼저 선택한 뒤 하단의 확정 버튼을 눌러야 반영됩니다.';
       document.getElementById('swapTargetRaidTitle').textContent = `[${slot.raidTitle}]`;
       document.getElementById('swapOldCharName').textContent = `${slot.user} ➔ ${slot.name} (${slot.job} / ${slot.level})`;
       document.getElementById('swapModalUserLabel').textContent = `교체할 본인(${selectedUser}) 원정대 캐릭터 선택`;
+      document.getElementById('swapRemoveBtn').classList.remove('hidden');
 
-      const userPool = characterPoolData.filter(c => c.user.startsWith(selectedUser));
-      window.__swapUserPool = userPool;
-
-      const container = document.getElementById('swapCharListContainer');
-
-      if (userPool.length === 0) {
-        container.innerHTML = `<div class="text-center py-6 text-xs text-gray-500">선택된 계정(${selectedUser})으로 등록된 캐릭터가 없습니다.</div>`;
-      } else {
-        container.innerHTML = userPool.map((c, idx) => {
-          const isCurrent = (c.name === slot.name);
-          return `
-            <div id="swapRow_${idx}" onclick="selectSwapCandidate(${idx})" class="swap-candidate-row flex items-center justify-between p-3 rounded-lg border ${isCurrent ? 'border-yellow-500/60 bg-yellow-950/20' : 'border-gray-800 bg-[#0d1117] hover:border-gray-600'} cursor-pointer transition">
-              <div>
-                <div class="text-xs text-gray-400">${c.user} (${c.server})</div>
-                <div class="text-sm font-bold text-white flex items-center space-x-2">
-                  <span>${c.name}</span>
-                  ${isCurrent ? '<span class="text-[10px] text-yellow-400 font-normal">[현재 출전 중]</span>' : ''}
-                  <span class="swap-selected-tag hidden text-[10px] text-cyan-300 font-bold">[선택됨]</span>
-                </div>
-              </div>
-              <div class="text-right">
-                <span class="text-xs text-gray-400">${c.job} · ${c.pos}</span>
-                <div class="text-xs font-mono font-bold text-yellow-500">${c.level.toLocaleString('ko-KR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-              </div>
-            </div>
-          `;
-        }).join('');
-      }
-
+      renderSwapCandidateList(buildSwapCandidates(slot.raidTitle, slot.name, slot.slotUid), slot.name);
       updateSwapConfirmButtonState();
       document.body.style.overflow = 'hidden';
       document.getElementById('quickSwapModal').classList.remove('hidden');
       drawIcons();
     }
 
-    // 목록에서 캐릭터를 누르면 즉시 반영하지 않고 '선택'만 표시한다.
+// 목록에서 캐릭터를 누르면 즉시 반영하지 않고 '선택'만 표시한다.
     function selectSwapCandidate(idx) {
       const pool = window.__swapUserPool || [];
-      const char = pool[idx];
-      if (!char) return;
+      const entry = pool[idx];
+      if (!entry) return;
 
-      pendingSwapChar = char;
+      pendingSwapChar = entry.c;
+      pendingSwapNeedsLevelUp = !!entry.needsLevelUp;
+      pendingSwapRequiredLevel = entry.requiredLevel || 0;
 
       document.querySelectorAll('#swapCharListContainer .swap-candidate-row').forEach(el => {
         el.classList.remove('ring-2', 'ring-cyan-400', 'border-cyan-400', 'bg-cyan-950/20');
@@ -1912,6 +2950,11 @@
 
     function updateSwapConfirmButtonState() {
       const btn = document.getElementById('swapConfirmBtn');
+      if (btn && swapMode === 'add') {
+        btn.disabled = !pendingSwapChar;
+        btn.textContent = pendingSwapChar ? `${pendingSwapChar.name} 넣기 확정` : '캐릭터를 선택해 주세요';
+        return;
+      }
       if (!btn) return;
       if (pendingSwapChar) {
         btn.disabled = false;
@@ -1925,18 +2968,108 @@
     // 확정 버튼을 눌렀을 때만 실제로 시트에 반영한다.
     function confirmQuickSwap() {
       if (!pendingSwapChar) return;
-      executeInstantSwap(encodeURIComponent(JSON.stringify(pendingSwapChar)));
+      // executeAddSlot/executeInstantSwap 이 시작하자마자 closeQuickSwapModal 로 상태를
+      // 초기화하므로, 필요한 값은 여기서 미리 인자로 넘긴다.
+      const needsLevelUp = pendingSwapNeedsLevelUp;
+      const requiredLevel = pendingSwapRequiredLevel;
+      if (swapMode === 'add') {
+        executeAddSlot(encodeURIComponent(JSON.stringify(pendingSwapChar)), needsLevelUp, requiredLevel);
+      } else {
+        executeInstantSwap(encodeURIComponent(JSON.stringify(pendingSwapChar)), needsLevelUp, requiredLevel);
+      }
+    }
+
+    // 입장 레벨에 못 미치는 캐릭을 선택해서 확정한 경우, 예정 레벨을 이 레이드 입장 레벨까지
+    // 자동으로 올려준다. 서버가 기존 예정 레벨과 비교해 더 높은 쪽만 반영하므로 낮출 일은 없다.
+    async function maybeUpdatePlannedLevel(charName, needsLevelUp, requiredLevel) {
+      if (!needsLevelUp || !requiredLevel) return;
+      try {
+        await fetch(APPS_SCRIPT_WEB_APP_URL, {
+          method: 'POST',
+          mode: 'no-cors',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'updatePlannedLevel',
+            charName: charName,
+            plannedLevel: requiredLevel.toFixed(2)
+          })
+        });
+      } catch (err) {
+        console.error('예정 레벨 자동 갱신 오류:', err);
+      }
+    }
+
+    // 빈 자리에 본인 캐릭 추가. 기록할 행은 서버가 블록에서 찾는다.
+    async function executeAddSlot(newCharJsonEncoded, needsLevelUp, requiredLevel) {
+      const newChar = JSON.parse(decodeURIComponent(newCharJsonEncoded));
+      if (!activeAddTarget) return;
+      const info = activeAddTarget;
+      closeQuickSwapModal();
+
+      // 낙관적 반영: 화면에 먼저 추가한다. 행 번호는 서버가 정하므로 갱신 시 정확한 값으로 덮인다.
+      const cur = sheetsDataStore[info.sheetId];
+      if (cur) {
+        const blk = cur.blocks.find(b => b.rawTitle === info.rawRaidTitle &&
+          (b.slots.length === 0 || b.slots[0].blockIndex === info.blockIndex));
+        if (blk) {
+          blk.slots.push({
+            slotUid: `${info.sheetId}_pending_${newChar.name}`,
+            sheetId: info.sheetId,
+            sheetRow: 0,
+            colIndex: blk.slots.length + 1, // 실제 열은 서버가 정하므로 대략값. 갱신 시 정확한 값으로 덮임
+            blockIndex: info.blockIndex,
+            user: newChar.user,
+            name: newChar.name,
+            job: newChar.job,
+            level: newChar.level,
+            foundInPool: true,
+            pos: newChar.pos,
+            raidTitle: info.raidTitle,
+            rawRaidTitle: info.rawRaidTitle
+          });
+          rebuildInstancesForSheet(info.sheetId);
+          renderActiveTabContent();
+        }
+      }
+
+      try {
+        await fetch(APPS_SCRIPT_WEB_APP_URL, {
+          method: 'POST',
+          mode: 'no-cors',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'addSlot',
+            sheetId: info.sheetId,
+            blockIndex: info.blockIndex,
+            rawRaidTitle: info.rawRaidTitle,
+            targetRaid: `[${info.sheetId}] ${info.raidTitle}`,
+            user: newChar.user,
+            newCharName: newChar.name,
+            newJob: newChar.job,
+            newLevel: newChar.level.toFixed(2),
+            newPos: newChar.pos
+          })
+        });
+      } catch (err) {
+        console.error('슬롯 추가 오류:', err);
+      }
+
+      maybeUpdatePlannedLevel(newChar.name, needsLevelUp, requiredLevel);
     }
 
     function closeQuickSwapModal() {
+      swapMode = 'swap';
+      activeAddTarget = null;
       document.body.style.overflow = '';
       document.getElementById('quickSwapModal').classList.add('hidden');
       activeSwapTarget = null;
       pendingSwapChar = null;
+      pendingSwapNeedsLevelUp = false;
+      pendingSwapRequiredLevel = 0;
       window.__swapUserPool = null;
     }
 
-    async function executeInstantSwap(newCharJsonEncoded) {
+    async function executeInstantSwap(newCharJsonEncoded, needsLevelUp, requiredLevel) {
       const newChar = JSON.parse(decodeURIComponent(newCharJsonEncoded));
       if (!activeSwapTarget) return;
 
@@ -1955,6 +3088,7 @@
             }
           });
         });
+        rebuildInstancesForSheet(target.sheetId);
         renderActiveTabContent();
       }
 
@@ -1963,8 +3097,7 @@
         sheetId: target.sheetId,
         sheetRow: target.sheetRow,
         blockIndex: target.blockIndex,
-        slotIndex: target.slotIndex,
-        party: target.party,
+        colIndex: target.colIndex,
         user: target.user,
         targetRaid: `[${target.sheetId}] ${target.raidTitle}`,
         rawRaidTitle: target.rawRaidTitle || target.raidTitle,
@@ -1987,12 +3120,316 @@
       } catch (err) {
         console.error('시트 저장 오류:', err);
       }
+
+      maybeUpdatePlannedLevel(newChar.name, needsLevelUp, requiredLevel);
+    }
+
+// ─── 레이드 블록 추가 모달 ─────────────────────────────────
+    // 레이드를 고르고 캐릭터 여러 명을 한 번에 새 블록으로 등록한다.
+    // 본인 캐릭터로 제한하지 않는다 - 공대 전체 편성을 짜는 용도라 아무 캐릭터나 고를 수 있어야 한다.
+    function openAddBlockModal() {
+      if (!selectedUser) {
+        customAlert("상단 헤더의 [내 캐릭터 강조]에서 본인 계정을 먼저 선택해 주세요!");
+        return;
+      }
+      addBlockCurrentRaid = null;
+      addBlockCurrentCap = 0;
+      addBlockSelectedChars = new Set();
+      addBlockFixedRoster = false;
+      addBlockRosterOverflow = false;
+
+      const sheetInfo = sheetsDataStore[currentActiveTab];
+      const label = document.getElementById('addBlockSheetLabel');
+      if (label) label.textContent = sheetInfo ? sheetInfo.title : currentActiveTab;
+      const scopeNote = document.getElementById('addBlockScopeNote');
+      if (scopeNote) {
+        const showScopeNote = currentActiveTab !== 'Main_8Man';
+        scopeNote.classList.toggle('hidden', !showScopeNote);
+        scopeNote.classList.toggle('flex', showScopeNote);
+      }
+
+      const select = document.getElementById('addBlockRaidSelect');
+      select.innerHTML = '<option value="" class="bg-[#161b22]">레이드를 선택해 주세요</option>' + buildAddBlockRaidOptions();
+      select.value = '';
+
+      document.getElementById('addBlockCapacitySection').classList.add('hidden');
+      const searchInput = document.getElementById('addBlockSearchInput');
+      if (searchInput) searchInput.value = '';
+      updateAddBlockConfirmState();
+
+      document.body.style.overflow = 'hidden';
+      document.getElementById('addBlockModal').classList.remove('hidden');
+      drawIcons();
+    }
+
+    function closeAddBlockModal() {
+      document.body.style.overflow = '';
+      document.getElementById('addBlockModal').classList.add('hidden');
+    }
+
+    // Raid_Info 를 이름+난이도 기준으로 중복 제거해서 드롭다운 옵션으로 만든다.
+    function buildAddBlockRaidOptions() {
+      const seen = new Set();
+      const opts = [];
+      raidInfoData.forEach(r => {
+        const key = `${r.name}|||${r.diff}`;
+        if (seen.has(key)) return;
+        seen.add(key);
+        opts.push(`<option value="${key}" class="bg-[#161b22]">${r.name} ${r.diff}</option>`);
+      });
+      return opts.join('');
+    }
+
+    // 해당 서브그룹(조)에 고정 소속된 유저(계정) 베이스명 집합.
+    // processScheduleSheet 가 이미 슬롯의 user 를 "(부N)" 등 접미사 없이 모아둔 것을 그대로 쓴다 -
+    // 조원은 매 레이드마다 다른 부캐를 쓸 수 있으므로, 캐릭터명이 아니라 유저 단위로 고정해야 한다.
+    function getSheetMemberBaseUsers(sheetId) {
+      const sd = sheetsDataStore[sheetId];
+      return new Set(sd ? sd.users : []);
+    }
+
+    function onAddBlockRaidChange() {
+      const select = document.getElementById('addBlockRaidSelect');
+      const section = document.getElementById('addBlockCapacitySection');
+      addBlockSelectedChars = new Set();
+
+      if (!select.value) {
+        addBlockCurrentRaid = null;
+        addBlockCurrentCap = 0;
+        section.classList.add('hidden');
+        updateAddBlockConfirmState();
+        return;
+      }
+
+      const [name, diff] = select.value.split('|||');
+      addBlockCurrentRaid = { name, diff };
+
+      const row = raidInfoData.find(r => r.name === name && r.diff === diff);
+      let cap = 8;
+      if (row && row.partyType) {
+        const m = row.partyType.match(/([0-9]+)\s*인/);
+        if (m) cap = parseInt(m[1], 10);
+      }
+      addBlockCurrentCap = cap;
+
+      const minLevel = row ? parseGoldNum(row.level) : 0;
+      // 서브그룹은 소속 유저(계정)가 고정된 조라서, 새 블록에도 그 유저들만 넣을 수 있게 한다
+      // (아니면 같은 조인데 레이드마다 인원 구성이 달라져 버릴 수 있음). 단, 유저별로 어떤 부캐를
+      // 쓸지는 매 레이드마다 다를 수 있으므로 캐릭터명이 아니라 유저 단위로 제한하고,
+      // 실제 캐릭터 선택 자체는 자동이 아니라 수동으로 - 유저당 정확히 1명씩 골라야 확정할 수 있다.
+      addBlockFixedRoster = (currentActiveTab !== 'Main_8Man');
+      let basePool = characterPoolData;
+      let members = new Set();
+      if (addBlockFixedRoster) {
+        members = getSheetMemberBaseUsers(currentActiveTab);
+        basePool = characterPoolData.filter(c => members.has((c.user || '').split('(')[0].trim()));
+      }
+      window.__addBlockMemberUsers = members;
+      const cands = basePool.map(c => ({ c, needsLevelUp: minLevel > 0 && c.level < minLevel }));
+      window.__addBlockAllCands = cands;
+
+      addBlockRosterOverflow = addBlockFixedRoster && members.size > cap;
+      addBlockSelectedChars = new Set();
+
+      const searchInput = document.getElementById('addBlockSearchInput');
+      if (searchInput) searchInput.value = '';
+      const listLabel = document.getElementById('addBlockListLabel');
+      if (listLabel) listLabel.textContent = addBlockFixedRoster ? '조원별 캐릭터 선택' : '캐릭터 선택';
+
+      section.classList.remove('hidden');
+      renderAddBlockFilteredList(cands);
+      updateAddBlockConfirmState();
+    }
+
+    function filterAddBlockCandidates() {
+      const all = window.__addBlockAllCands || [];
+      const keyword = (document.getElementById('addBlockSearchInput').value || '').trim().toLowerCase();
+      const filtered = keyword ? all.filter(x => x.c.name.toLowerCase().includes(keyword)) : all;
+      renderAddBlockFilteredList(filtered);
+    }
+
+    function renderAddBlockFilteredList(cands) {
+      const container = document.getElementById('addBlockCharListContainer');
+      const countEl = document.getElementById('addBlockSearchCount');
+      const all = window.__addBlockAllCands || [];
+      if (countEl) {
+        countEl.textContent = (cands.length === all.length) ? `${all.length}명` : `${cands.length} / ${all.length}명`;
+      }
+
+      if (cands.length === 0) {
+        container.innerHTML = `<div class="text-center py-6 text-xs text-gray-500">검색 결과가 없습니다.</div>`;
+        return;
+      }
+
+      container.innerHTML = cands.map(x => {
+        const c = x.c;
+        const isSel = addBlockSelectedChars.has(c.name);
+        const levelUpBadge = x.needsLevelUp
+          ? `<span class="text-[10px] font-normal px-1.5 py-0.5 rounded bg-rose-500/15 text-rose-400 border border-rose-600/40">레벨업 필요</span>`
+          : '';
+        const esc = c.name.replace(/'/g, "\\'");
+        const boxClass = isSel ? 'border-cyan-400 bg-cyan-950/20' : 'border-gray-800 bg-[#0d1117] hover:border-gray-600';
+        return `
+          <div onclick="toggleAddBlockChar('${esc}')" class="flex items-center justify-between p-2.5 rounded-lg border ${boxClass} cursor-pointer transition">
+            <div class="flex items-center gap-2">
+              <div class="w-4 h-4 rounded border ${isSel ? 'bg-cyan-400 border-cyan-400' : 'border-gray-600'} flex items-center justify-center shrink-0">
+                ${isSel ? '<i data-lucide="check" class="w-3 h-3 text-black"></i>' : ''}
+              </div>
+              <div>
+                <div class="text-xs text-gray-400">${c.user} (${c.server})</div>
+                <div class="text-sm font-bold text-white flex items-center flex-wrap gap-x-2">
+                  <span>${c.name}</span>
+                  ${levelUpBadge}
+                </div>
+              </div>
+            </div>
+            <div class="text-right">
+              <span class="text-xs text-gray-400">${c.job} · ${c.pos}</span>
+              <div class="text-xs font-mono font-bold text-yellow-500">${c.level.toLocaleString('ko-KR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+            </div>
+          </div>
+        `;
+      }).join('');
+      drawIcons();
+    }
+
+    function toggleAddBlockChar(name) {
+      if (addBlockSelectedChars.has(name)) {
+        addBlockSelectedChars.delete(name);
+      } else if (addBlockFixedRoster) {
+        // 서브그룹은 유저(계정)당 정확히 1명만 - 같은 유저의 다른 캐릭터를 이미 골랐다면
+        // 그 선택을 빼고 새로 고른 캐릭터로 바꾼다 (부캐는 매 레이드마다 다를 수 있으니까).
+        const c = characterPoolData.find(x => x.name === name);
+        const baseUser = c ? (c.user || '').split('(')[0].trim() : '';
+        Array.from(addBlockSelectedChars).forEach(n => {
+          const cc = characterPoolData.find(x => x.name === n);
+          if (cc && (cc.user || '').split('(')[0].trim() === baseUser) addBlockSelectedChars.delete(n);
+        });
+        addBlockSelectedChars.add(name);
+      } else {
+        if (addBlockSelectedChars.size >= addBlockCurrentCap) {
+          customAlert(`이 레이드는 최대 ${addBlockCurrentCap}명까지만 가능합니다.`);
+          return;
+        }
+        addBlockSelectedChars.add(name);
+      }
+      renderAddBlockFilteredList(window.__addBlockAllCands ? filterCurrentAddBlockList() : []);
+      updateAddBlockConfirmState();
+    }
+
+    // 검색창에 입력된 게 있으면 그 필터를 유지한 채로 다시 그린다.
+    function filterCurrentAddBlockList() {
+      const all = window.__addBlockAllCands || [];
+      const keyword = (document.getElementById('addBlockSearchInput').value || '').trim().toLowerCase();
+      return keyword ? all.filter(x => x.c.name.toLowerCase().includes(keyword)) : all;
+    }
+
+    function updateAddBlockConfirmState() {
+      const btn = document.getElementById('addBlockConfirmBtn');
+      const countEl = document.getElementById('addBlockSelectedCount');
+      if (countEl) {
+        countEl.textContent = addBlockCurrentRaid ? `(${addBlockSelectedChars.size}/${addBlockCurrentCap}명)` : '';
+      }
+      if (!btn) return;
+
+      if (!addBlockCurrentRaid) {
+        btn.disabled = true;
+        btn.textContent = '레이드를 먼저 선택해 주세요';
+        return;
+      }
+
+      const totalMembers = (window.__addBlockMemberUsers || new Set()).size;
+      if (addBlockRosterOverflow) {
+        btn.disabled = true;
+        btn.textContent = `이 조 인원(${totalMembers}명)이 정원(${addBlockCurrentCap}명)보다 많습니다`;
+      } else if (addBlockFixedRoster) {
+        const coveredUsers = new Set(Array.from(addBlockSelectedChars).map(n => {
+          const c = characterPoolData.find(x => x.name === n);
+          return c ? (c.user || '').split('(')[0].trim() : null;
+        }).filter(Boolean));
+        if (totalMembers === 0) {
+          btn.disabled = true;
+          btn.textContent = '이 조에 소속된 캐릭터가 없습니다';
+        } else if (coveredUsers.size < totalMembers) {
+          btn.disabled = true;
+          btn.textContent = `조원 전체 선택 필요 (${coveredUsers.size}/${totalMembers}명)`;
+        } else {
+          btn.disabled = false;
+          btn.textContent = `이 조 전원(${totalMembers}명)으로 블록 추가`;
+        }
+      } else if (addBlockSelectedChars.size === 0) {
+        btn.disabled = true;
+        btn.textContent = '캐릭터를 선택해 주세요';
+      } else {
+        btn.disabled = false;
+        btn.textContent = `${addBlockSelectedChars.size}명으로 블록 추가`;
+      }
+    }
+
+    // Raid_Info 의 축약어(abbr 열)와 짧은 난이도 표기로 블록 제목을 만든다 -
+    // 기존에 수동으로 만들어진 블록들이 전부 "[성당 3단]", "[세르카 나메]" 처럼 축약형이라
+    // 새로 추가하는 블록도 같은 형식으로 맞춰야 같은 계열로 인식되고 회차 번호도 자연스럽게 이어진다.
+    function getAbbrRaidTitleParts(name, diff) {
+      const row = raidInfoData.find(r => r.name === name && r.diff === diff);
+      const abbrName = (row && row.abbr) ? row.abbr : name;
+      let abbrDiff = (diff || '').toString();
+      if (abbrDiff.includes('나이트메어')) {
+        abbrDiff = '나메';
+      } else {
+        const m = abbrDiff.match(/^([0-9])단계$/);
+        if (m) abbrDiff = `${m[1]}단`;
+      }
+      return { abbrName, abbrDiff };
+    }
+
+    async function confirmAddBlock() {
+      if (!addBlockCurrentRaid || addBlockSelectedChars.size === 0) return;
+      const sheetId = currentActiveTab;
+      const chars = Array.from(addBlockSelectedChars).map(name => {
+        const c = characterPoolData.find(x => x.name === name);
+        return { user: c ? c.user : '', name: name };
+      });
+      if (addBlockFixedRoster) {
+        // 서브그룹은 시트에 이미 정해진 유저-컬럼 순서(A블록에서부터 써온 순서)가 있으므로,
+        // 클릭한 순서가 아니라 그 순서에 맞춰 써야 다른 블록들과 컬럼이 어긋나지 않는다.
+        const order = (sheetsDataStore[sheetId] && sheetsDataStore[sheetId].users) || [];
+        chars.sort((a, b) => {
+          const ua = (a.user || '').split('(')[0].trim();
+          const ub = (b.user || '').split('(')[0].trim();
+          return order.indexOf(ua) - order.indexOf(ub);
+        });
+      }
+      const raid = addBlockCurrentRaid;
+      const { abbrName, abbrDiff } = getAbbrRaidTitleParts(raid.name, raid.diff);
+
+      closeAddBlockModal();
+
+      try {
+        await fetch(APPS_SCRIPT_WEB_APP_URL, {
+          method: 'POST',
+          mode: 'no-cors',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'addBlock',
+            sheetId: sheetId,
+            raidName: abbrName,
+            diff: abbrDiff,
+            requestedBy: selectedUser,
+            characters: chars
+          })
+        });
+      } catch (err) {
+        console.error('블록 추가 오류:', err);
+      }
+
+      // 새 블록은 낙관적 반영 없이(구조가 복잡해 재구성보다 재조회가 안전) 바로 새로고침한다.
+      await refreshSheets([sheetId], true);
     }
 
 // ─── 참여 상태 모달 ───────────────────────────────────────
     function openAttendanceModal() {
       if (!selectedUser) {
-        alert("상단 헤더의 [내 캐릭터 강조]에서 본인 계정을 먼저 선택해 주세요!");
+        customAlert("상단 헤더의 [내 캐릭터 강조]에서 본인 계정을 먼저 선택해 주세요!");
         return;
       }
       pendingAttendance = { date: '', status: '', memo: '' };
@@ -2017,7 +3454,7 @@
     function renderAttendanceDateList() {
       const box = document.getElementById('attendanceDateList');
       if (!box) return;
-      box.innerHTML = getUpcomingSaturdays().map(d => {
+      box.innerHTML = getAttendanceSaturdays().map(d => {
         const key = fmtDate(d);
         const on = pendingAttendance.date === key;
         return `<button onclick="selectAttendanceDate('${key}')" class="px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition ${
@@ -2042,7 +3479,7 @@
       const box = document.getElementById('attendanceMyList');
       if (!box) return;
       const base = selectedUser.split('(')[0].trim();
-      const validKeys = getUpcomingSaturdays().map(fmtDate);
+      const validKeys = getAttendanceSaturdays().map(fmtDate);
 
       const latest = {};
       attendanceData.forEach(a => {
@@ -2134,7 +3571,7 @@
 
     async function cancelAttendance(dateKey) {
       const label = fmtDateLabel(new Date(dateKey + 'T00:00:00'));
-      if (!confirm(`${label} 참여 상태 등록을 삭제할까요?`)) return;
+      if (!(await customConfirm(`${label} 참여 상태 등록을 삭제할까요?`))) return;
 
       const base = selectedUser.split('(')[0].trim();
       attendanceData = attendanceData.filter(a =>
@@ -2237,7 +3674,7 @@
     // 내용으로 대상을 특정한다.
     async function deleteSuggestion(contentEncoded) {
       const content = decodeURIComponent(contentEncoded);
-      if (!confirm('이 건의를 삭제할까요?')) return;
+      if (!(await customConfirm('이 건의를 삭제할까요?'))) return;
 
       const base = selectedUser.split('(')[0].trim();
       let removedOne = false;
