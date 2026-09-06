@@ -94,7 +94,7 @@
           <i data-lucide="flask-conical" class="w-6 h-6 text-purple-400"></i>
           <span class="font-bold text-lg text-white tracking-wide whitespace-nowrap">로아 공대</span>
           <button onclick="openInfoModal('changelog')" class="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/30 hover:bg-purple-500/20 transition cursor-pointer" title="클릭하여 업데이트 이력 확인">
-            v2.1.7
+            v2.2.1
           </button>
         </div>
 
@@ -799,6 +799,8 @@
     // 여기 없으면 기본값(완료 상태면 접힘)을 그대로 쓴다.
     let collapsedOverride = new Map();
     let activeProgressTarget = null;  // 진행/완료 모달이 대상으로 하는 블록 정보
+    // 자동 팝업 중복 방지 - 이미 띄운 진행중 건은 같은 건이 유지되는 동안 다시 띄우지 않는다.
+    let lastAutoPopupKey = null;
     let siteConfig = { maintenanceMode: false, noticeText: '', subGroupDays: {}, raidWeekAnchor: '' };  // Config 시트 원본
     let suggestionsData = [];         // Suggestions 시트 원본
     // 시트별로 편성 인스턴스를 나눠 보관한다. 한 시트만 다시 받아도 골드 재계산이 가능해진다.
@@ -1128,6 +1130,7 @@
 
         recalcGoldFromStore();
         renderCurrentViews();
+        maybeAutoPopupCurrentRaid();
 
         const now = Date.now();
         lastFullSyncAt = now;
@@ -1861,6 +1864,39 @@
       renderTabs();
       renderActiveTabContent();
       openRaidProgressModal(sheetId, blockIndex, rawRaidTitle, displayTitle);
+    }
+
+    // 다른 모달(진행 관리 포함)이 하나라도 떠 있으면 자동 팝업이 그 위에 끼어들지 않게 막는다.
+    function isAnyModalOpen() {
+      const modalIds = ['quickSwapModal', 'addBlockModal', 'raidProgressModal', 'currentRaidsModal',
+        'subGroupDayModal', 'customAlertModal', 'customConfirmModal', 'customPromptModal', 'attendanceModal', 'infoModal'];
+      return modalIds.some(id => {
+        const el = document.getElementById(id);
+        return el && !el.classList.contains('hidden');
+      });
+    }
+
+    // 새로고침/자동 갱신/사이트 오픈 시 호출된다. 본인이 포함된 진행중 레이드가 있고
+    // 다른 모달이 떠 있지 않으면 진행 관리 창을 자동으로 띄운다.
+    // 인원 겹침 방지(startRaidBlock) 덕분에 한 계정이 동시에 여러 진행중 레이드에 속할 일이 없어,
+    // "어떤 레이드를 띄울지" 애매해질 걱정 없이 이 방식이 성립한다.
+    function maybeAutoPopupCurrentRaid() {
+      if (!selectedUser) return;
+
+      const inProgress = raidStatusData.filter(s => s.status === '진행중');
+      const mine = inProgress.find(s => {
+        const block = sheetsDataStore[s.sheetId] && sheetsDataStore[s.sheetId].blocks[s.blockIndex];
+        return block && userInBlock(block);
+      });
+
+      if (!mine) { lastAutoPopupKey = null; return; }
+
+      const key = `${mine.sheetId}|${mine.blockIndex}|${mine.rawRaidTitle}`;
+      if (key === lastAutoPopupKey) return;
+      if (isAnyModalOpen()) return; // 지금은 건너뛰고, 다음 갱신 때 다시 시도
+
+      lastAutoPopupKey = key;
+      jumpToRaidProgress(mine.sheetId, mine.blockIndex, mine.rawRaidTitle, sanitizeTitle(mine.rawRaidTitle));
     }
 
     function renderGoldBadge(status, maybeDesc) {
