@@ -117,7 +117,7 @@
           <i data-lucide="flask-conical" class="w-6 h-6 text-purple-400"></i>
           <span class="font-bold text-lg text-white tracking-wide whitespace-nowrap"><span class="sm:hidden">공대</span><span class="hidden sm:inline">로아 공대</span></span>
           <button onclick="openInfoModal('changelog')" class="text-[10px] font-mono font-bold px-1.5 sm:px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/30 hover:bg-purple-500/20 transition cursor-pointer" title="클릭하여 업데이트 이력 확인">
-            v2.4.22
+            v2.4.23
           </button>
         </div>
 
@@ -2299,9 +2299,9 @@
 
       grid.innerHTML = filtered.map(c => {
         const isMe = selectedUser && c.user.startsWith(selectedUser);
-        let posBadge = `<span class="badge-dealer shrink-0 whitespace-nowrap w-14 text-center text-[11px] font-semibold py-0.5 rounded">딜러</span>`;
-        if (c.pos === '서포터') posBadge = `<span class="badge-supporter shrink-0 whitespace-nowrap w-14 text-center text-[11px] font-semibold py-0.5 rounded">서포터</span>`;
-        else if (c.pos === '스왑가능') posBadge = `<span class="badge-swap shrink-0 whitespace-nowrap w-14 text-center text-[11px] font-semibold py-0.5 rounded">스왑가능</span>`;
+        let posBadge = `<span class="badge-dealer whitespace-nowrap text-[11px] font-semibold px-2 py-0.5 rounded">딜러</span>`;
+        if (c.pos === '서포터') posBadge = `<span class="badge-supporter whitespace-nowrap text-[11px] font-semibold px-2 py-0.5 rounded">서포터</span>`;
+        else if (c.pos === '스왑가능') posBadge = `<span class="badge-swap whitespace-nowrap text-[11px] font-semibold px-2 py-0.5 rounded">스왑가능</span>`;
 
         const isGoldChar = goldEligibleCharNames.has(c.name);
 
