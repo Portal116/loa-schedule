@@ -70,6 +70,29 @@
     .modal-scroll {
       overscroll-behavior: contain;
     }
+    /* 가로 스크롤은 유지하되 스크롤바만 숨긴다 (탭 줄 등) */
+    .no-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    /* 슬롯 한 줄의 실제 폭(콘텐츠 박스 = 보이는 폭 - 패딩 20 - 테두리 2)으로 PC/모바일 표시를 가른다 (뷰포트 기준 아님).
+       430px 미만(폰 1열 ~289, 태블릿 768 8인 2열 ~310): 직업 생략 + 유저명/캐릭터명 세로
+       430px 이상(태블릿 4인 1열 ~668, 1024 8인 2열 ~438, PC 8인 2열 그 이상): 직업 표시 + 가로
+       (실데이터 최대 필요 콘텐츠 폭 ~388px 기준으로 여유를 둔 값. 더 긴 이름은 캐릭터명 truncate 로 방어) */
+    .slot-row { container-type: inline-size; }
+    .slot-meta { display: flex; flex-direction: column; }
+    .slot-job { display: none; }
+    @container (min-width: 430px) {
+      .slot-meta { flex-direction: row; align-items: center; column-gap: 0.5rem; }
+      .slot-job { display: inline; }
+    }
+    /* 캐릭터 현황 카드: 카드 콘텐츠 폭 300px 미만이면 레이드 배지를 1글자(종/4/성/세/벨)로.
+       풀 라벨 5개 + 레벨의 최대 필요 폭이 ~294px 이라 300 을 경계로 둔다. */
+    .pool-card { container-type: inline-size; }
+    .raid-tag-full { display: none; }
+    .raid-tag-short { display: inline; }
+    @container (min-width: 300px) {
+      .raid-tag-full { display: inline; }
+      .raid-tag-short { display: none; }
+    }
     .modal-scroll::-webkit-scrollbar {
       width: 6px;
     }
@@ -88,20 +111,20 @@
 </head>
 <body class="min-h-screen pb-16">
   <header class="border-b border-gray-800 bg-[#161b22]/90 sticky top-0 z-50 backdrop-blur">
-    <div class="max-w-7xl mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-4">
-      <div class="flex items-center space-x-3">
-        <div class="flex items-center space-x-2">
+    <div class="max-w-7xl mx-auto px-3 sm:px-4 py-3 flex flex-wrap items-center justify-between gap-4">
+      <div class="flex items-center flex-wrap gap-2 sm:gap-3">
+        <div class="flex items-center gap-1.5 sm:gap-2">
           <i data-lucide="shield" class="w-6 h-6 text-yellow-500"></i>
-          <span class="font-bold text-lg text-white tracking-wide whitespace-nowrap">로아 공대</span>
-          <button onclick="openInfoModal('changelog')" class="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-yellow-500/10 text-yellow-400 border border-yellow-500/30 hover:bg-yellow-500/20 transition cursor-pointer" title="클릭하여 업데이트 이력 확인">
-            v2.4
+          <span class="font-bold text-lg text-white tracking-wide whitespace-nowrap"><span class="sm:hidden">공대</span><span class="hidden sm:inline">로아 공대</span></span>
+          <button onclick="openInfoModal('changelog')" class="text-[10px] font-mono font-bold px-1.5 sm:px-2 py-0.5 rounded bg-yellow-500/10 text-yellow-400 border border-yellow-500/30 hover:bg-yellow-500/20 transition cursor-pointer" title="클릭하여 업데이트 이력 확인">
+            v2.5
           </button>
         </div>
 
-        <div class="flex bg-[#0d1117] p-1 rounded-lg border border-gray-800 text-xs flex-wrap gap-1">
-          <button onclick="switchMainView('schedule')" id="viewBtnSchedule" class="px-3 py-1.5 rounded-md font-semibold bg-gray-800 text-white transition">일정표</button>
-          <button onclick="switchMainView('pool')" id="viewBtnPool" class="px-3 py-1.5 rounded-md font-medium text-gray-400 hover:text-white transition">캐릭터 현황 & 숙제 체크</button>
-          <button onclick="switchMainView('gold')" id="viewBtnGold" class="px-3 py-1.5 rounded-md font-medium text-gray-400 hover:text-white transition">레이드 골드표</button>
+        <div class="flex bg-[#0d1117] p-1 rounded-lg border border-gray-800 text-xs flex-nowrap gap-1 max-w-full overflow-x-auto no-scrollbar">
+          <button onclick="switchMainView('schedule')" id="viewBtnSchedule" class="whitespace-nowrap px-3 py-1.5 rounded-md font-semibold bg-gray-800 text-white transition"><span class="sm:hidden">일정</span><span class="hidden sm:inline">일정표</span></button>
+          <button onclick="switchMainView('pool')" id="viewBtnPool" class="whitespace-nowrap px-3 py-1.5 rounded-md font-medium text-gray-400 hover:text-white transition"><span class="sm:hidden">캐릭터</span><span class="hidden sm:inline">캐릭터 현황 & 숙제 체크</span></button>
+          <button onclick="switchMainView('gold')" id="viewBtnGold" class="whitespace-nowrap px-3 py-1.5 rounded-md font-medium text-gray-400 hover:text-white transition"><span class="sm:hidden">골드표</span><span class="hidden sm:inline">레이드 골드표</span></button>
         </div>
       </div>
 
@@ -114,6 +137,8 @@
           </select>
         </div>
 
+        <!-- 버튼 무리는 하나로 묶어, 좁은 폭에서 셀렉트 / 버튼 묶음 단위로만 줄바꿈되게 한다 -->
+        <div class="flex items-center gap-2.5">
         <button onclick="openCurrentRaidsModal()" id="currentRaidsBtn" class="hidden relative flex items-center space-x-1 bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white border border-gray-700 text-xs font-semibold px-2.5 py-1.5 rounded-lg transition">
           <span class="absolute -top-1 -right-1 flex h-3 w-3">
             <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
@@ -140,6 +165,7 @@
             <i data-lucide="refresh-cw" class="w-3.5 h-3.5" id="refreshIcon"></i>
           </button>
         </div>
+        </div>
       </div>
     </div>
   </header>
@@ -152,40 +178,47 @@
     <p id="maintenanceScreenText" class="text-sm text-gray-400 leading-relaxed"></p>
   </div>
 
-  <main id="mainContent" class="max-w-7xl mx-auto px-4 mt-6">
+  <main id="mainContent" class="max-w-7xl mx-auto px-3 sm:px-4 mt-6">
     <!-- 1. 일정표 뷰 -->
     <div id="sectionSchedule">
       <div class="flex items-center justify-between flex-wrap gap-3 border-b border-gray-800 pb-2">
-        <nav class="flex space-x-2 overflow-x-auto" id="tabNav"></nav>
-        <div class="flex items-center space-x-3">
-          <span class="text-[11px] text-gray-400 flex items-center space-x-1">
+        <nav class="flex space-x-2 overflow-x-auto no-scrollbar" id="tabNav"></nav>
+        <div class="flex items-center flex-wrap gap-2">
+          <span class="hidden md:flex text-[11px] text-gray-400 items-center space-x-1">
             <i data-lucide="mouse-pointer-click" class="w-3.5 h-3.5 text-yellow-400"></i>
             <span>상단에 '내 캐릭터 강조' 지정 후, 본인 슬롯을 클릭하면 캐릭터 교체</span>
           </span>
-          <label class="flex items-center space-x-1.5 text-xs text-gray-300 cursor-pointer bg-[#161b22] px-3 py-1.5 rounded-lg border border-gray-700 hover:border-gray-500 transition">
+          <label class="flex items-center whitespace-nowrap space-x-1.5 text-xs text-gray-300 cursor-pointer bg-[#161b22] px-3 py-1.5 rounded-lg border border-gray-700 hover:border-gray-500 transition">
             <input type="checkbox" id="filterMySubToggle" class="rounded bg-gray-800 border-gray-600 text-yellow-500 focus:ring-0 cursor-pointer" />
             <span>내 서브 조만 보기</span>
           </label>
-          <button onclick="openAddBlockModal()" class="flex items-center space-x-1 bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white border border-gray-700 text-xs font-semibold px-2.5 py-1.5 rounded-lg transition">
+          <button onclick="openAddBlockModal()" class="flex items-center whitespace-nowrap space-x-1 bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white border border-gray-700 text-xs font-semibold px-2.5 py-1.5 rounded-lg transition">
             <i data-lucide="plus-circle" class="w-3.5 h-3.5 text-yellow-400"></i>
             <span>블록 추가</span>
           </button>
         </div>
       </div>
 
-      <div class="mt-4 px-3 py-2 bg-[#161b22] border border-gray-800 rounded-lg flex flex-wrap items-center gap-4 text-xs text-gray-400">
-        <span class="font-semibold text-gray-300">골드 획득 범례:</span>
-        <div class="flex items-center space-x-1.5">
-          <span class="inline-block w-4 h-4 rounded-full bg-amber-500 text-[10px] text-amber-950 font-bold text-center leading-4">G</span>
-          <span>골드 획득 (주간 상위 3개 레이드)</span>
-        </div>
-        <div class="flex items-center space-x-1.5">
-          <span class="inline-block w-4 h-4 rounded-full bg-cyan-600 text-[10px] text-white font-bold text-center leading-4">?</span>
-          <span>선택 구간 (둘 중 하나만 골드 획득)</span>
-        </div>
-        <div class="flex items-center space-x-1.5">
-          <span class="inline-block w-4 h-4 rounded-full bg-gray-700 text-[10px] text-red-500 font-bold text-center leading-4">✕</span>
-          <span>골드 미획득 (하위 레이드 일정)</span>
+      <!-- 골드 획득 범례. 폰(<768px)에서는 제목 한 줄만 보이고 탭하면 펼쳐진다 (toggleCollapsibleBox).
+           md 이상에서는 항목들이 display:contents 로 제목과 같은 줄에 인라인 배치되어 예전 모습 그대로다. -->
+      <div class="mt-4 px-3 py-2 bg-[#161b22] border border-gray-800 rounded-lg text-xs text-gray-400 md:flex md:flex-wrap md:items-center md:gap-4">
+        <button type="button" onclick="toggleCollapsibleBox('goldLegendItems', 'goldLegendChevron')" class="w-full md:w-auto flex items-center justify-between md:justify-start md:pointer-events-none">
+          <span class="font-semibold text-gray-300">골드 획득 범례<span class="hidden md:inline">:</span></span>
+          <i data-lucide="chevron-down" id="goldLegendChevron" class="w-4 h-4 text-gray-500 md:hidden transition-transform"></i>
+        </button>
+        <div id="goldLegendItems" class="hidden md:contents mt-2 space-y-1.5">
+          <div class="flex items-center space-x-1.5">
+            <span class="inline-block w-4 h-4 rounded-full bg-amber-500 text-[10px] text-amber-950 font-bold text-center leading-4">G</span>
+            <span>골드 획득 (주간 상위 3개 레이드)</span>
+          </div>
+          <div class="flex items-center space-x-1.5">
+            <span class="inline-block w-4 h-4 rounded-full bg-cyan-600 text-[10px] text-white font-bold text-center leading-4">?</span>
+            <span>선택 구간 (둘 중 하나만 골드 획득)</span>
+          </div>
+          <div class="flex items-center space-x-1.5">
+            <span class="inline-block w-4 h-4 rounded-full bg-gray-700 text-[10px] text-red-500 font-bold text-center leading-4">✕</span>
+            <span>골드 미획득 (하위 레이드 일정)</span>
+          </div>
         </div>
       </div>
 
@@ -210,31 +243,31 @@
 
     <!-- 2. 캐릭터 현황 & 숙제 체크 뷰 -->
     <div id="sectionPool" class="hidden">
-      <div class="card-bg p-4 rounded-xl mb-4 flex flex-wrap items-center justify-between gap-4">
-        <div class="flex flex-wrap items-center gap-3">
-          <div class="flex items-center space-x-2 bg-[#0d1117] px-3 py-1.5 rounded-lg border border-gray-700">
-            <span class="text-xs text-gray-400">유저:</span>
+      <div class="card-bg p-3 sm:p-4 rounded-xl mb-4 flex flex-wrap items-center justify-between gap-3 sm:gap-4">
+        <div class="flex flex-wrap items-center gap-2 sm:gap-3">
+          <div class="flex items-center gap-2 bg-[#0d1117] px-2 sm:px-3 py-1.5 rounded-lg border border-gray-700">
+            <span class="hidden sm:inline text-xs text-gray-400">유저:</span>
             <select id="poolUserFilter" onchange="renderPoolView()" class="bg-transparent text-xs text-white focus:outline-none cursor-pointer">
               <option value="" class="bg-[#161b22]">전체 유저</option>
             </select>
           </div>
 
-          <div class="flex items-center space-x-2 bg-[#0d1117] px-3 py-1.5 rounded-lg border border-gray-700">
-            <span class="text-xs text-gray-400">포지션:</span>
+          <div class="flex items-center gap-2 bg-[#0d1117] px-2 sm:px-3 py-1.5 rounded-lg border border-gray-700">
+            <span class="hidden sm:inline text-xs text-gray-400">포지션:</span>
             <select id="poolPosFilter" onchange="renderPoolView()" class="bg-transparent text-xs text-white focus:outline-none cursor-pointer">
               <option value="ALL" class="bg-[#161b22]">전체 포지션</option>
-              <option value="DEALER" class="bg-[#161b22]">딜러 (스왑 포함)</option>
-              <option value="SUPPORTER" class="bg-[#161b22]">서포터 (스왑 포함)</option>
+              <option value="DEALER" class="bg-[#161b22]">딜러</option>
+              <option value="SUPPORTER" class="bg-[#161b22]">서포터</option>
             </select>
           </div>
 
-          <div class="flex items-center space-x-2 bg-[#0d1117] px-3 py-1.5 rounded-lg border border-gray-700">
-            <span class="text-xs text-gray-400">최소 레벨:</span>
+          <div class="flex items-center gap-2 bg-[#0d1117] px-2 sm:px-3 py-1.5 rounded-lg border border-gray-700">
+            <span class="hidden sm:inline text-xs text-gray-400">최소 레벨:</span>
             <select id="poolLevelFilter" onchange="renderPoolView()" class="bg-transparent text-xs text-white focus:outline-none cursor-pointer">
               <option value="0" class="bg-[#161b22]">전체 레벨</option>
-              <option value="1720" class="bg-[#161b22]">1720+ (4막/성당)</option>
-              <option value="1730" class="bg-[#161b22]">1730+ (종막/세르카)</option>
-              <option value="1750" class="bg-[#161b22]">1750+ (성당3단/세르카나메/벨가)</option>
+              <option value="1720" class="bg-[#161b22]">1720+</option>
+              <option value="1730" class="bg-[#161b22]">1730+</option>
+              <option value="1750" class="bg-[#161b22]">1750+</option>
             </select>
           </div>
         </div>
@@ -244,12 +277,16 @@
         </div>
       </div>
 
+      <!-- 숙제 체크 안내. 골드 범례와 같은 방식: 폰(<768px)에서는 제목 한 줄, 탭하면 펼침 / md 이상은 항상 펼침 -->
       <div class="mb-6 px-3.5 py-3 bg-[#161b22] border border-gray-800 rounded-lg text-xs text-gray-400">
-        <div class="font-semibold text-gray-300 mb-2.5">숙제 체크 안내</div>
+        <button type="button" onclick="toggleCollapsibleBox('homeworkGuideItems', 'homeworkGuideChevron')" class="w-full flex items-center justify-between md:pointer-events-none md:mb-2.5">
+          <span class="font-semibold text-gray-300">숙제 체크 안내</span>
+          <i data-lucide="chevron-down" id="homeworkGuideChevron" class="w-4 h-4 text-gray-500 md:hidden transition-transform"></i>
+        </button>
 
-        <div class="space-y-2">
-          <div class="flex flex-wrap items-center gap-x-5 gap-y-2">
-            <span class="w-16 shrink-0 text-[11px] text-gray-500">체크 출처</span>
+        <div id="homeworkGuideItems" class="hidden md:block space-y-2 mt-2.5 md:mt-0">
+          <div class="flex flex-wrap items-center gap-x-4 md:gap-x-5 gap-y-1.5 md:gap-y-2">
+            <span class="w-full md:w-16 shrink-0 text-[11px] text-gray-500">체크 출처</span>
             <div class="flex items-center gap-1.5">
               <span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-gray-800 text-gray-400 border border-gray-700">레이드 ✓</span>
               <span>실선 = 일정표 자동 (수정 불가)</span>
@@ -260,8 +297,8 @@
             </div>
           </div>
 
-          <div class="flex flex-wrap items-center gap-x-5 gap-y-2">
-            <span class="w-16 shrink-0 text-[11px] text-gray-500">골드 여부</span>
+          <div class="flex flex-wrap items-center gap-x-4 md:gap-x-5 gap-y-1.5 md:gap-y-2">
+            <span class="w-full md:w-16 shrink-0 text-[11px] text-gray-500">골드 여부</span>
             <div class="flex items-center gap-1.5">
               <span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/70">레이드 ✓</span>
               <span>확정</span>
@@ -292,7 +329,7 @@
           <h3 class="font-bold text-white text-base">로스트아크 주요 레이드 골드 및 보상 안내</h3>
         </div>
         <div class="overflow-x-auto">
-          <table class="w-full text-left text-sm text-gray-300">
+          <table class="w-full whitespace-nowrap text-left text-sm text-gray-300">
             <thead class="bg-[#0d1117] text-xs uppercase text-gray-400 border-b border-gray-800">
               <tr>
                 <th class="px-4 py-3">레이드명</th>
@@ -671,13 +708,24 @@
         <div id="infoContentChangelog" class="space-y-3 hidden">
           <div class="border-l-2 border-yellow-500 pl-3 py-1 mb-3">
             <div class="flex items-center justify-between">
-              <span class="font-bold text-white text-xs">v2.4 - 편성 관리 개선</span>
-              <span class="text-[11px] text-gray-500">2026.09.06</span>
+              <span class="font-bold text-white text-xs">v2.5 - 모바일 사용성 개선</span>
+              <span class="text-[11px] text-gray-500">2026.09.08</span>
             </div>
             <ul class="text-xs text-gray-400 mt-1 space-y-0.5 list-disc pl-3">
-              <li>진행 관리 창의 편성 명단에 골드 획득 여부 표시 추가, 일정표와 동일한 정렬 순서 적용</li>
-              <li>진행중/완료 처리된 레이드는 편성(캐릭터 추가/교체/제거)을 변경할 수 없도록 잠금</li>
-              <li>레이드 편성 인원을 모두 빼면 해당 블록이 자동으로 정리됩니다</li>
+              <li>모바일 화면에 맞게 레이아웃 전반 정비</li>
+              <li>직접 체크한 숙제(W)가 매시간 자동 갱신 때 사라지던 문제 수정</li>
+            </ul>
+          </div>
+
+          <div class="border-l-2 border-gray-700 pl-3 py-1 mb-3">
+            <div class="flex items-center justify-between">
+              <span class="font-bold text-gray-300 text-xs">v2.4 - 편성 관리 개선</span>
+              <span class="text-[11px] text-gray-500">2026.09.06</span>
+            </div>
+            <ul class="text-xs text-gray-500 mt-1 space-y-0.5 list-disc pl-3">
+              <li>진행 관리 창 명단에 골드 획득 여부 표시 (일정표와 같은 정렬)</li>
+              <li>진행중/완료 레이드는 편성 변경 잠금</li>
+              <li>편성 인원이 모두 빠진 블록은 자동 정리</li>
             </ul>
           </div>
 
@@ -687,7 +735,7 @@
               <span class="text-[11px] text-gray-500">2026.09.06</span>
             </div>
             <ul class="text-xs text-gray-500 mt-1 space-y-0.5 list-disc pl-3">
-              <li>본인이 편성된 레이드가 진행중일 때, 새로고침·자동 갱신·사이트 접속 시 진행 관리 창이 자동으로 열립니다 (다른 창이 떠 있지 않을 때만)</li>
+              <li>내가 편성된 레이드가 진행중이면 접속·새로고침 시 진행 관리 창 자동 표시</li>
             </ul>
           </div>
 
@@ -697,9 +745,9 @@
               <span class="text-[11px] text-gray-500">2026.09.06</span>
             </div>
             <ul class="text-xs text-gray-500 mt-1 space-y-0.5 list-disc pl-3">
-              <li>[현재 레이드] 배지에 눈에 띄는 표시 추가, 진행중일 때 브라우저 탭 제목에도 표시</li>
-              <li>진행 관리 창에서 어떤 레이드/편성 명단인지 바로 확인 가능, 진행중인 레이드가 1건뿐이면 목록 없이 바로 상세로 이동</li>
-              <li>인원이 겹치는 다른 레이드가 이미 진행중이면 동시 진행 처리 방지</li>
+              <li>진행중일 때 [현재 레이드] 배지 강조 + 브라우저 탭 제목 표시</li>
+              <li>진행 관리 창에 레이드명·편성 명단 표시, 1건이면 바로 상세로</li>
+              <li>인원이 겹치는 레이드 동시 진행 방지</li>
             </ul>
           </div>
 
@@ -709,7 +757,7 @@
               <span class="text-[11px] text-gray-500">2026.09.06</span>
             </div>
             <ul class="text-xs text-gray-500 mt-1 space-y-0.5 list-disc pl-3">
-              <li>모든 그룹 레이드가 완료 처리되어 다음 주차로 넘어가는 유예 기간 동안, 캐릭터 현황의 완료 표시가 부정확했던 문제 수정</li>
+              <li>주차 전환 유예 기간 중 캐릭터 현황 완료 표시 오류 수정</li>
             </ul>
           </div>
 
@@ -719,7 +767,7 @@
               <span class="text-[11px] text-gray-500">2026.09.06</span>
             </div>
             <ul class="text-xs text-gray-500 mt-1 space-y-0.5 list-disc pl-3">
-              <li>[진행/완료 처리] 기능 추가 - 헤더에 [현재 레이드] 배지로 진행중인 레이드 확인 가능 (완료 처리해야 캐릭터 현황 체크가 반영됩니다)</li>
+              <li>[진행/완료 처리] 기능 및 [현재 레이드] 배지 추가 (완료 처리 시 캐릭터 현황에 반영)</li>
               <li>캐릭터 현황에서 예정 레벨 직접 설정 기능 추가</li>
               <li>[블록 추가] 기능 - 레이드 회차를 한 번에 새로 등록</li>
               <li>서브그룹 탭에 요일 설정 기능 추가 (탭 날짜 클릭)</li>
@@ -810,11 +858,12 @@
       { id: 'Sub_Group4', is8Man: false },
     ];
 
+    // 표시 순서 = 출시 순 (4막 → 종막 → 세르카 → 성당 → 벨가, 벨가가 최신). 계산 로직은 순서에 의존하지 않는다.
     const RAID_DEFINITIONS = [
-      { key: 'final', label: '종막', minLevel: 1710 },
       { key: 'act4', label: '4막', minLevel: 1700 },
-      { key: 'cathedral', label: '성당', minLevel: 1700 },
+      { key: 'final', label: '종막', minLevel: 1710 },
       { key: 'serka', label: '세르카', minLevel: 1710 },
+      { key: 'cathedral', label: '성당', minLevel: 1700 },
       { key: 'belga', label: '벨가', minLevel: 1750 }
     ];
 
@@ -931,6 +980,16 @@
       fetchSheetData();
     });
 
+    // 폰에서 안내 박스(골드 획득 범례 / 숙제 체크 안내) 접기/펼치기.
+    // md 이상에서는 항상 펼쳐져 있고 제목 버튼이 pointer-events:none 이라 호출되지 않는다.
+    function toggleCollapsibleBox(itemsId, chevronId) {
+      const items = document.getElementById(itemsId);
+      if (!items) return;
+      const collapsed = items.classList.toggle('hidden');
+      const chev = document.getElementById(chevronId);
+      if (chev) chev.classList.toggle('rotate-180', !collapsed);
+    }
+
     function switchMainView(view) {
       currentMainView = view;
       ['schedule', 'pool', 'gold'].forEach(v => {
@@ -938,10 +997,10 @@
         const sec = document.getElementById('section' + v.charAt(0).toUpperCase() + v.slice(1));
         if (!btn || !sec) return;
         if (v === view) {
-          btn.className = 'px-3 py-1.5 rounded-md font-semibold bg-gray-800 text-white transition';
+          btn.className = 'whitespace-nowrap px-3 py-1.5 rounded-md font-semibold bg-gray-800 text-white transition';
           sec.classList.remove('hidden');
         } else {
-          btn.className = 'px-3 py-1.5 rounded-md font-medium text-gray-400 hover:text-white transition';
+          btn.className = 'whitespace-nowrap px-3 py-1.5 rounded-md font-medium text-gray-400 hover:text-white transition';
           sec.classList.add('hidden');
         }
       });
@@ -1258,10 +1317,11 @@
 
         const pos = (row[7] || '딜러').toString().trim();
 
-        const stFinal = (row[8] || '').toString().trim().toUpperCase();
-        const stAct4 = (row[9] || '').toString().trim().toUpperCase();
-        const stCathedral = (row[10] || '').toString().trim().toUpperCase();
-        const stSerka = (row[11] || '').toString().trim().toUpperCase();
+        // Character_Pool I~M 열 순서 = 4막 / 종막 / 세르카 / 성당 / 벨가 (출시 순) - Sync.gs syncRaidCompletions, Api.gs toggleWildClearInPool 과 동일해야 한다
+        const stAct4 = (row[8] || '').toString().trim().toUpperCase();
+        const stFinal = (row[9] || '').toString().trim().toUpperCase();
+        const stSerka = (row[10] || '').toString().trim().toUpperCase();
+        const stCathedral = (row[11] || '').toString().trim().toUpperCase();
         const stBelga = (row[12] || '').toString().trim().toUpperCase();
 
         if (name && !isHeaderWord(name)) {
@@ -1438,6 +1498,7 @@
         currentActiveTab = availableTabs[0]?.id || 'Main_8Man';
       }
 
+      let activeBtnEl = null;
       availableTabs.forEach(cfg => {
         const info = sheetsDataStore[cfg.id];
         const tabTitle = info ? info.title : cfg.fixedTitle || cfg.id;
@@ -1483,8 +1544,17 @@
           refreshSheets(targets);
         };
         nav.appendChild(btn);
+        if (isActive) activeBtnEl = btn;
       });
       drawIcons();
+
+      // 폰처럼 탭 줄이 가로 스크롤되는 폭에서는 활성 탭이 화면 밖에 있을 수 있어,
+      // 스크롤을 활성 탭이 가운데 오도록 맞춘다 (스크롤바는 숨겨져 있어 위치 힌트가 이것뿐이다).
+      if (activeBtnEl && nav.scrollWidth > nav.clientWidth) {
+        const nr = nav.getBoundingClientRect();
+        const br = activeBtnEl.getBoundingClientRect();
+        nav.scrollLeft += (br.left - nr.left) - (nr.width - br.width) / 2;
+      }
     }
 
     // ─── 서브그룹 요일 설정 모달 ─────────────────────────────────
@@ -2048,6 +2118,9 @@
     }
 
     function renderPartySlots(slots) {
+      // 슬롯 표시 방식(PC 버전: 직업 표시 + 유저명·캐릭터명 가로 / 모바일 버전: 직업 생략 + 세로)은
+      // 뷰포트가 아니라 슬롯 자체의 실제 폭으로 갈린다 - <style> 의 .slot-row 컨테이너 쿼리 참고.
+      // 덕분에 태블릿에서 8인 카드(2열)는 모바일 버전, 4인 카드(1열)는 PC 버전으로 자연히 나뉜다.
       // 이 블록에 실제 '서포터'가 한 명도 없으면, '스왑가능' 캐릭터를 서포터처럼 배경 처리한다
       // (뱃지는 그대로 '스왑'로 둔다 - 실제 직업 유연성은 그대로 알려주고, 배경만 지금 이 블록에서
       // 사실상 서포터 역할을 하고 있다는 걸 표시하는 것).
@@ -2077,11 +2150,11 @@
           slotMaybeDesc = getMaybePairDesc(slot.foundInPool ? slot.level : 0);
         }
 
-        let posBadge = `<span class="badge-dealer text-[11px] font-semibold px-2 py-0.5 rounded">딜러</span>`;
+        let posBadge = `<span class="badge-dealer shrink-0 whitespace-nowrap w-14 text-center text-[11px] font-semibold py-0.5 rounded">딜러</span>`;
         if (isSupporter) {
-          posBadge = `<span class="badge-supporter text-[11px] font-semibold px-2 py-0.5 rounded">서포터</span>`;
+          posBadge = `<span class="badge-supporter shrink-0 whitespace-nowrap w-14 text-center text-[11px] font-semibold py-0.5 rounded">서포터</span>`;
         } else if (isSwap) {
-          posBadge = `<span class="badge-swap text-[11px] font-semibold px-2 py-0.5 rounded">스왑</span>`;
+          posBadge = `<span class="badge-swap shrink-0 whitespace-nowrap w-14 text-center text-[11px] font-semibold py-0.5 rounded">스왑</span>`;
         }
 
         const rowStyle = isMe
@@ -2104,7 +2177,7 @@
                 ? 'bg-amber-500/20 text-amber-300 border-amber-500/60'
                 : 'bg-gray-700/40 text-gray-300 border-gray-600');
             const tip = att.memo ? ` title="${att.memo}"` : '';
-            attTag = `<span class="px-1.5 py-0.5 rounded border text-[10px] font-bold ${tone}${att.memo ? ' cursor-help' : ''}"${tip}>${att.status}</span>`;
+            attTag = `<span class="shrink-0 whitespace-nowrap px-1.5 py-0.5 rounded border text-[10px] font-bold ${tone}${att.memo ? ' cursor-help' : ''}"${tip}>${att.status}</span>`;
             if (att.status === '불참') attDim = ' opacity-50';
           }
         }
@@ -2114,18 +2187,18 @@
         const clickCls = canEdit ? ' slot-hover' : ' cursor-default';
 
         return `
-          <div${clickAttr} class="flex items-center justify-between p-2.5 rounded-lg border border-gray-800/80 ${rowStyle}${clickCls}${attDim} transition">
-            <div class="flex items-center space-x-3">
+          <div${clickAttr} class="slot-row flex items-center justify-between p-2.5 rounded-lg border border-gray-800/80 ${rowStyle}${clickCls}${attDim} transition">
+            <div class="flex items-center space-x-3 min-w-0">
               ${posBadge}
-              <div class="flex flex-col sm:flex-row sm:items-center sm:space-x-2">
+              <div class="slot-meta min-w-0">
                 <span class="text-xs text-gray-400 font-medium">${displayUser}</span>
-                <span class="text-sm font-semibold text-gray-200">${slot.name}</span>
+                <span class="text-sm font-semibold text-gray-200 truncate">${slot.name}</span>
               </div>
               ${attTag}
             </div>
-            <div class="flex items-center space-x-2.5 sm:space-x-3 text-right">
+            <div class="flex items-center shrink-0 space-x-2.5 sm:space-x-3 text-right">
               ${renderGoldBadge(goldStatus, slotMaybeDesc)}
-              <span class="text-xs text-gray-400 hidden sm:inline">${displayJob}</span>
+              <span class="slot-job text-xs text-gray-400">${displayJob}</span>
               <span class="text-sm font-mono font-medium text-yellow-500/90">${displayLevel}</span>
             </div>
           </div>
@@ -2162,13 +2235,16 @@
     }
 
     function renderRaidTag(label, status, charLevel, raidKey, charName, goldTier, maybeDesc, isScheduled) {
+      // 카드 폭이 좁으면(폰 1열, PC 1024 3열 등 카드 콘텐츠 300px 미만) 1글자 라벨(종/4/성/세/벨)로 표시한다.
+      // 어느 쪽을 보일지는 <style> 의 .pool-card 컨테이너 쿼리(.raid-tag-short / .raid-tag-full)가 정한다.
+      const labelHtml = `<span class="raid-tag-short">${label.charAt(0)}</span><span class="raid-tag-full">${label}</span>`;
       const minCut = getRaidMinLevel(raidKey);
       const canEnter = charLevel >= minCut;
       const base = 'px-1.5 py-0.5 rounded text-[10px] font-bold select-none';
 
       // 입장 불가는 골드/출처와 무관하게 하나로 처리
       if (!canEnter) {
-        return `<span class="${base} bg-[#0d1117] border border-gray-900 text-gray-600 line-through opacity-60 cursor-not-allowed">${label}</span>`;
+        return `<span class="${base} bg-[#0d1117] border border-gray-900 text-gray-600 line-through opacity-60 cursor-not-allowed">${labelHtml}</span>`;
       }
 
       const tone = goldTier === 'EARN'
@@ -2187,12 +2263,12 @@
 
       // 1) 일정표 자동 등록(V) — 실선 테두리, 웹에서 해제 불가
       if (status === 'V') {
-        return `<span class="${base} ${tone.fill} border ${tone.border} cursor-not-allowed"${tip}>${label} ✓</span>`;
+        return `<span class="${base} ${tone.fill} border ${tone.border} cursor-not-allowed"${tip}>${labelHtml} ✓</span>`;
       }
 
       // 2) 개별 수동 완료(W) — 점선 테두리, 클릭 시 취소
       if (status === 'W') {
-        return `<span onclick="toggleManualHomework('${esc}','${raidKey}')" class="${base} ${tone.fill} border border-dashed ${tone.border} cursor-pointer hover:brightness-125 transition"${tip}>${label} ✓</span>`;
+        return `<span onclick="toggleManualHomework('${esc}','${raidKey}')" class="${base} ${tone.fill} border border-dashed ${tone.border} cursor-pointer hover:brightness-125 transition"${tip}>${labelHtml} ✓</span>`;
       }
 
       // 3) 편성돼 있는데 앵커가 미래 날짜 — 전체 그룹 레이드가 이미 다 완료 처리돼서
@@ -2200,17 +2276,17 @@
       // 지금 이 자리에 편성돼 있다는 건 이번 주기에 실제로 완료해서 리셋을 유발한
       // 블록이라는 뜻이므로(그렇지 않았다면 조기 리셋 자체가 안 일어난다) 완료로 표시한다.
       if (isScheduled && isRaidWeekAnchorFuture()) {
-        return `<span class="${base} ${tone.fill} border ${tone.border} cursor-not-allowed"${tip} title="그룹 레이드가 완료 처리되어, 다음 주차가 시작되기 전까지는 완료로 표시됩니다">${label} ✓</span>`;
+        return `<span class="${base} ${tone.fill} border ${tone.border} cursor-not-allowed"${tip} title="그룹 레이드가 완료 처리되어, 다음 주차가 시작되기 전까지는 완료로 표시됩니다">${labelHtml} ✓</span>`;
       }
 
       // 4) 편성됨(완료 전) — 일정표에 이 레이드로 편성되어 있어 개별 체크를 못 쓰는 상태.
       // 실선 테두리로 'V처럼 잠겨있음'을 나타내고, 🔗로 "이 레이드에 묶여있음"을 표시한다.
       if (isScheduled) {
-        return `<span class="${base} bg-transparent border ${tone.border} ${tone.hollow} cursor-not-allowed opacity-90" title="일정표에 편성되어 있어 개별 체크를 쓸 수 없습니다 - 해당 블록을 완료 처리하면 자동으로 체크됩니다">${label} 🔗</span>`;
+        return `<span class="${base} bg-transparent border ${tone.border} ${tone.hollow} cursor-not-allowed opacity-90" title="일정표에 편성되어 있어 개별 체크를 쓸 수 없습니다 - 해당 블록을 완료 처리하면 자동으로 체크됩니다">${labelHtml} 🔗</span>`;
       }
 
       // 5) 미완료(편성도 안 됨) — 속이 빈 상태. 골드 대상이면 색으로 남아 우선순위가 보인다.
-      return `<span onclick="toggleManualHomework('${esc}','${raidKey}')" class="${base} bg-transparent border border-dashed ${tone.border} ${tone.hollow}${help} font-medium cursor-pointer hover:brightness-125 transition"${tip}>${label}</span>`;
+      return `<span onclick="toggleManualHomework('${esc}','${raidKey}')" class="${base} bg-transparent border border-dashed ${tone.border} ${tone.hollow}${help} font-medium cursor-pointer hover:brightness-125 transition"${tip}>${labelHtml}</span>`;
     }
 
     // W(개별 수동 완료) 상태만 웹에서 원클릭 토글 가능. V(일정표 자동 등록)는 해제 불가.
@@ -2324,9 +2400,9 @@
 
       grid.innerHTML = filtered.map(c => {
         const isMe = selectedUser && c.user.startsWith(selectedUser);
-        let posBadge = `<span class="badge-dealer text-[11px] font-semibold px-2 py-0.5 rounded">딜러</span>`;
-        if (c.pos === '서포터') posBadge = `<span class="badge-supporter text-[11px] font-semibold px-2 py-0.5 rounded">서포터</span>`;
-        else if (c.pos === '스왑가능') posBadge = `<span class="badge-swap text-[11px] font-semibold px-2 py-0.5 rounded">스왑가능</span>`;
+        let posBadge = `<span class="badge-dealer whitespace-nowrap text-[11px] font-semibold px-2 py-0.5 rounded">딜러</span>`;
+        if (c.pos === '서포터') posBadge = `<span class="badge-supporter whitespace-nowrap text-[11px] font-semibold px-2 py-0.5 rounded">서포터</span>`;
+        else if (c.pos === '스왑가능') posBadge = `<span class="badge-swap whitespace-nowrap text-[11px] font-semibold px-2 py-0.5 rounded">스왑가능</span>`;
 
         const isGoldChar = goldEligibleCharNames.has(c.name);
 
@@ -2364,7 +2440,7 @@
           : `<div class="w-full bg-gray-900/60 h-1.5 rounded-full overflow-hidden"></div>`;
 
         return `
-          <div class="card-bg p-4 rounded-xl border border-gray-800 flex flex-col justify-between space-y-3 ${isMe ? 'border-yellow-500/50 bg-yellow-950/10' : ''}">
+          <div class="pool-card card-bg p-4 rounded-xl border border-gray-800 flex flex-col justify-between space-y-3 ${isMe ? 'border-yellow-500/50 bg-yellow-950/10' : ''}">
             <div class="flex items-start justify-between">
               <div>
                 <div class="text-xs text-gray-400 font-medium mb-0.5">${c.user} (${c.server})</div>
@@ -2387,10 +2463,10 @@
                 ${isMe ? `onclick="editPlannedLevel('${c.name.replace(/'/g, "\\'")}')" title="클릭해서 예정 레벨 수정"` : ''}
               >${c.level.toLocaleString('ko-KR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
               <div class="flex items-center flex-wrap justify-end gap-1">
-                ${renderRaidTag('종막', c.raids.final, c.level, 'final', c.name, tierMap.final, maybeDesc, isScheduledInFamily(c.name, 'final'))}
                 ${renderRaidTag('4막', c.raids.act4, c.level, 'act4', c.name, tierMap.act4, maybeDesc, isScheduledInFamily(c.name, 'act4'))}
-                ${renderRaidTag('성당', c.raids.cathedral, c.level, 'cathedral', c.name, tierMap.cathedral, maybeDesc, isScheduledInFamily(c.name, 'cathedral'))}
+                ${renderRaidTag('종막', c.raids.final, c.level, 'final', c.name, tierMap.final, maybeDesc, isScheduledInFamily(c.name, 'final'))}
                 ${renderRaidTag('세르카', c.raids.serka, c.level, 'serka', c.name, tierMap.serka, maybeDesc, isScheduledInFamily(c.name, 'serka'))}
+                ${renderRaidTag('성당', c.raids.cathedral, c.level, 'cathedral', c.name, tierMap.cathedral, maybeDesc, isScheduledInFamily(c.name, 'cathedral'))}
                 ${renderRaidTag('벨가', c.raids.belga, c.level, 'belga', c.name, tierMap.belga, maybeDesc, isScheduledInFamily(c.name, 'belga'))}
               </div>
             </div>
