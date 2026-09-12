@@ -117,7 +117,7 @@
           <i data-lucide="flask-conical" class="w-6 h-6 text-purple-400"></i>
           <span class="font-bold text-lg text-white tracking-wide whitespace-nowrap"><span class="sm:hidden">공대</span><span class="hidden sm:inline">로아 공대</span></span>
           <button onclick="openInfoModal('changelog')" class="text-[10px] font-mono font-bold px-1.5 sm:px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/30 hover:bg-purple-500/20 transition cursor-pointer" title="클릭하여 업데이트 이력 확인">
-            v2.5.7
+            v2.5.8
           </button>
         </div>
 
@@ -869,7 +869,7 @@
     let activeProgressTarget = null;  // 진행/완료 모달이 대상으로 하는 블록 정보
     // 자동 팝업 중복 방지 - 이미 띄운 진행중 건은 같은 건이 유지되는 동안 다시 띄우지 않는다.
     let lastAutoPopupKey = null;
-    let siteConfig = { maintenanceMode: false, noticeText: '', subGroupDays: {}, raidWeekAnchor: '' };  // Config 시트 원본
+    let siteConfig = { maintenanceMode: false, noticeText: '', subGroupDays: {}, raidWeekAnchor: '', poolLastSyncedAt: '' };  // Config 시트 원본
     let suggestionsData = [];         // Suggestions 시트 원본
     // 시트별로 편성 인스턴스를 나눠 보관한다. 한 시트만 다시 받아도 골드 재계산이 가능해진다.
     let allRaidInstancesBySheet = {};
@@ -2833,7 +2833,7 @@
     };
 
     function parseSiteConfig(rows) {
-      siteConfig = { maintenanceMode: false, noticeText: '', subGroupDays: { ...DEFAULT_SUB_GROUP_DAYS }, raidWeekAnchor: '' };
+      siteConfig = { maintenanceMode: false, noticeText: '', subGroupDays: { ...DEFAULT_SUB_GROUP_DAYS }, raidWeekAnchor: '', poolLastSyncedAt: '' };
       if (!rows || rows.length < 2) return;
 
       const map = {};
@@ -2847,6 +2847,7 @@
       siteConfig.maintenanceMode = (map['점검모드'] || '').toUpperCase() === 'TRUE';
       siteConfig.noticeText = map['공지문구'] || '';
       siteConfig.raidWeekAnchor = map['현재레이드주차'] || '';
+      siteConfig.poolLastSyncedAt = map['캐릭터풀_최종갱신'] || ''; // Sync.gs updateCharacterPool_ 가 매시간 성공 시 갱신
 
       Object.keys(DEFAULT_SUB_GROUP_DAYS).forEach(sheetId => {
         const num = sheetId.replace('Sub_Group', '');
