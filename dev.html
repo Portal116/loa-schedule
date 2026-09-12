@@ -117,13 +117,14 @@
           <i data-lucide="flask-conical" class="w-6 h-6 text-purple-400"></i>
           <span class="font-bold text-lg text-white tracking-wide whitespace-nowrap"><span class="sm:hidden">공대</span><span class="hidden sm:inline">로아 공대</span></span>
           <button onclick="openInfoModal('changelog')" class="text-[10px] font-mono font-bold px-1.5 sm:px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/30 hover:bg-purple-500/20 transition cursor-pointer" title="클릭하여 업데이트 이력 확인">
-            v2.4.23
+            v2.5.7
           </button>
         </div>
 
         <div class="flex bg-[#0d1117] p-1 rounded-lg border border-gray-800 text-xs flex-nowrap gap-1 max-w-full overflow-x-auto no-scrollbar">
           <button onclick="switchMainView('schedule')" id="viewBtnSchedule" class="whitespace-nowrap px-3 py-1.5 rounded-md font-semibold bg-gray-800 text-white transition"><span class="sm:hidden">일정</span><span class="hidden sm:inline">일정표</span></button>
           <button onclick="switchMainView('pool')" id="viewBtnPool" class="whitespace-nowrap px-3 py-1.5 rounded-md font-medium text-gray-400 hover:text-white transition"><span class="sm:hidden">캐릭터</span><span class="hidden sm:inline">캐릭터 현황 & 숙제 체크</span></button>
+          <button onclick="switchMainView('links')" id="viewBtnLinks" class="whitespace-nowrap px-3 py-1.5 rounded-md font-medium text-gray-400 hover:text-white transition"><span class="sm:hidden">기능</span><span class="hidden sm:inline">유용한 기능</span></button>
           <button onclick="switchMainView('gold')" id="viewBtnGold" class="whitespace-nowrap px-3 py-1.5 rounded-md font-medium text-gray-400 hover:text-white transition"><span class="sm:hidden">골드표</span><span class="hidden sm:inline">레이드 골드표</span></button>
         </div>
       </div>
@@ -179,7 +180,16 @@
     </div>
   </div>
 
-  <main class="max-w-7xl mx-auto px-3 sm:px-4 mt-6">
+  <!-- 점검 화면. 운영(index.html)과 동일한 코드지만, fetchSheetData 에서 IS_DEV 면 항상 건너뛴다.
+       dev 는 나 혼자 테스트하는 환경이라 정상 화면을 그대로 봐야 검증 의미가 있어서다 (위 배너로 대신 알림).
+       코드를 동일하게 유지해두는 이유는, 이 기능을 고칠 일이 생기면 dev 에서 고치고 그대로 승격할 수 있게 하기 위함. -->
+  <div id="maintenanceScreen" class="hidden max-w-xl mx-auto mt-20 px-4 text-center">
+    <i data-lucide="alert-triangle" class="w-10 h-10 text-amber-400 mx-auto mb-4"></i>
+    <h2 class="text-lg font-bold text-white mb-2">점검 중입니다</h2>
+    <p id="maintenanceScreenText" class="text-sm text-gray-400 leading-relaxed"></p>
+  </div>
+
+  <main id="mainContent" class="max-w-7xl mx-auto px-3 sm:px-4 mt-6">
     <!-- 1. 일정표 뷰 -->
     <div id="sectionSchedule">
       <div class="flex items-center justify-between flex-wrap gap-3 border-b border-gray-800 pb-2">
@@ -323,7 +333,12 @@
       <div id="poolGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
     </div>
 
-    <!-- 3. 레이드 골드 정보 뷰 -->
+    <!-- 3. 유용한 기능 뷰 -->
+    <div id="sectionLinks" class="hidden">
+      <div id="usefulLinksContainer" class="space-y-6"></div>
+    </div>
+
+    <!-- 4. 레이드 골드 정보 뷰 -->
     <div id="sectionGold" class="hidden">
       <div class="card-bg rounded-xl overflow-hidden shadow-lg border border-gray-800">
         <div class="p-4 border-b border-gray-800">
@@ -510,6 +525,20 @@
         <button onclick="closeSubGroupDayModal()" class="px-3 py-2 rounded-lg text-xs font-semibold text-gray-300 hover:text-white bg-gray-800 border border-gray-700 transition">취소</button>
         <button onclick="confirmSubGroupDay()" class="px-4 py-2 rounded-lg text-xs font-bold text-black bg-yellow-400 hover:bg-yellow-300 transition">저장</button>
       </div>
+    </div>
+  </div>
+
+  <!-- 캐릭터명 클릭 시 뜨는 스펙 조회 사이트 선택 모달 -->
+  <div id="charLinkModal" onclick="if (event.target === this) closeCharLinkModal()" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="card-bg w-full max-w-sm rounded-2xl p-6 border border-gray-700 shadow-2xl relative">
+      <button onclick="closeCharLinkModal()" class="absolute top-4 right-4 text-gray-400 hover:text-white">
+        <i data-lucide="x" class="w-5 h-5"></i>
+      </button>
+      <div class="flex items-center space-x-2 text-yellow-400 mb-4">
+        <i data-lucide="search" class="w-5 h-5"></i>
+        <h3 class="text-sm font-bold text-white"><span id="charLinkModalLabel">-</span> 스펙 조회</h3>
+      </div>
+      <div id="charLinkModalItems" class="space-y-2"></div>
     </div>
   </div>
 
@@ -818,6 +847,7 @@
     let allMemberList = new Set();
     let slotGoldStatusMap = {};
     let characterPoolData = [];
+    let mainCharByUser = {}; // Members 시트: 유저명(본계정 기준) -> 대표캐릭터명. "유용한 기능" 탭의 대표캐릭터 조회 링크용
     let raidInfoData = [];
     let activeSwapTarget = null;
     let pendingSwapChar = null;
@@ -872,6 +902,7 @@
         renderTabs();
         renderActiveTabContent();
         if (currentMainView === 'pool') renderPoolView();
+        if (currentMainView === 'links') renderUsefulLinksView();
       });
 
       fetchSheetData();
@@ -900,7 +931,7 @@
 
     function switchMainView(view) {
       currentMainView = view;
-      ['schedule', 'pool', 'gold'].forEach(v => {
+      ['schedule', 'pool', 'links', 'gold'].forEach(v => {
         const btn = document.getElementById('viewBtn' + v.charAt(0).toUpperCase() + v.slice(1));
         const sec = document.getElementById('section' + v.charAt(0).toUpperCase() + v.slice(1));
         if (!btn || !sec) return;
@@ -922,11 +953,13 @@
       }
 
       if (view === 'gold') renderGoldTableView();
+      if (view === 'links') renderUsefulLinksView();
       drawIcons();
 
       // 각 뷰가 실제로 쓰는 시트만 뒤에서 갱신한다
       if (view === 'pool') refreshSheets(['Character_Pool']);
       if (view === 'gold') refreshSheets(['Raid_Info']);
+      if (view === 'links') refreshSheets(['Members']);
       if (view === 'schedule') {
         const targets = currentActiveTab === 'Main_8Man' ? [currentActiveTab, 'Attendance', 'Raid_Status'] : [currentActiveTab, 'Raid_Status'];
         refreshSheets(targets);
@@ -1092,6 +1125,7 @@
       renderActiveTabContent();
       renderCurrentRaidsBadge();
       if (currentMainView === 'pool') renderPoolView();
+      if (currentMainView === 'links') renderUsefulLinksView();
       if (currentMainView === 'gold') renderGoldTableView();
       // 도움말 모달의 건의사항 탭이 열려 있으면 목록도 갱신
       const suggestBox = document.getElementById('infoContentSuggest');
@@ -1128,6 +1162,7 @@
           else if (name === 'Attendance') parseAttendance(rows);
           else if (name === 'Suggestions') parseSuggestions(rows);
           else if (name === 'Raid_Status') parseRaidStatus(rows);
+          else if (name === 'Members') parseMembers(rows);
           changed = true;
         });
 
@@ -1153,13 +1188,14 @@
       try {
         // 시트를 순차로 받으면 왕복 8번이 그대로 더해진다. 서로 의존하지 않으므로 전부 병렬로 받는다.
         const bust = Date.now();
-        const [sheetRows, poolRows, attRows, raidRows, configRows, statusRows] = await Promise.all([
+        const [sheetRows, poolRows, attRows, raidRows, configRows, statusRows, memberRows] = await Promise.all([
           Promise.all(SHEET_CONFIG.map(cfg => fetchSheetCsv(cfg.id, bust))),
           fetchSheetCsv('Character_Pool', bust),
           fetchSheetCsv('Attendance', bust).catch(() => null),
           fetchSheetCsv('Raid_Info', bust).catch(() => null),
           fetchSheetCsv('Config', bust).catch(() => null),
-          fetchSheetCsv('Raid_Status', bust).catch(() => null)
+          fetchSheetCsv('Raid_Status', bust).catch(() => null),
+          fetchSheetCsv('Members', bust).catch(() => null)
         ]);
 
         // processScheduleSheet(enrichSlotFromPool 포함)가 characterPoolData 를 조회하므로,
@@ -1173,7 +1209,19 @@
         if (attRows) parseAttendance(attRows); else attendanceData = [];
         if (raidRows) parseRaidInfo(raidRows);
         parseSiteConfig(configRows);
+
+        // 운영(index.html)과 동일한 점검모드 하드게이트. dev 에서는 &&!IS_DEV 로 항상 건너뛴다 -
+        // dev 는 나 혼자 테스트하는 환경이라 정상 화면을 그대로 봐야 검증 의미가 있어서다 (위 배너로 대신 알림).
+        // 코드를 index.html과 동일하게 유지해두면, 이 기능을 고칠 일이 생겼을 때 dev에서 고치고 그대로 승격할 수 있다.
+        if (siteConfig.maintenanceMode && !IS_DEV) {
+          renderMaintenanceScreen();
+          return;
+        }
+
         if (statusRows) parseRaidStatus(statusRows); else raidStatusData = [];
+        if (memberRows) parseMembers(memberRows); else mainCharByUser = {};
+        document.getElementById('mainContent').classList.remove('hidden');
+        document.getElementById('maintenanceScreen').classList.add('hidden');
         renderMaintenanceBanner();
 
         recalcGoldFromStore();
@@ -1190,6 +1238,28 @@
         setRefreshSpinning(false);
         updateLastSyncLabel();
       }
+    }
+
+    // Members 시트: A=유저명, B=계정구분("본"/"부1"/"부2"...), C=대표캐릭터명(원정대 조회용).
+    // 계정이 여러 개인 유저는 "본" 행의 대표캐릭터명만 쓴다 - 부계정 행은 "본" 행이 없을 때만 대체로 사용.
+    function parseMembers(rows) {
+      mainCharByUser = {};
+      const fallback = {};
+      for (let r = 1; r < rows.length; r++) {
+        const row = rows[r] || [];
+        const userName = (row[0] || '').toString().trim();
+        const accType = (row[1] || '').toString().trim();
+        const mainCharName = (row[2] || '').toString().trim();
+        if (!userName || !mainCharName) continue;
+        if (accType === '본') {
+          mainCharByUser[userName] = mainCharName;
+        } else if (!(userName in fallback)) {
+          fallback[userName] = mainCharName;
+        }
+      }
+      Object.keys(fallback).forEach(u => {
+        if (!(u in mainCharByUser)) mainCharByUser[u] = fallback[u];
+      });
     }
 
     function parseCharacterPool(rows) {
@@ -1945,7 +2015,7 @@
     // 다른 모달(진행 관리 포함)이 하나라도 떠 있으면 자동 팝업이 그 위에 끼어들지 않게 막는다.
     function isAnyModalOpen() {
       const modalIds = ['quickSwapModal', 'addBlockModal', 'raidProgressModal', 'currentRaidsModal',
-        'subGroupDayModal', 'customAlertModal', 'customConfirmModal', 'customPromptModal', 'attendanceModal', 'infoModal'];
+        'subGroupDayModal', 'customAlertModal', 'customConfirmModal', 'customPromptModal', 'attendanceModal', 'infoModal', 'charLinkModal'];
       return modalIds.some(id => {
         const el = document.getElementById(id);
         return el && !el.classList.contains('hidden');
@@ -2271,6 +2341,123 @@
       }
     }
 
+    // ─── 유용한 기능 탭 ─────────────────────────────────
+    // charUrlTemplate 이 있는 항목은 "사이트 바로가기" 외에 대표캐릭터(또는 캐릭터명 클릭 시 임의 캐릭터) 조회 버튼도 노출한다.
+    // {name} 부분을 실제 캐릭터명(encodeURIComponent)으로 치환해서 새 탭으로 연다.
+    const USEFUL_LINK_SECTIONS = [
+      {
+        title: '캐릭터 스펙 조회',
+        items: [
+          { name: '로아와', mainUrl: 'https://loawa.com/', charUrlTemplate: 'https://loawa.com/char/{name}' },
+          { name: 'KLOA', mainUrl: 'https://kloa.gg/', charUrlTemplate: 'https://kloa.gg/characters/{name}' },
+          { name: 'ILOA', mainUrl: 'https://iloa.gg/', charUrlTemplate: 'https://iloa.gg/character/{name}' },
+          { name: '다중 검색', url: 'https://loawa.com/ezsearch' }
+        ]
+      },
+      {
+        title: '강화 계산',
+        items: [
+          { name: '아이스펭 재련 최적화', url: 'https://loa.icepeng.com/refining' },
+          { name: '로아베스팅 강화 계산기', url: 'https://www.loavesting.com/calculator/t4' },
+          { name: '강화 계산기 (loacal)', url: 'https://loacal-beta.up.railway.app/tools?tab=refine' }
+        ]
+      },
+      {
+        title: '재화 계산',
+        items: [
+          { name: '더보기 효율 계산기', url: 'https://loachart.com/rewardcalc' },
+          { name: '경매 계산기', url: 'https://loachart.com/bidcalc' },
+          { name: '도감작 계산기', url: 'https://loachart.com/cardcalc/recommend' },
+          { name: '생활가루 계산기', url: 'https://lostgld.com/conversion' }
+        ]
+      },
+      {
+        title: '기타 유용한 도구',
+        items: [
+          { name: '염색 도우미', url: 'https://loacal-beta.up.railway.app/tools?tab=dye' },
+          { name: '히든 업적 체크리스트', url: 'https://loa-hidden-check.vercel.app/' },
+          { name: '떠돌이 상인 (KLOA)', url: 'https://kloa.gg/merchant' },
+          { name: '스토브 플레이크', url: 'https://reward.onstove.com/ko/event' }
+        ]
+      },
+      {
+        title: '기간 한정 이벤트',
+        temporary: true,
+        items: [
+          { name: '티카투카 시뮬레이터', url: 'https://loadoss.com/tikatuka' }
+        ]
+      }
+    ];
+
+    // 캐릭터 현황에서 캐릭터명 클릭 시 뜨는 목록도 스펙 조회 사이트 3곳을 그대로 재사용한다.
+    const CHAR_LOOKUP_SITES = USEFUL_LINK_SECTIONS[0].items
+      .filter(it => it.charUrlTemplate)
+      .map(it => ({ name: it.name, urlTemplate: it.charUrlTemplate }));
+
+    function renderUsefulLinksView() {
+      const container = document.getElementById('usefulLinksContainer');
+      if (!container) return;
+      const myMainChar = selectedUser ? (mainCharByUser[selectedUser] || '') : '';
+
+      container.innerHTML = USEFUL_LINK_SECTIONS.map(section => {
+        const badge = section.temporary
+          ? `<span class="text-[10px] px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-500/50 ml-1.5 align-middle">기간 한정</span>`
+          : '';
+
+        const cards = section.items.map(item => {
+          if (item.charUrlTemplate) {
+            const charBtn = myMainChar
+              ? `<button onclick="window.open('${item.charUrlTemplate.replace('{name}', encodeURIComponent(myMainChar))}', '_blank', 'noopener')" class="px-2.5 py-1 rounded-md text-xs font-semibold bg-yellow-500/20 text-yellow-400 border border-yellow-500/50 hover:bg-yellow-500/30 transition">대표캐릭터</button>`
+              : `<button disabled title="상단에서 본인 이름을 선택하면 대표캐릭터로 바로 조회할 수 있어요" class="px-2.5 py-1 rounded-md text-xs font-semibold bg-gray-800/50 text-gray-600 border border-gray-800 cursor-not-allowed">대표캐릭터</button>`;
+            return `
+              <div class="card-bg p-3 rounded-xl border border-gray-800 flex items-center justify-between gap-2 flex-wrap">
+                <div class="text-sm font-semibold text-white">${item.name}</div>
+                <div class="flex items-center gap-1.5 flex-wrap">
+                  <button onclick="window.open('${item.mainUrl}', '_blank', 'noopener')" class="px-2.5 py-1 rounded-md text-xs font-medium bg-gray-800 text-gray-300 hover:bg-gray-700 transition">바로가기</button>
+                  ${charBtn}
+                </div>
+              </div>`;
+          }
+          // 버튼이 하나뿐인 항목은 카드 전체를 탭 영역으로 써서(특히 모바일에서) 누르기 쉽게 한다.
+          return `
+            <div onclick="window.open('${item.url}', '_blank', 'noopener')" class="card-bg p-3 rounded-xl border border-gray-800 flex items-center justify-between gap-2 cursor-pointer hover:border-gray-600 hover:bg-white/5 transition">
+              <div class="text-sm font-semibold text-white">${item.name}</div>
+              <i data-lucide="arrow-up-right" class="w-4 h-4 text-gray-500 shrink-0"></i>
+            </div>`;
+        }).join('');
+
+        return `
+          <div>
+            <h3 class="text-sm font-bold text-gray-300 mb-2">${section.title}${badge}</h3>
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">${cards}</div>
+          </div>`;
+      }).join('');
+    }
+
+    // 캐릭터 현황 카드에서 캐릭터명을 클릭하면 뜨는, 스펙 조회 사이트 선택 모달
+    let charLinkModalCharName = null;
+
+    function openCharLinkModal(charName) {
+      charLinkModalCharName = charName;
+      document.getElementById('charLinkModalLabel').textContent = charName;
+      document.getElementById('charLinkModalItems').innerHTML = CHAR_LOOKUP_SITES.map(site =>
+        `<button onclick="openCharLookup('${site.urlTemplate}')" class="w-full text-left px-3 py-2.5 rounded-lg text-sm font-medium bg-gray-800 text-gray-200 hover:bg-gray-700 transition">${site.name}에서 조회</button>`
+      ).join('');
+      document.getElementById('charLinkModal').classList.remove('hidden');
+      drawIcons();
+    }
+
+    function closeCharLinkModal() {
+      charLinkModalCharName = null;
+      document.getElementById('charLinkModal').classList.add('hidden');
+    }
+
+    function openCharLookup(urlTemplate) {
+      if (!charLinkModalCharName) return;
+      window.open(urlTemplate.replace('{name}', encodeURIComponent(charLinkModalCharName)), '_blank', 'noopener');
+      closeCharLinkModal();
+    }
+
     function renderPoolView() {
       const grid = document.getElementById('poolGrid');
       const uFilter = document.getElementById('poolUserFilter').value;
@@ -2344,7 +2531,7 @@
               <div>
                 <div class="text-xs text-gray-400 font-medium mb-0.5">${c.user} (${c.server})</div>
                 <div class="text-base font-bold text-white flex items-center space-x-2">
-                  <span>${c.name}</span>
+                  <span class="cursor-pointer hover:underline decoration-dashed" onclick="openCharLinkModal('${c.name.replace(/'/g, "\\'")}')" title="클릭해서 스펙 조회 사이트 열기">${c.name}</span>
                   ${counterHtml}
                 </div>
               </div>
@@ -2691,6 +2878,20 @@
 
       textEl.textContent = siteConfig.noticeText;
       banner.classList.remove('hidden');
+    }
+
+    // 점검모드 전체 화면. 운영(index.html)과 동일한 함수 - fetchSheetData 에서 IS_DEV 면 애초에
+    // 호출되지 않으니 여기선 항상 정상 동작만 하면 된다 (IS_DEV 를 잠깐 false 로 바꿔서 미리보기 할 때 대비).
+    function renderMaintenanceScreen() {
+      const screen = document.getElementById('maintenanceScreen');
+      const main = document.getElementById('mainContent');
+      if (!screen || !main) return;
+
+      const textEl = document.getElementById('maintenanceScreenText');
+      textEl.textContent = siteConfig.noticeText || '잠시 후 다시 시도해 주세요.';
+      main.classList.add('hidden');
+      screen.classList.remove('hidden');
+      drawIcons();
     }
 
     function parseAttendance(rows) {
