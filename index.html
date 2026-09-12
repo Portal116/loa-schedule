@@ -29,6 +29,15 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
   <script defer src="https://unpkg.com/lucide@0.552.0/dist/umd/lucide.min.js"></script>
   <style>
+    /* 사이트 전체가 다크 테마 고정(라이트 모드 없음)이라, select 드롭다운 목록·체크박스 같은
+       브라우저 네이티브 UI도 다크로 렌더링되게 강제한다. 없으면 옵션 목록만 흰 배경으로 튀어 보인다. */
+    html {
+      color-scheme: dark;
+      /* 탭마다 콘텐츠 길이가 달라 스크롤바가 생겼다 없어졌다 하면, mx-auto로 가운데 정렬된
+         콘텐츠가 스크롤바 폭의 절반만큼 좌우로 밀려 보인다(탭 전환할 때마다 위치가 흔들림).
+         스크롤바 자리를 항상 고정으로 확보해서 이 흔들림을 없앤다. */
+      scrollbar-gutter: stable;
+    }
     body {
       background-color: #0d1117;
       color: #c9d1d9;
@@ -111,30 +120,45 @@
 </head>
 <body class="min-h-screen pb-16">
   <header class="border-b border-gray-800 bg-[#161b22]/90 sticky top-0 z-50 backdrop-blur">
-    <div class="max-w-7xl mx-auto px-3 sm:px-4 py-3 flex flex-wrap items-center justify-between gap-4">
-      <div class="flex items-center flex-wrap gap-2 sm:gap-3">
-        <div class="flex items-center gap-1.5 sm:gap-2">
+    <div class="max-w-7xl mx-auto px-3 sm:px-4 py-3 flex flex-wrap items-center justify-between gap-2 sm:gap-4">
+      <div class="flex items-center flex-wrap gap-2 sm:gap-3 min-w-0">
+        <div class="flex items-center gap-1.5 sm:gap-2 shrink-0">
           <i data-lucide="shield" class="w-6 h-6 text-yellow-500"></i>
           <span class="font-bold text-lg text-white tracking-wide whitespace-nowrap"><span class="sm:hidden">공대</span><span class="hidden sm:inline">로아 공대</span></span>
           <button onclick="openInfoModal('changelog')" class="text-[10px] font-mono font-bold px-1.5 sm:px-2 py-0.5 rounded bg-yellow-500/10 text-yellow-400 border border-yellow-500/30 hover:bg-yellow-500/20 transition cursor-pointer" title="클릭하여 업데이트 이력 확인">
-            v2.5
+            v2.6
           </button>
         </div>
 
-        <div class="flex bg-[#0d1117] p-1 rounded-lg border border-gray-800 text-xs flex-nowrap gap-1 max-w-full overflow-x-auto no-scrollbar">
-          <button onclick="switchMainView('schedule')" id="viewBtnSchedule" class="whitespace-nowrap px-3 py-1.5 rounded-md font-semibold bg-gray-800 text-white transition"><span class="sm:hidden">일정</span><span class="hidden sm:inline">일정표</span></button>
-          <button onclick="switchMainView('pool')" id="viewBtnPool" class="whitespace-nowrap px-3 py-1.5 rounded-md font-medium text-gray-400 hover:text-white transition"><span class="sm:hidden">캐릭터</span><span class="hidden sm:inline">캐릭터 현황 & 숙제 체크</span></button>
-          <button onclick="switchMainView('gold')" id="viewBtnGold" class="whitespace-nowrap px-3 py-1.5 rounded-md font-medium text-gray-400 hover:text-white transition"><span class="sm:hidden">골드표</span><span class="hidden sm:inline">레이드 골드표</span></button>
+        <div class="flex bg-[#0d1117] p-1 rounded-lg border border-gray-800 text-xs flex-nowrap gap-1">
+          <!-- 탭이 "일정/캐릭터/기타" 3개로 고정이라(늘어나는 항목은 전부 기타 드롭다운 안으로) 더 이상
+               가로 스크롤이 필요 없다 - 오히려 overflow-x-auto가 있으면 "기타" 드롭다운 패널이 이 줄
+               경계에서 잘려 보이는 문제가 있어서 제거했다. -->
+          <button onclick="switchMainView('schedule')" id="viewBtnSchedule" class="whitespace-nowrap px-2.5 py-1.5 rounded-md font-semibold bg-gray-800 text-white transition"><span class="sm:hidden">일정</span><span class="hidden sm:inline">일정표</span></button>
+          <button onclick="switchMainView('pool')" id="viewBtnPool" class="whitespace-nowrap px-2.5 py-1.5 rounded-md font-medium text-gray-400 hover:text-white transition"><span class="sm:hidden">캐릭터</span><span class="hidden sm:inline">캐릭터 현황</span></button>
+          <div class="custom-select relative">
+            <button type="button" onclick="toggleCustomSelect('miscView', event)" id="viewBtnMisc" class="whitespace-nowrap px-2.5 py-1.5 rounded-md font-medium text-gray-400 hover:text-white transition flex items-center gap-1">
+              <span>기타</span>
+              <i data-lucide="chevron-down" class="w-3 h-3"></i>
+            </button>
+            <div id="miscViewPanel" class="hidden absolute z-30 top-full right-0 mt-1 min-w-max rounded-lg border border-gray-700 bg-[#161b22] shadow-lg py-1"></div>
+          </div>
         </div>
       </div>
 
       <div class="flex items-center flex-wrap gap-2.5">
-        <div class="flex items-center space-x-2 bg-[#0d1117] px-3 py-1.5 rounded-lg border border-gray-700">
+        <div class="custom-select relative flex items-center gap-2 bg-[#0d1117] px-3 py-1.5 rounded-lg border border-gray-700">
           <i data-lucide="user" class="w-4 h-4 text-gray-400"></i>
-          <span class="text-xs text-gray-400">내 캐릭터 강조:</span>
-          <select id="userSelector" class="bg-transparent text-sm text-yellow-400 font-semibold focus:outline-none cursor-pointer">
+          <span class="sm:hidden text-xs text-gray-400">강조:</span>
+          <span class="hidden sm:inline text-xs text-gray-400">내 캐릭터 강조:</span>
+          <select id="userSelector" class="hidden">
             <option value="" class="bg-[#161b22] text-gray-300">선택 안 함 (전체)</option>
           </select>
+          <button type="button" onclick="toggleCustomSelect('userSelector', event)" class="flex items-center gap-1 bg-transparent text-sm text-yellow-400 font-semibold focus:outline-none cursor-pointer">
+            <span id="userSelectorLabel"></span>
+            <i data-lucide="chevron-down" class="w-3.5 h-3.5"></i>
+          </button>
+          <div id="userSelectorPanel" class="hidden absolute z-30 top-full left-0 right-0 mt-1 w-full max-h-60 overflow-y-auto rounded-lg border border-gray-700 bg-[#161b22] shadow-lg py-1"></div>
         </div>
 
         <!-- 버튼 무리는 하나로 묶어, 좁은 폭에서 셀렉트 / 버튼 묶음 단위로만 줄바꿈되게 한다 -->
@@ -149,17 +173,17 @@
           <span id="currentRaidsBadgeCount" class="ml-0.5 min-w-[1.1rem] h-[1.1rem] px-1 rounded-full bg-amber-500 text-black text-[10px] font-bold flex items-center justify-center">0</span>
         </button>
 
-        <button onclick="openAttendanceModal()" class="flex items-center space-x-1 bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white border border-gray-700 text-xs font-semibold px-2.5 py-1.5 rounded-lg transition">
+        <button onclick="openAttendanceModal()" class="flex items-center gap-1 h-8 bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white border border-gray-700 text-xs font-semibold px-2.5 rounded-lg transition">
           <i data-lucide="calendar-x" class="w-3.5 h-3.5 text-orange-400"></i>
-          <span>참여 상태</span>
+          <span class="hidden sm:inline">참여 상태</span>
         </button>
 
-        <button onclick="openInfoModal('guide')" class="flex items-center space-x-1 bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white border border-gray-700 text-xs font-semibold px-2.5 py-1.5 rounded-lg transition" title="도움말 및 패치노트">
+        <button onclick="openInfoModal('guide')" class="flex items-center gap-1 h-8 bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white border border-gray-700 text-xs font-semibold px-2.5 rounded-lg transition" title="도움말 및 패치노트">
           <i data-lucide="help-circle" class="w-3.5 h-3.5 text-yellow-400"></i>
-          <span>도움말</span>
+          <span class="hidden sm:inline">도움말</span>
         </button>
 
-        <div class="flex items-center space-x-2">
+        <div class="flex items-center gap-2">
           <span id="lastSyncLabel" class="text-[11px] text-gray-500 hidden sm:inline"></span>
           <button onclick="fetchSheetData()" title="시트 데이터 다시 받기" class="flex items-center justify-center bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white border border-gray-700 w-8 h-8 rounded-lg transition">
             <i data-lucide="refresh-cw" class="w-3.5 h-3.5" id="refreshIcon"></i>
@@ -170,8 +194,18 @@
     </div>
   </header>
 
-  <!-- 점검 화면. Config 시트의 '점검모드'가 TRUE면 데이터 파싱/렌더링을 아예 하지 않고
-       이 화면만 보여준다 (fetchSheetData 참고). 재배포 없이 시트 값만 바꾸면 켜고 끌 수 있다. -->
+  <!-- 점검 안내 배너. Config 시트의 '점검모드'/'공지문구' 값을 그대로 표시한다.
+       재배포 없이 시트 값만 바꾸면 켜고 끌 수 있다. dev 빌드는 문구 앞에 [DEV] 를 붙여 구분한다. -->
+  <div id="maintenanceBanner" class="hidden bg-amber-500/15 border-b border-amber-600/40">
+    <div class="max-w-7xl mx-auto px-3 sm:px-4 py-2.5 flex items-center gap-2 text-xs text-amber-300">
+      <i data-lucide="alert-triangle" class="w-4 h-4 shrink-0"></i>
+      <span id="maintenanceBannerText"></span>
+    </div>
+  </div>
+
+  <!-- 점검 화면. 운영(index.html)과 동일한 코드지만, fetchSheetData 에서 IS_DEV 면 항상 건너뛴다.
+       dev 는 나 혼자 테스트하는 환경이라 정상 화면을 그대로 봐야 검증 의미가 있어서다 (위 배너로 대신 알림).
+       코드를 동일하게 유지해두는 이유는, 이 기능을 고칠 일이 생기면 dev 에서 고치고 그대로 승격할 수 있게 하기 위함. -->
   <div id="maintenanceScreen" class="hidden max-w-xl mx-auto mt-20 px-4 text-center">
     <i data-lucide="alert-triangle" class="w-10 h-10 text-amber-400 mx-auto mb-4"></i>
     <h2 class="text-lg font-bold text-white mb-2">점검 중입니다</h2>
@@ -181,21 +215,25 @@
   <main id="mainContent" class="max-w-7xl mx-auto px-3 sm:px-4 mt-6">
     <!-- 1. 일정표 뷰 -->
     <div id="sectionSchedule">
-      <div class="flex items-center justify-between flex-wrap gap-3 border-b border-gray-800 pb-2">
-        <nav class="flex space-x-2 overflow-x-auto no-scrollbar" id="tabNav"></nav>
-        <div class="flex items-center flex-wrap gap-2">
-          <span class="hidden md:flex text-[11px] text-gray-400 items-center space-x-1">
-            <i data-lucide="mouse-pointer-click" class="w-3.5 h-3.5 text-yellow-400"></i>
-            <span>상단에 '내 캐릭터 강조' 지정 후, 본인 슬롯을 클릭하면 캐릭터 교체</span>
-          </span>
-          <label class="flex items-center whitespace-nowrap space-x-1.5 text-xs text-gray-300 cursor-pointer bg-[#161b22] px-3 py-1.5 rounded-lg border border-gray-700 hover:border-gray-500 transition">
-            <input type="checkbox" id="filterMySubToggle" class="rounded bg-gray-800 border-gray-600 text-yellow-500 focus:ring-0 cursor-pointer" />
-            <span>내 서브 조만 보기</span>
-          </label>
-          <button onclick="openAddBlockModal()" class="flex items-center whitespace-nowrap space-x-1 bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white border border-gray-700 text-xs font-semibold px-2.5 py-1.5 rounded-lg transition">
-            <i data-lucide="plus-circle" class="w-3.5 h-3.5 text-yellow-400"></i>
-            <span>블록 추가</span>
-          </button>
+      <!-- 캐릭터 현황/기타 탭의 필터 줄과 같은 card-bg 박스로 감싸서, 탭을 바꿔도 콘텐츠 시작 위치(왼쪽
+           들여쓰기)가 흔들리지 않게 맞춘다 - 이게 안 맞으면 탭 전환마다 전체 내용이 옆으로 움직여 보인다. -->
+      <div class="card-bg p-3 sm:p-4 rounded-xl mb-4">
+        <div class="flex items-center justify-between flex-wrap gap-3 border-b border-gray-800 pb-3">
+          <nav class="flex space-x-2 overflow-x-auto no-scrollbar" id="tabNav"></nav>
+          <div class="flex items-center flex-wrap gap-2">
+            <span class="hidden md:flex text-[11px] text-gray-400 items-center space-x-1">
+              <i data-lucide="mouse-pointer-click" class="w-3.5 h-3.5 text-yellow-400"></i>
+              <span>상단에 '내 캐릭터 강조' 지정 후, 본인 슬롯을 클릭하면 캐릭터 교체</span>
+            </span>
+            <label class="flex items-center whitespace-nowrap space-x-1.5 text-xs text-gray-300 cursor-pointer bg-[#161b22] px-3 py-1.5 rounded-lg border border-gray-700 hover:border-gray-500 transition">
+              <input type="checkbox" id="filterMySubToggle" class="rounded bg-gray-800 border-gray-600 text-yellow-500 focus:ring-0 cursor-pointer" />
+              <span>내 서브 조만 보기</span>
+            </label>
+            <button onclick="openAddBlockModal()" class="flex items-center whitespace-nowrap space-x-1 bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white border border-gray-700 text-xs font-semibold px-2.5 py-1.5 rounded-lg transition">
+              <i data-lucide="plus-circle" class="w-3.5 h-3.5 text-yellow-400"></i>
+              <span>블록 추가</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -243,38 +281,47 @@
 
     <!-- 2. 캐릭터 현황 & 숙제 체크 뷰 -->
     <div id="sectionPool" class="hidden">
-      <div class="card-bg p-3 sm:p-4 rounded-xl mb-4 flex flex-wrap items-center justify-between gap-3 sm:gap-4">
-        <div class="flex flex-wrap items-center gap-2 sm:gap-3">
-          <div class="flex items-center gap-2 bg-[#0d1117] px-2 sm:px-3 py-1.5 rounded-lg border border-gray-700">
+      <div class="card-bg p-3 sm:p-4 rounded-xl mb-4 flex flex-wrap items-center gap-2 sm:gap-3">
+          <div class="custom-select relative flex items-center gap-2 bg-[#0d1117] px-2 sm:px-3 py-1.5 rounded-lg border border-gray-700">
             <span class="hidden sm:inline text-xs text-gray-400">유저:</span>
-            <select id="poolUserFilter" onchange="renderPoolView()" class="bg-transparent text-xs text-white focus:outline-none cursor-pointer">
+            <select id="poolUserFilter" onchange="renderPoolView()" class="hidden">
               <option value="" class="bg-[#161b22]">전체 유저</option>
             </select>
+            <button type="button" onclick="toggleCustomSelect('poolUserFilter', event)" class="flex items-center gap-1 bg-transparent text-xs text-white focus:outline-none cursor-pointer">
+              <span id="poolUserFilterLabel" class="inline-block w-14 text-left truncate">전체 유저</span>
+              <i data-lucide="chevron-down" class="w-3 h-3 text-gray-400 shrink-0"></i>
+            </button>
+            <div id="poolUserFilterPanel" class="hidden absolute z-30 top-full left-0 right-0 mt-1 w-full max-h-60 overflow-y-auto rounded-lg border border-gray-700 bg-[#161b22] shadow-lg py-1"></div>
           </div>
 
-          <div class="flex items-center gap-2 bg-[#0d1117] px-2 sm:px-3 py-1.5 rounded-lg border border-gray-700">
+          <div class="custom-select relative flex items-center gap-2 bg-[#0d1117] px-2 sm:px-3 py-1.5 rounded-lg border border-gray-700">
             <span class="hidden sm:inline text-xs text-gray-400">포지션:</span>
-            <select id="poolPosFilter" onchange="renderPoolView()" class="bg-transparent text-xs text-white focus:outline-none cursor-pointer">
+            <select id="poolPosFilter" onchange="renderPoolView()" class="hidden">
               <option value="ALL" class="bg-[#161b22]">전체 포지션</option>
               <option value="DEALER" class="bg-[#161b22]">딜러</option>
               <option value="SUPPORTER" class="bg-[#161b22]">서포터</option>
             </select>
+            <button type="button" onclick="toggleCustomSelect('poolPosFilter', event)" class="flex items-center gap-1 bg-transparent text-xs text-white focus:outline-none cursor-pointer">
+              <span id="poolPosFilterLabel" class="inline-block w-16 text-left truncate">전체 포지션</span>
+              <i data-lucide="chevron-down" class="w-3 h-3 text-gray-400 shrink-0"></i>
+            </button>
+            <div id="poolPosFilterPanel" class="hidden absolute z-30 top-full left-0 right-0 mt-1 w-full rounded-lg border border-gray-700 bg-[#161b22] shadow-lg py-1"></div>
           </div>
 
-          <div class="flex items-center gap-2 bg-[#0d1117] px-2 sm:px-3 py-1.5 rounded-lg border border-gray-700">
+          <div class="custom-select relative flex items-center gap-2 bg-[#0d1117] px-2 sm:px-3 py-1.5 rounded-lg border border-gray-700">
             <span class="hidden sm:inline text-xs text-gray-400">최소 레벨:</span>
-            <select id="poolLevelFilter" onchange="renderPoolView()" class="bg-transparent text-xs text-white focus:outline-none cursor-pointer">
+            <select id="poolLevelFilter" onchange="renderPoolView()" class="hidden">
               <option value="0" class="bg-[#161b22]">전체 레벨</option>
               <option value="1720" class="bg-[#161b22]">1720+</option>
               <option value="1730" class="bg-[#161b22]">1730+</option>
               <option value="1750" class="bg-[#161b22]">1750+</option>
             </select>
+            <button type="button" onclick="toggleCustomSelect('poolLevelFilter', event)" class="flex items-center gap-1 bg-transparent text-xs text-white focus:outline-none cursor-pointer">
+              <span id="poolLevelFilterLabel" class="inline-block w-14 text-left truncate">전체 레벨</span>
+              <i data-lucide="chevron-down" class="w-3 h-3 text-gray-400 shrink-0"></i>
+            </button>
+            <div id="poolLevelFilterPanel" class="hidden absolute z-30 top-full left-0 right-0 mt-1 w-full rounded-lg border border-gray-700 bg-[#161b22] shadow-lg py-1"></div>
           </div>
-        </div>
-
-        <div class="text-xs text-gray-400">
-          조회된 캐릭터: <strong id="poolCount" class="text-yellow-400">0</strong>개
-        </div>
       </div>
 
       <!-- 숙제 체크 안내. 골드 범례와 같은 방식: 폰(<768px)에서는 제목 한 줄, 탭하면 펼침 / md 이상은 항상 펼침 -->
@@ -319,10 +366,20 @@
         </div>
       </div>
 
+      <div class="flex items-center justify-between text-xs text-gray-400 mb-3 -mt-2">
+        <span>조회된 캐릭터: <strong id="poolCount" class="text-yellow-400">0</strong>개</span>
+        <span id="poolLastSyncedLabel" class="text-[11px] text-gray-500"></span>
+      </div>
+
       <div id="poolGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
     </div>
 
-    <!-- 3. 레이드 골드 정보 뷰 -->
+    <!-- 3. 유용한 링크 뷰 -->
+    <div id="sectionLinks" class="hidden">
+      <div id="usefulLinksContainer" class="space-y-6"></div>
+    </div>
+
+    <!-- 4. 레이드 골드 정보 뷰 -->
     <div id="sectionGold" class="hidden">
       <div class="card-bg rounded-xl overflow-hidden shadow-lg border border-gray-800">
         <div class="p-4 border-b border-gray-800">
@@ -353,7 +410,7 @@
   </main>
 
   <!-- 원클릭 캐릭터 즉시 변경 모달 -->
-  <div id="quickSwapModal" onclick="if (event.target === this) closeQuickSwapModal()" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-4">
+  <div id="quickSwapModal" onclick="if (event.target === this) closeQuickSwapModal()" class="js-modal fixed inset-0 z-50 bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-4">
     <div class="card-bg w-full max-w-lg rounded-2xl p-6 border border-gray-700 shadow-2xl relative">
       <button onclick="closeQuickSwapModal()" class="absolute top-4 right-4 text-gray-400 hover:text-white">
         <i data-lucide="x" class="w-5 h-5"></i>
@@ -399,7 +456,7 @@
   </div>
 
   <!-- 레이드 블록 추가 모달 -->
-  <div id="addBlockModal" onclick="if (event.target === this) closeAddBlockModal()" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-4">
+  <div id="addBlockModal" onclick="if (event.target === this) closeAddBlockModal()" class="js-modal fixed inset-0 z-50 bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-4">
     <div class="card-bg w-full max-w-lg max-h-[85vh] rounded-2xl p-6 border border-gray-700 shadow-2xl relative flex flex-col">
       <button onclick="closeAddBlockModal()" class="absolute top-4 right-4 text-gray-400 hover:text-white">
         <i data-lucide="x" class="w-5 h-5"></i>
@@ -418,12 +475,17 @@
       </div>
 
       <div class="space-y-3 overflow-y-auto modal-scroll pr-1.5 flex-1">
-        <div>
+        <div class="custom-select relative">
           <label class="block text-xs font-semibold text-gray-400 mb-1.5">레이드 선택</label>
-          <select id="addBlockRaidSelect" onchange="onAddBlockRaidChange()"
-            class="w-full bg-[#0d1117] border border-gray-700 rounded-lg px-3 py-2 text-xs text-gray-200 focus:outline-none focus:border-yellow-500 transition">
+          <select id="addBlockRaidSelect" onchange="onAddBlockRaidChange()" class="hidden">
             <option value="" class="bg-[#161b22]">레이드를 선택해 주세요</option>
           </select>
+          <button type="button" onclick="toggleCustomSelect('addBlockRaidSelect', event)"
+            class="w-full flex items-center justify-between bg-[#0d1117] border border-gray-700 rounded-lg px-3 py-2 text-xs text-gray-200 focus:outline-none focus:border-yellow-500 transition">
+            <span id="addBlockRaidSelectLabel">레이드를 선택해 주세요</span>
+            <i data-lucide="chevron-down" class="w-3.5 h-3.5 text-gray-400 shrink-0"></i>
+          </button>
+          <div id="addBlockRaidSelectPanel" class="hidden absolute z-30 top-full left-0 mt-1 w-full max-h-60 overflow-y-auto rounded-lg border border-gray-700 bg-[#161b22] shadow-lg py-1"></div>
         </div>
 
         <div id="addBlockCapacitySection" class="hidden space-y-2">
@@ -448,7 +510,7 @@
   </div>
 
   <!-- 레이드 진행/완료 관리 모달 -->
-  <div id="raidProgressModal" onclick="if (event.target === this) closeRaidProgressModal()" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-4">
+  <div id="raidProgressModal" onclick="if (event.target === this) closeRaidProgressModal()" class="js-modal fixed inset-0 z-50 bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-4">
     <div class="card-bg w-full max-w-md rounded-2xl p-6 border border-gray-700 shadow-2xl relative">
       <button onclick="closeRaidProgressModal()" class="absolute top-4 right-4 text-gray-400 hover:text-white">
         <i data-lucide="x" class="w-5 h-5"></i>
@@ -470,7 +532,7 @@
   </div>
 
   <!-- 현재 진행 중인 레이드 목록 모달 -->
-  <div id="currentRaidsModal" onclick="if (event.target === this) closeCurrentRaidsModal()" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-4">
+  <div id="currentRaidsModal" onclick="if (event.target === this) closeCurrentRaidsModal()" class="js-modal fixed inset-0 z-50 bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-4">
     <div class="card-bg w-full max-w-md max-h-[80vh] rounded-2xl p-6 border border-gray-700 shadow-2xl relative flex flex-col">
       <button onclick="closeCurrentRaidsModal()" class="absolute top-4 right-4 text-gray-400 hover:text-white">
         <i data-lucide="x" class="w-5 h-5"></i>
@@ -486,7 +548,7 @@
   </div>
 
   <!-- 서브그룹 요일 설정 모달 -->
-  <div id="subGroupDayModal" onclick="if (event.target === this) closeSubGroupDayModal()" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-4">
+  <div id="subGroupDayModal" onclick="if (event.target === this) closeSubGroupDayModal()" class="js-modal fixed inset-0 z-50 bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-4">
     <div class="card-bg w-full max-w-sm rounded-2xl p-6 border border-gray-700 shadow-2xl relative">
       <button onclick="closeSubGroupDayModal()" class="absolute top-4 right-4 text-gray-400 hover:text-white">
         <i data-lucide="x" class="w-5 h-5"></i>
@@ -496,15 +558,23 @@
         <h3 class="text-sm font-bold text-white"><span id="subGroupDayModalLabel">-</span> 요일 설정</h3>
       </div>
       <p class="text-xs text-gray-400 mb-4">이 조가 레이드하는 요일을 선택하세요. 탭에 표시되는 날짜 계산에만 쓰이고, 실제 일정에는 영향을 주지 않습니다.</p>
-      <select id="subGroupDaySelect" class="w-full bg-[#0d1117] border border-gray-700 rounded-lg px-3 py-2 text-xs text-gray-200 focus:outline-none focus:border-yellow-500 transition mb-5">
-        <option value="수요일" class="bg-[#161b22]">수요일</option>
-        <option value="목요일" class="bg-[#161b22]">목요일</option>
-        <option value="금요일" class="bg-[#161b22]">금요일</option>
-        <option value="토요일" class="bg-[#161b22]">토요일</option>
-        <option value="일요일" class="bg-[#161b22]">일요일</option>
-        <option value="월요일" class="bg-[#161b22]">월요일</option>
-        <option value="화요일" class="bg-[#161b22]">화요일</option>
-      </select>
+      <div class="custom-select relative mb-5">
+        <select id="subGroupDaySelect" class="hidden">
+          <option value="수요일" class="bg-[#161b22]">수요일</option>
+          <option value="목요일" class="bg-[#161b22]">목요일</option>
+          <option value="금요일" class="bg-[#161b22]">금요일</option>
+          <option value="토요일" class="bg-[#161b22]">토요일</option>
+          <option value="일요일" class="bg-[#161b22]">일요일</option>
+          <option value="월요일" class="bg-[#161b22]">월요일</option>
+          <option value="화요일" class="bg-[#161b22]">화요일</option>
+        </select>
+        <button type="button" onclick="toggleCustomSelect('subGroupDaySelect', event)"
+          class="w-full flex items-center justify-between bg-[#0d1117] border border-gray-700 rounded-lg px-3 py-2 text-xs text-gray-200 focus:outline-none focus:border-yellow-500 transition">
+          <span id="subGroupDaySelectLabel">수요일</span>
+          <i data-lucide="chevron-down" class="w-3.5 h-3.5 text-gray-400 shrink-0"></i>
+        </button>
+        <div id="subGroupDaySelectPanel" class="hidden absolute z-30 top-full left-0 mt-1 w-full rounded-lg border border-gray-700 bg-[#161b22] shadow-lg py-1"></div>
+      </div>
       <div class="flex items-center justify-end gap-2">
         <button onclick="closeSubGroupDayModal()" class="px-3 py-2 rounded-lg text-xs font-semibold text-gray-300 hover:text-white bg-gray-800 border border-gray-700 transition">취소</button>
         <button onclick="confirmSubGroupDay()" class="px-4 py-2 rounded-lg text-xs font-bold text-black bg-yellow-400 hover:bg-yellow-300 transition">저장</button>
@@ -512,8 +582,36 @@
     </div>
   </div>
 
+  <!-- 캐릭터명 클릭 시 뜨는 스펙 조회 사이트 선택 모달 -->
+  <div id="charLinkModal" onclick="if (event.target === this) closeCharLinkModal()" class="js-modal fixed inset-0 z-50 bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="card-bg w-full max-w-sm rounded-2xl p-6 border border-gray-700 shadow-2xl relative">
+      <button onclick="closeCharLinkModal()" class="absolute top-4 right-4 text-gray-400 hover:text-white">
+        <i data-lucide="x" class="w-5 h-5"></i>
+      </button>
+      <div class="flex items-center space-x-2 text-yellow-400 mb-4">
+        <i data-lucide="search" class="w-5 h-5"></i>
+        <h3 class="text-sm font-bold text-white"><span id="charLinkModalLabel">-</span> 스펙 조회</h3>
+      </div>
+      <div id="charLinkModalItems" class="space-y-2"></div>
+    </div>
+  </div>
+
+  <!-- "기타 유용한 도구" 로아랩 버튼 클릭 시 뜨는, 로아랩 세부 도구 선택 모달 -->
+  <div id="loarabToolsModal" onclick="if (event.target === this) closeLoarabToolsModal()" class="js-modal fixed inset-0 z-50 bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="card-bg w-full max-w-sm rounded-2xl p-6 border border-gray-700 shadow-2xl relative">
+      <button onclick="closeLoarabToolsModal()" class="absolute top-4 right-4 text-gray-400 hover:text-white">
+        <i data-lucide="x" class="w-5 h-5"></i>
+      </button>
+      <div class="flex items-center space-x-2 text-yellow-400 mb-4">
+        <i data-lucide="wrench" class="w-5 h-5"></i>
+        <h3 class="text-sm font-bold text-white">로아랩 도구 바로가기</h3>
+      </div>
+      <div id="loarabToolsModalItems" class="space-y-2"></div>
+    </div>
+  </div>
+
   <!-- 커스텀 알림/확인/입력 모달 (네이티브 alert/confirm/prompt 대체) -->
-  <div id="customAlertModal" class="fixed inset-0 z-[60] bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-4">
+  <div id="customAlertModal" class="js-modal fixed inset-0 z-[60] bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-4">
     <div class="card-bg w-full max-w-sm rounded-2xl p-6 border border-gray-700 shadow-2xl relative">
       <div class="flex items-center space-x-2 text-amber-400 mb-3">
         <i data-lucide="alert-circle" class="w-5 h-5"></i>
@@ -526,7 +624,7 @@
     </div>
   </div>
 
-  <div id="customConfirmModal" class="fixed inset-0 z-[60] bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-4">
+  <div id="customConfirmModal" class="js-modal fixed inset-0 z-[60] bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-4">
     <div class="card-bg w-full max-w-sm rounded-2xl p-6 border border-gray-700 shadow-2xl relative">
       <div class="flex items-center space-x-2 text-amber-400 mb-3">
         <i data-lucide="help-circle" class="w-5 h-5"></i>
@@ -540,7 +638,7 @@
     </div>
   </div>
 
-  <div id="customPromptModal" class="fixed inset-0 z-[60] bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-4">
+  <div id="customPromptModal" class="js-modal fixed inset-0 z-[60] bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-4">
     <div class="card-bg w-full max-w-sm rounded-2xl p-6 border border-gray-700 shadow-2xl relative">
       <div class="flex items-center space-x-2 text-amber-400 mb-3">
         <i data-lucide="edit-3" class="w-5 h-5"></i>
@@ -556,7 +654,7 @@
   </div>
 
   <!-- 참여 상태(불참/지각) 모달 -->
-  <div id="attendanceModal" onclick="if (event.target === this) closeAttendanceModal()" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-4">
+  <div id="attendanceModal" onclick="if (event.target === this) closeAttendanceModal()" class="js-modal fixed inset-0 z-50 bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-4">
     <div class="card-bg w-full max-w-lg max-h-[85vh] rounded-2xl p-6 border border-gray-700 shadow-2xl relative flex flex-col">
       <button onclick="closeAttendanceModal()" class="absolute top-4 right-4 text-gray-400 hover:text-white">
         <i data-lucide="x" class="w-5 h-5"></i>
@@ -600,7 +698,7 @@
   </div>
 
   <!-- 도움말 및 패치노트 모달 -->
-  <div id="infoModal" onclick="if (event.target === this) closeInfoModal()" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-4">
+  <div id="infoModal" onclick="if (event.target === this) closeInfoModal()" class="js-modal fixed inset-0 z-50 bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-4">
     <div class="card-bg w-full max-w-2xl max-h-[85vh] rounded-2xl p-6 border border-gray-700 shadow-2xl relative flex flex-col">
       <button onclick="closeInfoModal()" class="absolute top-4 right-4 text-gray-400 hover:text-white">
         <i data-lucide="x" class="w-5 h-5"></i>
@@ -659,7 +757,7 @@
             <h4 class="font-bold text-xs mb-1.5 text-yellow-400">Q. [캐릭터 현황] 탭의 레이드 뱃지는 무슨 의미인가요?</h4>
             <ul class="text-xs text-gray-300 space-y-1 list-disc pl-4">
               <li><strong>색상 = 골드 여부</strong> : <span class="text-amber-300">호박색</span> 확정 / <span class="text-cyan-300">청록색</span> 선택 구간 / <span class="text-gray-400">회색</span> 골드 대상 아님</li>
-              <li><strong>테두리 = 체크 출처</strong> : 실선은 레이드 완료 처리 시 자동 (해제 불가) / 점선은 수동 체크 (클릭 시 취소)</li>
+              <li><strong>테두리 = 체크 출처</strong> : 실선은 일정표 자동 (해제 불가) / 점선은 수동 체크 (클릭 시 취소)</li>
               <li><strong>속이 빈 뱃지</strong> : 미완료</li>
               <li><strong>취소선</strong> : 레벨 부족으로 입장 불가</li>
               <li><strong>🔗 표시</strong> : 일정표에 편성되어 있어 개별 체크를 못 쓰는 상태. 해당 레이드 블록을 완료 처리하면 자동으로 체크됩니다 (슬롯에서 빼면 다시 개별 체크 가능)</li>
@@ -708,10 +806,24 @@
         <div id="infoContentChangelog" class="space-y-3 hidden">
           <div class="border-l-2 border-yellow-500 pl-3 py-1 mb-3">
             <div class="flex items-center justify-between">
-              <span class="font-bold text-white text-xs">v2.5 - 모바일 사용성 개선</span>
-              <span class="text-[11px] text-gray-500">2026.09.08</span>
+              <span class="font-bold text-white text-xs">v2.6 - 유용한 링크 탭 추가</span>
+              <span class="text-[11px] text-gray-500">2026.09.12</span>
             </div>
             <ul class="text-xs text-gray-400 mt-1 space-y-0.5 list-disc pl-3">
+              <li>유용한 링크 탭 추가 (스펙 조회, 강화/재화 계산기 등 자주 쓰는 외부 도구 모음)</li>
+              <li>캐릭터 현황 캐릭터명 클릭 시 스펙 조회 가능</li>
+              <li>상단 탭 구성 정리 (일정표 / 캐릭터 현황 / 기타)</li>
+              <li>진행중인 레이드 알림 팝업이 다른 사람 변경사항을 놓치던 문제 수정</li>
+              <li>새로고침이 오래 걸리면 안내 문구가 뜨도록 개선</li>
+            </ul>
+          </div>
+
+          <div class="border-l-2 border-gray-700 pl-3 py-1 mb-3">
+            <div class="flex items-center justify-between">
+              <span class="font-bold text-gray-300 text-xs">v2.5 - 모바일 사용성 개선</span>
+              <span class="text-[11px] text-gray-500">2026.09.08</span>
+            </div>
+            <ul class="text-xs text-gray-500 mt-1 space-y-0.5 list-disc pl-3">
               <li>모바일 화면에 맞게 레이아웃 전반 정비</li>
               <li>직접 체크한 숙제가 매시간 자동 갱신 때 사라지던 문제 수정</li>
             </ul>
@@ -910,6 +1022,7 @@
     let allMemberList = new Set();
     let slotGoldStatusMap = {};
     let characterPoolData = [];
+    let mainCharByUser = {}; // Members 시트: 유저명(본계정 기준) -> 대표캐릭터명. "유용한 링크" 탭의 대표캐릭터 조회 링크용
     let raidInfoData = [];
     let activeSwapTarget = null;
     let pendingSwapChar = null;
@@ -931,7 +1044,7 @@
     let activeProgressTarget = null;  // 진행/완료 모달이 대상으로 하는 블록 정보
     // 자동 팝업 중복 방지 - 이미 띄운 진행중 건은 같은 건이 유지되는 동안 다시 띄우지 않는다.
     let lastAutoPopupKey = null;
-    let siteConfig = { maintenanceMode: false, noticeText: '', subGroupDays: {}, raidWeekAnchor: '' };  // Config 시트 원본
+    let siteConfig = { maintenanceMode: false, noticeText: '', subGroupDays: {}, raidWeekAnchor: '', poolLastSyncedAt: '' };  // Config 시트 원본
     let suggestionsData = [];         // Suggestions 시트 원본
     // 시트별로 편성 인스턴스를 나눠 보관한다. 한 시트만 다시 받아도 골드 재계산이 가능해진다.
     let allRaidInstancesBySheet = {};
@@ -941,9 +1054,17 @@
     const MIN_REFETCH_MS = 30000;
     // 브라우저 탭 복귀 시 이 시간이 지났으면 전체를 다시 받는다
     const FULL_REFRESH_MS = 120000;
+    // gviz 요청이 실패 응답도 없이 그냥 무한 대기할 때(구글시트 자체가 멈췄을 때 실제로 겪음)
+    // 이 시간이 지나면 강제로 중단시킨다. 없으면 새로고침 스피너가 영원히 안 멎는다.
+    const FETCH_TIMEOUT_MS = 10000;
     let pendingAttendance = { date: '', status: '', memo: '' };
 
     document.addEventListener('DOMContentLoaded', () => {
+      // 옵션이 고정이라 데이터 로딩과 무관하게 지금 바로 목록을 채워둔다(그 외 select 들은
+      // 각자 옵션을 채우는 함수 - populateUserSelector, openAddBlockModal 등 - 에서 동기화한다).
+      ['poolPosFilter', 'poolLevelFilter'].forEach(initCustomSelect);
+      renderMiscViewPanel();
+
       document.getElementById('filterMySubToggle').checked = filterMySubOnly;
       document.getElementById('filterMySubToggle').addEventListener('change', (e) => {
         filterMySubOnly = e.target.checked;
@@ -959,11 +1080,13 @@
         const poolUserFilter = document.getElementById('poolUserFilter');
         if (poolUserFilter) {
           poolUserFilter.value = selectedUser;
+          syncCustomSelect('poolUserFilter');
         }
 
         renderTabs();
         renderActiveTabContent();
         if (currentMainView === 'pool') renderPoolView();
+        if (currentMainView === 'links') renderUsefulLinksView();
       });
 
       fetchSheetData();
@@ -980,6 +1103,73 @@
       fetchSheetData();
     });
 
+    // ─── 커스텀 드롭다운(네이티브 select 대체) ─────────────────────────────
+    // select 팝업(펼쳤을 때 뜨는 목록)은 브라우저가 직접 그려서 CSS로 모양을 못 바꾼다.
+    // 그래서 실제 값 저장소는 화면에서만 숨긴 <select>를 그대로 쓰고(기존 onchange/.value 로직 재사용),
+    // 그 위에 앱 스타일 그대로인 트리거 버튼 + 목록 패널을 얹어서 화면에는 이것만 보이게 한다.
+    const CUSTOM_SELECT_IDS = ['userSelector', 'poolUserFilter', 'poolPosFilter', 'poolLevelFilter', 'addBlockRaidSelect', 'subGroupDaySelect', 'miscView'];
+    let openCustomSelectId = null;
+
+    function initCustomSelect(selectId) {
+      syncCustomSelect(selectId);
+    }
+
+    function closeAllCustomSelects() {
+      CUSTOM_SELECT_IDS.forEach(id => {
+        const panel = document.getElementById(id + 'Panel');
+        if (panel) panel.classList.add('hidden');
+      });
+      openCustomSelectId = null;
+    }
+
+    function toggleCustomSelect(selectId, event) {
+      if (event) event.stopPropagation();
+      const panel = document.getElementById(selectId + 'Panel');
+      if (!panel) return;
+      const willOpen = panel.classList.contains('hidden');
+      closeAllCustomSelects();
+      if (willOpen) {
+        panel.classList.remove('hidden');
+        openCustomSelectId = selectId;
+      }
+    }
+
+    // 패널에서 항목을 고르면 숨겨둔 진짜 select 의 값을 바꾸고 change 이벤트를 그대로 쏴준다 -
+    // 이러면 기존 onchange="..." / addEventListener('change', ...) 로직을 하나도 안 건드려도 된다.
+    function selectCustomOption(selectId, value) {
+      const select = document.getElementById(selectId);
+      if (!select) return;
+      select.value = value;
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+      syncCustomSelect(selectId);
+      closeAllCustomSelects();
+    }
+
+    // select 의 현재 옵션/값을 읽어 트리거 라벨과 목록 패널을 다시 그린다.
+    // 옵션이 동적으로 바뀌는 select(유저 목록, 레이드 목록 등)는 그 목록을 새로 채운 직후 반드시 호출해야 한다.
+    function syncCustomSelect(selectId) {
+      const select = document.getElementById(selectId);
+      const label = document.getElementById(selectId + 'Label');
+      const panel = document.getElementById(selectId + 'Panel');
+      if (!select || !label || !panel) return;
+
+      const options = Array.from(select.options);
+      const current = options.find(o => o.value === select.value) || options[0];
+      // userSelector 는 "선택 안 함"이 정상적인 기본 상태(전체 보기)라서, 트리거에는 굳이 문구를
+      // 안 띄우고 비워둔다(목록엔 그대로 "선택 안 함 (전체)"가 남아있어 고를 땐 무엇인지 알 수 있다).
+      const isUnselectedUserSelector = selectId === 'userSelector' && select.value === '';
+      label.textContent = isUnselectedUserSelector ? '' : (current ? current.textContent : '');
+
+      panel.innerHTML = options.map(o => `
+        <button type="button" onclick="selectCustomOption('${selectId}', '${o.value.replace(/'/g, "\\'")}')"
+          class="w-full text-left px-3 py-2 text-xs transition ${o.value === select.value ? 'bg-yellow-500/15 text-yellow-400 font-semibold' : 'text-gray-300 hover:bg-gray-800'}">${o.textContent}</button>
+      `).join('');
+    }
+
+    document.addEventListener('click', (e) => {
+      if (openCustomSelectId && !e.target.closest('.custom-select')) closeAllCustomSelects();
+    });
+
     // 폰에서 안내 박스(골드 획득 범례 / 숙제 체크 안내) 접기/펼치기.
     // md 이상에서는 항상 펼쳐져 있고 제목 버튼이 pointer-events:none 이라 호출되지 않는다.
     function toggleCollapsibleBox(itemsId, chevronId) {
@@ -990,35 +1180,70 @@
       if (chev) chev.classList.toggle('rotate-180', !collapsed);
     }
 
+    // "기타" 드롭다운에 묶인 뷰들. 여기 추가하면 상단 탭 자체는 늘어나지 않고 기타 목록에만 항목이 늘어난다.
+    const MISC_VIEWS = [
+      { id: 'links', label: '유용한 링크' },
+      { id: 'gold', label: '레이드 골드표' }
+    ];
+    const ACTIVE_VIEW_BTN_CLASS = 'whitespace-nowrap px-2.5 py-1.5 rounded-md font-semibold bg-gray-800 text-white transition';
+    const INACTIVE_VIEW_BTN_CLASS = 'whitespace-nowrap px-2.5 py-1.5 rounded-md font-medium text-gray-400 hover:text-white transition';
+
+    function renderMiscViewPanel() {
+      const panel = document.getElementById('miscViewPanel');
+      if (!panel) return;
+      panel.innerHTML = MISC_VIEWS.map(v => `
+        <button type="button" onclick="switchMainView('${v.id}'); closeAllCustomSelects();"
+          class="w-full text-left px-3 py-2 text-xs whitespace-nowrap transition ${currentMainView === v.id ? 'bg-yellow-500/15 text-yellow-400 font-semibold' : 'text-gray-300 hover:bg-gray-800'}">${v.label}</button>
+      `).join('');
+    }
+
     function switchMainView(view) {
       currentMainView = view;
-      ['schedule', 'pool', 'gold'].forEach(v => {
+      const isMiscView = MISC_VIEWS.some(v => v.id === view);
+
+      // 상단에 고정 버튼이 있는 뷰(일정/캐릭터)만 이 루프로 처리한다.
+      ['schedule', 'pool'].forEach(v => {
         const btn = document.getElementById('viewBtn' + v.charAt(0).toUpperCase() + v.slice(1));
         const sec = document.getElementById('section' + v.charAt(0).toUpperCase() + v.slice(1));
         if (!btn || !sec) return;
         if (v === view) {
-          btn.className = 'whitespace-nowrap px-3 py-1.5 rounded-md font-semibold bg-gray-800 text-white transition';
+          btn.className = ACTIVE_VIEW_BTN_CLASS;
           sec.classList.remove('hidden');
         } else {
-          btn.className = 'whitespace-nowrap px-3 py-1.5 rounded-md font-medium text-gray-400 hover:text-white transition';
+          btn.className = INACTIVE_VIEW_BTN_CLASS;
           sec.classList.add('hidden');
         }
       });
+
+      // "기타" 드롭다운에 묶인 뷰는 버튼이 따로 없으니 섹션 표시만 처리하고,
+      // "기타" 트리거 자체는 그 중 하나라도 활성화돼 있으면 선택된 걸로 표시한다.
+      MISC_VIEWS.forEach(v => {
+        const sec = document.getElementById('section' + v.id.charAt(0).toUpperCase() + v.id.slice(1));
+        if (sec) sec.classList.toggle('hidden', v.id !== view);
+      });
+      const miscBtn = document.getElementById('viewBtnMisc');
+      if (miscBtn) {
+        miscBtn.className = (isMiscView ? ACTIVE_VIEW_BTN_CLASS : INACTIVE_VIEW_BTN_CLASS) + ' flex items-center gap-1';
+      }
+      renderMiscViewPanel();
 
       if (view === 'pool') {
         const poolUserFilter = document.getElementById('poolUserFilter');
         if (poolUserFilter && selectedUser) {
           poolUserFilter.value = selectedUser;
+          syncCustomSelect('poolUserFilter');
         }
         renderPoolView();
       }
 
       if (view === 'gold') renderGoldTableView();
+      if (view === 'links') renderUsefulLinksView();
       drawIcons();
 
       // 각 뷰가 실제로 쓰는 시트만 뒤에서 갱신한다
       if (view === 'pool') refreshSheets(['Character_Pool']);
       if (view === 'gold') refreshSheets(['Raid_Info']);
+      if (view === 'links') refreshSheets(['Members']);
       if (view === 'schedule') {
         const targets = currentActiveTab === 'Main_8Man' ? [currentActiveTab, 'Attendance', 'Raid_Status'] : [currentActiveTab, 'Raid_Status'];
         refreshSheets(targets);
@@ -1055,8 +1280,14 @@
       }
       if (text === undefined || text === null) {
         const url = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURI(sheetName)}&t=${bust}`;
-        const res = await fetch(url);
-        text = await res.text();
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+        try {
+          const res = await fetch(url, { signal: controller.signal });
+          text = await res.text();
+        } finally {
+          clearTimeout(timeoutId);
+        }
       }
       return Papa.parse(text, { skipEmptyLines: false }).data;
     }
@@ -1184,6 +1415,7 @@
       renderActiveTabContent();
       renderCurrentRaidsBadge();
       if (currentMainView === 'pool') renderPoolView();
+      if (currentMainView === 'links') renderUsefulLinksView();
       if (currentMainView === 'gold') renderGoldTableView();
       // 도움말 모달의 건의사항 탭이 열려 있으면 목록도 갱신
       const suggestBox = document.getElementById('infoContentSuggest');
@@ -1220,6 +1452,7 @@
           else if (name === 'Attendance') parseAttendance(rows);
           else if (name === 'Suggestions') parseSuggestions(rows);
           else if (name === 'Raid_Status') parseRaidStatus(rows);
+          else if (name === 'Members') parseMembers(rows);
           changed = true;
         });
 
@@ -1245,23 +1478,15 @@
       try {
         // 시트를 순차로 받으면 왕복 8번이 그대로 더해진다. 서로 의존하지 않으므로 전부 병렬로 받는다.
         const bust = Date.now();
-        const [sheetRows, poolRows, attRows, raidRows, configRows, statusRows] = await Promise.all([
+        const [sheetRows, poolRows, attRows, raidRows, configRows, statusRows, memberRows] = await Promise.all([
           Promise.all(SHEET_CONFIG.map(cfg => fetchSheetCsv(cfg.id, bust))),
           fetchSheetCsv('Character_Pool', bust),
           fetchSheetCsv('Attendance', bust).catch(() => null),
           fetchSheetCsv('Raid_Info', bust).catch(() => null),
           fetchSheetCsv('Config', bust).catch(() => null),
-          fetchSheetCsv('Raid_Status', bust).catch(() => null)
+          fetchSheetCsv('Raid_Status', bust).catch(() => null),
+          fetchSheetCsv('Members', bust).catch(() => null)
         ]);
-
-        // 점검모드면 그 뒤 어떤 파싱/렌더링도 하지 않고 점검 화면만 보여준다.
-        // Config 를 가장 먼저 확인해서, 데이터가 이상한 상태로 화면에 잠깐이라도
-        // 노출되는 일이 없게 한다 (재배포 없이 시트 값만 바꿔서 켜고 끌 수 있다).
-        parseSiteConfig(configRows);
-        if (siteConfig.maintenanceMode) {
-          renderMaintenanceScreen();
-          return;
-        }
 
         // processScheduleSheet(enrichSlotFromPool 포함)가 characterPoolData 를 조회하므로,
         // 반드시 parseCharacterPool 을 먼저 실행해야 한다. 순서가 바뀌면 첫 로딩 시
@@ -1270,12 +1495,24 @@
         parseCharacterPool(poolRows);
         SHEET_CONFIG.forEach((config, idx) => processScheduleSheet(config, sheetRows[idx]));
 
-        // Attendance / Raid_Info / Raid_Status 는 없어도 나머지 기능이 동작해야 한다
+        // Attendance / Raid_Info / Config / Raid_Status 는 없어도 나머지 기능이 동작해야 한다
         if (attRows) parseAttendance(attRows); else attendanceData = [];
         if (raidRows) parseRaidInfo(raidRows);
+        parseSiteConfig(configRows);
+
+        // 운영(index.html)과 동일한 점검모드 하드게이트. dev 에서는 &&!IS_DEV 로 항상 건너뛴다 -
+        // dev 는 나 혼자 테스트하는 환경이라 정상 화면을 그대로 봐야 검증 의미가 있어서다 (위 배너로 대신 알림).
+        // 코드를 index.html과 동일하게 유지해두면, 이 기능을 고칠 일이 생겼을 때 dev에서 고치고 그대로 승격할 수 있다.
+        if (siteConfig.maintenanceMode && !IS_DEV) {
+          renderMaintenanceScreen();
+          return;
+        }
+
         if (statusRows) parseRaidStatus(statusRows); else raidStatusData = [];
+        if (memberRows) parseMembers(memberRows); else mainCharByUser = {};
         document.getElementById('mainContent').classList.remove('hidden');
         document.getElementById('maintenanceScreen').classList.add('hidden');
+        renderMaintenanceBanner();
 
         recalcGoldFromStore();
         renderCurrentViews();
@@ -1287,10 +1524,35 @@
         ['Character_Pool', 'Attendance', 'Raid_Info', 'Raid_Status'].forEach(n => { lastSheetFetchAt[n] = now; });
       } catch (err) {
         console.error(err);
+        // 백그라운드 부분 갱신(refreshSheets)은 조용히 넘어가지만, 전체 갱신이 실패하면
+        // 화면에 아무 데이터도 못 띄운 채로 멈추게 되므로 사용자에게 알리고 재시도를 안내한다.
+        customAlert('데이터를 불러오지 못했습니다. 잠시 후 새로고침 버튼을 눌러 다시 시도해 주세요.', '불러오기 실패');
       } finally {
         setRefreshSpinning(false);
         updateLastSyncLabel();
       }
+    }
+
+    // Members 시트: A=유저명, B=계정구분("본"/"부1"/"부2"...), C=대표캐릭터명(원정대 조회용).
+    // 계정이 여러 개인 유저는 "본" 행의 대표캐릭터명만 쓴다 - 부계정 행은 "본" 행이 없을 때만 대체로 사용.
+    function parseMembers(rows) {
+      mainCharByUser = {};
+      const fallback = {};
+      for (let r = 1; r < rows.length; r++) {
+        const row = rows[r] || [];
+        const userName = (row[0] || '').toString().trim();
+        const accType = (row[1] || '').toString().trim();
+        const mainCharName = (row[2] || '').toString().trim();
+        if (!userName || !mainCharName) continue;
+        if (accType === '본') {
+          mainCharByUser[userName] = mainCharName;
+        } else if (!(userName in fallback)) {
+          fallback[userName] = mainCharName;
+        }
+      }
+      Object.keys(fallback).forEach(u => {
+        if (!(u in mainCharByUser)) mainCharByUser[u] = fallback[u];
+      });
     }
 
     function parseCharacterPool(rows) {
@@ -1479,6 +1741,21 @@
       if (selectedUser && poolUserSelect) {
         poolUserSelect.value = selectedUser;
       }
+
+      syncCustomSelect('userSelector');
+      syncCustomSelect('poolUserFilter');
+    }
+
+    // 해당 서브그룹 시트의 레이드 블록이 전부(1개 이상) '완료' 상태인지 확인한다.
+    // 탭 순서에는 쓰지 않고(그러면 레이드 도중 탭이 계속 움직임) 완료 표시(체크 아이콘)에만 쓴다.
+    function isSubGroupFullyComplete(sheetId) {
+      const info = sheetsDataStore[sheetId];
+      if (!info || !info.blocks || info.blocks.length === 0) return false;
+      return info.blocks.every(block => {
+        const blockIndex = block.slots.length ? block.slots[0].blockIndex : 0;
+        const statusInfo = getRaidStatusFor(sheetId, blockIndex, block.rawTitle);
+        return statusInfo && statusInfo.status === '완료';
+      });
     }
 
     function renderTabs() {
@@ -1494,6 +1771,21 @@
         });
       }
 
+      // 정렬: 메인(토요일 고정)은 항상 맨 앞, 서브그룹은 요일순(레이드 주차 기준 - 수요일이
+      // 한 주의 시작) → 같은 요일이면 서브그룹번호순. SHEET_CONFIG 원본은 그대로 두고 복사해서 정렬한다.
+      availableTabs = [...availableTabs].sort((a, b) => {
+        if (a.is8Man) return -1;
+        if (b.is8Man) return 1;
+        const dayA = weekdayNameToIndex(siteConfig.subGroupDays && siteConfig.subGroupDays[a.id]);
+        const dayB = weekdayNameToIndex(siteConfig.subGroupDays && siteConfig.subGroupDays[b.id]);
+        const raidDayA = dayA === null ? 99 : (dayA - 3 + 7) % 7; // 수요일(3)을 0으로
+        const raidDayB = dayB === null ? 99 : (dayB - 3 + 7) % 7;
+        if (raidDayA !== raidDayB) return raidDayA - raidDayB;
+        const numA = parseInt((a.id.match(/\d+$/) || ['0'])[0], 10);
+        const numB = parseInt((b.id.match(/\d+$/) || ['0'])[0], 10);
+        return numA - numB;
+      });
+
       if (!availableTabs.some(t => t.id === currentActiveTab)) {
         currentActiveTab = availableTabs[0]?.id || 'Main_8Man';
       }
@@ -1503,12 +1795,15 @@
         const info = sheetsDataStore[cfg.id];
         const tabTitle = info ? info.title : cfg.fixedTitle || cfg.id;
         const isActive = (cfg.id === currentActiveTab);
+        // 완료 표시는 서브그룹에만 적용한다(메인은 대상 아님). 탭 위치는 그대로 두고 표시만 다르게 한다 -
+        // 완료 여부로 탭을 재배치하면 레이드 도중 탭이 계속 움직여 오히려 헷갈린다는 판단.
+        const isComplete = !cfg.is8Man && isSubGroupFullyComplete(cfg.id);
 
         const btn = document.createElement('button');
         btn.className = `px-4 py-2 rounded-lg text-sm font-semibold transition whitespace-nowrap flex items-center space-x-1.5 ${
           isActive
             ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/50'
-            : 'text-gray-400 hover:text-white hover:bg-gray-800'
+            : (isComplete ? 'text-gray-600 hover:text-gray-300 hover:bg-gray-800' : 'text-gray-400 hover:text-white hover:bg-gray-800')
         }`;
         // 토요일 고정 탭에는 참여 상태의 기준 날짜를, 서브조 탭에는 해당 요일의
         // 날짜를 함께 표시한다 (Config 의 서브그룹N_요일 설정, 기본값 있음).
@@ -1533,7 +1828,10 @@
           }
           dateSuffix = `<span onclick="event.stopPropagation(); openSubGroupDayModal('${cfg.id}', '${escTitle}')" title="클릭해서 요일 변경" class="text-[11px] font-normal ${dateColor} underline decoration-dotted underline-offset-2 hover:text-yellow-400">${dateLabel}</span>`;
         }
-        btn.innerHTML = `<span>${tabTitle}</span>${dateSuffix}`;
+        const completeMark = isComplete
+          ? `<i data-lucide="check-circle-2" class="w-3.5 h-3.5 shrink-0 ${isActive ? 'text-yellow-400' : 'text-emerald-500/70'}"></i>`
+          : '';
+        btn.innerHTML = `${completeMark}<span>${tabTitle}</span>${dateSuffix}`;
         btn.onclick = () => {
           currentActiveTab = cfg.id;
           renderTabs();
@@ -1565,6 +1863,7 @@
       document.getElementById('subGroupDayModalLabel').textContent = tabTitle;
       const select = document.getElementById('subGroupDaySelect');
       select.value = (siteConfig.subGroupDays && siteConfig.subGroupDays[sheetId]) || DEFAULT_SUB_GROUP_DAYS[sheetId] || '목요일';
+      syncCustomSelect('subGroupDaySelect');
       document.body.style.overflow = 'hidden';
       document.getElementById('subGroupDayModal').classList.remove('hidden');
       drawIcons();
@@ -2043,22 +2342,29 @@
       openRaidProgressModal(sheetId, blockIndex, rawRaidTitle, displayTitle);
     }
 
-    // 다른 모달(진행 관리 포함)이 하나라도 떠 있으면 자동 팝업이 그 위에 끼어들지 않게 막는다.
-    function isAnyModalOpen() {
-      const modalIds = ['quickSwapModal', 'addBlockModal', 'raidProgressModal', 'currentRaidsModal',
-        'subGroupDayModal', 'customAlertModal', 'customConfirmModal', 'customPromptModal', 'attendanceModal', 'infoModal'];
-      return modalIds.some(id => {
-        const el = document.getElementById(id);
-        return el && !el.classList.contains('hidden');
-      });
+    // 진행 관리 팝업(raidProgressModal)은 제외하고, 그 외 다른 모달이 하나라도 떠 있으면
+    // 자동 팝업이 그 위에 끼어들지 않게 막는다 - 사용자가 스왑/블록추가 등 다른 작업 중일 수 있어서다.
+    // 모달 div 마다 id 를 나열해 유지보수하는 대신, 모달 전부에 붙여둔 공통 클래스(js-modal)로 찾는다.
+    function isOtherModalOpen() {
+      return Array.from(document.querySelectorAll('.js-modal')).some(el =>
+        el.id !== 'raidProgressModal' && !el.classList.contains('hidden')
+      );
+    }
+
+    function isRaidProgressModalOpen() {
+      const el = document.getElementById('raidProgressModal');
+      return !!(el && !el.classList.contains('hidden'));
     }
 
     // 새로고침/자동 갱신/사이트 오픈 시 호출된다. 본인이 포함된 진행중 레이드가 있고
-    // 다른 모달이 떠 있지 않으면 진행 관리 창을 자동으로 띄운다.
+    // 진행 관리 팝업 외 다른 모달이 떠 있지 않으면 진행 관리 창을 자동으로 띄운다(이미 다른
+    // 레이드로 열려 있었다면 그 내용을 새 레이드로 갈아치운다 - 열린 채로 방치되면 다른 사람이
+    // 완료/다음 레이드 진행 처리를 해도 이 화면엔 옛 레이드가 그대로 남아있던 문제 수정, 2026-09-12).
     // 인원 겹침 방지(startRaidBlock) 덕분에 한 계정이 동시에 여러 진행중 레이드에 속할 일이 없어,
     // "어떤 레이드를 띄울지" 애매해질 걱정 없이 이 방식이 성립한다.
     function maybeAutoPopupCurrentRaid() {
       if (!selectedUser) return;
+      if (isOtherModalOpen()) return; // 지금은 건너뛰고, 다음 갱신 때 다시 시도
 
       const inProgress = raidStatusData.filter(s => s.status === '진행중');
       const mine = inProgress.find(s => {
@@ -2066,11 +2372,15 @@
         return block && userInBlock(block);
       });
 
-      if (!mine) { lastAutoPopupKey = null; return; }
+      if (!mine) {
+        lastAutoPopupKey = null;
+        // 내가 속한 진행중 레이드가 없어졌는데 진행 팝업이 아직 떠 있다면(그 사이 완료 처리됨) 닫아준다.
+        if (isRaidProgressModalOpen()) closeRaidProgressModal();
+        return;
+      }
 
       const key = `${mine.sheetId}|${mine.blockIndex}|${mine.rawRaidTitle}`;
-      if (key === lastAutoPopupKey) return;
-      if (isAnyModalOpen()) return; // 지금은 건너뛰고, 다음 갱신 때 다시 시도
+      if (key === lastAutoPopupKey) return; // 이미 이 레이드를 보여줬음(지금 떠 있거나, 사용자가 닫았거나)
 
       lastAutoPopupKey = key;
       jumpToRaidProgress(mine.sheetId, mine.blockIndex, mine.rawRaidTitle, sanitizeTitle(mine.rawRaidTitle));
@@ -2372,6 +2682,158 @@
       }
     }
 
+    // ─── 유용한 링크 탭 ─────────────────────────────────
+    // charUrlTemplate 이 있는 항목은 "사이트 바로가기" 외에 대표캐릭터(또는 캐릭터명 클릭 시 임의 캐릭터) 조회 버튼도 노출한다.
+    // {name} 부분을 실제 캐릭터명(encodeURIComponent)으로 치환해서 새 탭으로 연다.
+    const USEFUL_LINK_SECTIONS = [
+      {
+        title: '캐릭터 스펙 조회',
+        items: [
+          { name: 'LOPEC', mainUrl: 'https://lopec.kr/', charUrlTemplate: 'https://lopec.kr/character/specPoint/{name}' },
+          { name: 'LOAWA', mainUrl: 'https://loawa.com/', charUrlTemplate: 'https://loawa.com/char/{name}' },
+          { name: 'KLOA', mainUrl: 'https://kloa.gg/', charUrlTemplate: 'https://kloa.gg/characters/{name}' },
+          { name: 'ILOA', mainUrl: 'https://iloa.gg/', charUrlTemplate: 'https://iloa.gg/character/{name}' },
+          { name: 'LOALAB', mainUrl: 'https://lo4.app/', charUrlTemplate: 'https://lo4.app/characters?name={name}' },
+          { name: '다중 검색', url: 'https://loawa.com/ezsearch' }
+        ]
+      },
+      {
+        title: '강화 계산',
+        items: [
+          { name: '재련 최적화(아이스펭)', url: 'https://loa.icepeng.com/refining' },
+          { name: '재련 최적화(로아랩)', url: 'https://lo4.app/tools/normal-refine' },
+          { name: '강화 계산기(로아베스팅)', url: 'https://www.loavesting.com/calculator/t4' },
+          { name: '강화 계산기(loacal)', url: 'https://loacal-beta.up.railway.app/tools?tab=refine' }
+        ]
+      },
+      {
+        title: '재화 계산',
+        items: [
+          { name: '경매 계산기(로아차트)', url: 'https://loachart.com/bidcalc' },
+          { name: '경매 계산기(로아랩)', url: 'https://lo4.app/tools/auction-calculator' },
+          { name: '더보기 효율 계산기', url: 'https://loachart.com/rewardcalc' },
+          { name: '도감작 계산기', url: 'https://loachart.com/cardcalc/recommend' },
+          { name: '생활가루 계산기', url: 'https://lostgld.com/conversion' }
+        ]
+      },
+      {
+        title: '기타 유용한 도구',
+        items: [
+          { name: '로아랩 도구 모음', action: 'openLoarabToolsModal()' },
+          { name: '염색 도우미', url: 'https://loacal-beta.up.railway.app/tools?tab=dye' },
+          { name: '히든 업적 체크리스트', url: 'https://loa-hidden-check.vercel.app/' },
+          { name: '떠돌이 상인 (KLOA)', url: 'https://kloa.gg/merchant' },
+          { name: '스토브 플레이크', url: 'https://reward.onstove.com/ko/event' }
+        ]
+      },
+      {
+        title: '기간 한정 이벤트',
+        temporary: true,
+        items: [
+          { name: '티카투카 시뮬레이터', url: 'https://loadoss.com/tikatuka' }
+        ]
+      }
+    ];
+
+    // 캐릭터 현황에서 캐릭터명 클릭 시 뜨는 목록도 스펙 조회 사이트 3곳을 그대로 재사용한다.
+    const CHAR_LOOKUP_SITES = USEFUL_LINK_SECTIONS[0].items
+      .filter(it => it.charUrlTemplate)
+      .map(it => ({ name: it.name, urlTemplate: it.charUrlTemplate }));
+
+    // "기타 유용한 도구"의 로아랩 버튼에서 뜨는, 로아랩 세부 도구 선택 모달
+    const LOARAB_TOOLS = [
+      { name: '낙원-지옥 보상 효율', url: 'https://lo4.app/tools/hell-reward' },
+      { name: '치명타 계산기', url: 'https://lo4.app/tools/blunt-thorn' },
+      { name: '음돌 계산기', url: 'https://lo4.app/tools/supersonic-breakthrough' }
+    ];
+
+    function openLoarabToolsModal() {
+      document.getElementById('loarabToolsModalItems').innerHTML = LOARAB_TOOLS.map(tool =>
+        `<button onclick="window.open('${tool.url}', '_blank', 'noopener'); closeLoarabToolsModal();" class="w-full text-left px-3 py-2.5 rounded-lg text-sm font-medium bg-gray-800 text-gray-200 hover:bg-gray-700 transition">${tool.name}</button>`
+      ).join('');
+      document.getElementById('loarabToolsModal').classList.remove('hidden');
+      drawIcons();
+    }
+
+    function closeLoarabToolsModal() {
+      document.getElementById('loarabToolsModal').classList.add('hidden');
+    }
+
+    function renderUsefulLinksView() {
+      const container = document.getElementById('usefulLinksContainer');
+      if (!container) return;
+      const myMainChar = selectedUser ? (mainCharByUser[selectedUser] || '') : '';
+
+      container.innerHTML = USEFUL_LINK_SECTIONS.map(section => {
+        const badge = section.temporary
+          ? `<span class="text-[10px] px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-500/50 ml-1.5 align-middle">기간 한정</span>`
+          : '';
+
+        const cards = section.items.map(item => {
+          if (item.charUrlTemplate) {
+            const charBtn = myMainChar
+              ? `<button onclick="window.open('${item.charUrlTemplate.replace('{name}', encodeURIComponent(myMainChar))}', '_blank', 'noopener')" class="px-2.5 py-1 rounded-md text-xs font-semibold bg-yellow-500/20 text-yellow-400 border border-yellow-500/50 hover:bg-yellow-500/30 transition">대표캐릭터</button>`
+              : `<button disabled title="상단에서 본인 이름을 선택하면 대표캐릭터로 바로 조회할 수 있어요" class="px-2.5 py-1 rounded-md text-xs font-semibold bg-gray-800/50 text-gray-600 border border-gray-800 cursor-not-allowed">대표캐릭터</button>`;
+            return `
+              <div class="card-bg p-3 rounded-xl border border-gray-800 flex items-center justify-between gap-2 flex-wrap">
+                <div class="text-sm font-semibold text-white">${item.name}</div>
+                <div class="flex items-center gap-1.5 flex-wrap">
+                  <button onclick="window.open('${item.mainUrl}', '_blank', 'noopener')" class="px-2.5 py-1 rounded-md text-xs font-medium bg-gray-800 text-gray-300 hover:bg-gray-700 transition">바로가기</button>
+                  ${charBtn}
+                </div>
+              </div>`;
+          }
+          // 버튼이 하나뿐인 항목은 카드 전체를 탭 영역으로 써서(특히 모바일에서) 누르기 쉽게 한다.
+          // action 항목은 새 탭이 아니라 이 화면 안에서 모달을 띄우는 것이므로, 외부 이동을 뜻하는 화살표 대신 목록 아이콘을 쓴다.
+          const clickHandler = item.action || `window.open('${item.url}', '_blank', 'noopener')`;
+          const cardIcon = item.action ? 'list' : 'arrow-up-right';
+          return `
+            <div onclick="${clickHandler}" class="card-bg p-3 rounded-xl border border-gray-800 flex items-center justify-between gap-2 cursor-pointer hover:border-gray-600 hover:bg-white/5 transition">
+              <div class="text-sm font-semibold text-white">${item.name}</div>
+              <i data-lucide="${cardIcon}" class="w-4 h-4 text-gray-500 shrink-0"></i>
+            </div>`;
+        }).join('');
+
+        return `
+          <div>
+            <h3 class="text-sm font-bold text-gray-300 mb-2">${section.title}${badge}</h3>
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">${cards}</div>
+          </div>`;
+      }).join('');
+    }
+
+    // 캐릭터 현황 카드에서 캐릭터명을 클릭하면 뜨는, 스펙 조회 사이트 선택 모달
+    let charLinkModalCharName = null;
+
+    function openCharLinkModal(charName) {
+      charLinkModalCharName = charName;
+      document.getElementById('charLinkModalLabel').textContent = charName;
+      document.getElementById('charLinkModalItems').innerHTML = CHAR_LOOKUP_SITES.map(site =>
+        `<button onclick="openCharLookup('${site.urlTemplate}')" class="w-full text-left px-3 py-2.5 rounded-lg text-sm font-medium bg-gray-800 text-gray-200 hover:bg-gray-700 transition">${site.name}</button>`
+      ).join('');
+      document.getElementById('charLinkModal').classList.remove('hidden');
+      drawIcons();
+    }
+
+    function closeCharLinkModal() {
+      charLinkModalCharName = null;
+      document.getElementById('charLinkModal').classList.add('hidden');
+    }
+
+    function openCharLookup(urlTemplate) {
+      if (!charLinkModalCharName) return;
+      window.open(urlTemplate.replace('{name}', encodeURIComponent(charLinkModalCharName)), '_blank', 'noopener');
+      closeCharLinkModal();
+    }
+
+    // Sync.gs 가 Config 시트에 'yyyy-MM-dd HH:mm' 그대로(텍스트 고정) 남긴 값을 표시용으로 짧게 자른다.
+    // Date 파싱을 쓰지 않는 이유: 브라우저 로케일에 따라 문자열이 달라질 수 있어 직접 정규식으로 뗀다.
+    function formatPoolSyncedAt(raw) {
+      const m = (raw || '').match(/^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2})/);
+      if (!m) return raw;
+      return `${parseInt(m[2], 10)}/${parseInt(m[3], 10)} ${m[4]}:${m[5]}`;
+    }
+
     function renderPoolView() {
       const grid = document.getElementById('poolGrid');
       const uFilter = document.getElementById('poolUserFilter').value;
@@ -2392,6 +2854,13 @@
 
       const poolCountEl = document.getElementById('poolCount');
       if (poolCountEl) poolCountEl.textContent = filtered.length;
+
+      const syncedLabelEl = document.getElementById('poolLastSyncedLabel');
+      if (syncedLabelEl) {
+        syncedLabelEl.textContent = siteConfig.poolLastSyncedAt
+          ? `최종 갱신: ${formatPoolSyncedAt(siteConfig.poolLastSyncedAt)}`
+          : '';
+      }
 
       if (filtered.length === 0) {
         grid.innerHTML = `<div class="col-span-full py-16 text-center text-gray-500 card-bg rounded-xl">조건에 맞는 캐릭터가 없습니다.</div>`;
@@ -2445,7 +2914,7 @@
               <div>
                 <div class="text-xs text-gray-400 font-medium mb-0.5">${c.user} (${c.server})</div>
                 <div class="text-base font-bold text-white flex items-center space-x-2">
-                  <span>${c.name}</span>
+                  <span class="cursor-pointer hover:underline decoration-dashed" onclick="openCharLinkModal('${c.name.replace(/'/g, "\\'")}')" title="클릭해서 스펙 조회 사이트 열기">${c.name}</span>
                   ${counterHtml}
                 </div>
               </div>
@@ -2747,7 +3216,7 @@
     };
 
     function parseSiteConfig(rows) {
-      siteConfig = { maintenanceMode: false, noticeText: '', subGroupDays: { ...DEFAULT_SUB_GROUP_DAYS }, raidWeekAnchor: '' };
+      siteConfig = { maintenanceMode: false, noticeText: '', subGroupDays: { ...DEFAULT_SUB_GROUP_DAYS }, raidWeekAnchor: '', poolLastSyncedAt: '' };
       if (!rows || rows.length < 2) return;
 
       const map = {};
@@ -2761,6 +3230,7 @@
       siteConfig.maintenanceMode = (map['점검모드'] || '').toUpperCase() === 'TRUE';
       siteConfig.noticeText = map['공지문구'] || '';
       siteConfig.raidWeekAnchor = map['현재레이드주차'] || '';
+      siteConfig.poolLastSyncedAt = map['캐릭터풀_최종갱신'] || ''; // Sync.gs updateCharacterPool_ 가 매시간 성공 시 갱신
 
       Object.keys(DEFAULT_SUB_GROUP_DAYS).forEach(sheetId => {
         const num = sheetId.replace('Sub_Group', '');
@@ -2771,8 +3241,31 @@
       });
     }
 
-    // 점검모드 전체 화면. fetchSheetData 가 Config 를 가장 먼저 확인해서, 점검모드면
-    // 이후 어떤 파싱/렌더링도 하지 않고 이 화면만 띄운 채로 멈춘다.
+    // 점검 배너 표시.
+    // dev 빌드는 공대원이 아니라 나 혼자 테스트하는 환경이라, 실제 정식 화면이
+    // 어떻게 보이는지 그대로 재현해야 검증 의미가 있다. 배너가 dev 에도 뜨면
+    // '정상 상태의 정식 화면'을 확인할 방법이 없어지므로, dev 에서는 항상 숨긴다.
+    function renderMaintenanceBanner() {
+      const banner = document.getElementById('maintenanceBanner');
+      if (!banner) return;
+
+      if (typeof IS_DEV !== 'undefined' && IS_DEV) {
+        banner.classList.add('hidden');
+        return;
+      }
+
+      const textEl = document.getElementById('maintenanceBannerText');
+      if (!siteConfig.maintenanceMode || !siteConfig.noticeText) {
+        banner.classList.add('hidden');
+        return;
+      }
+
+      textEl.textContent = siteConfig.noticeText;
+      banner.classList.remove('hidden');
+    }
+
+    // 점검모드 전체 화면. 운영(index.html)과 동일한 함수 - fetchSheetData 에서 IS_DEV 면 애초에
+    // 호출되지 않으니 여기선 항상 정상 동작만 하면 된다 (IS_DEV 를 잠깐 false 로 바꿔서 미리보기 할 때 대비).
     function renderMaintenanceScreen() {
       const screen = document.getElementById('maintenanceScreen');
       const main = document.getElementById('mainContent');
@@ -3412,6 +3905,7 @@
       const select = document.getElementById('addBlockRaidSelect');
       select.innerHTML = '<option value="" class="bg-[#161b22]">레이드를 선택해 주세요</option>' + buildAddBlockRaidOptions();
       select.value = '';
+      syncCustomSelect('addBlockRaidSelect');
 
       document.getElementById('addBlockCapacitySection').classList.add('hidden');
       const searchInput = document.getElementById('addBlockSearchInput');
