@@ -4,6 +4,9 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>로아 공대 - 로스트아크 레이드 대시보드</title>
+  <!-- 파비콘: 캘린더 + 체크 마크, 더스티 블루 타일. 자리표시로 바로 쓸 수 있게 SVG data URI로 넣음 -
+       나중에 더 나은 아이디어가 떠오르면 이 한 줄만 바꾸면 됨. -->
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='14' fill='%236b8cae'/><rect x='15' y='17' width='34' height='32' rx='6' fill='none' stroke='white' stroke-width='4'/><rect x='15' y='17' width='34' height='10' rx='5' fill='white'/><path d='M23 38 L29 44 L42 31' fill='none' stroke='white' stroke-width='5' stroke-linecap='round' stroke-linejoin='round'/></svg>" />
   <link rel="preconnect" href="https://docs.google.com" crossorigin />
   <link rel="dns-prefetch" href="https://docs.google.com" />
 
@@ -93,15 +96,6 @@
       .slot-meta { flex-direction: row; align-items: center; column-gap: 0.5rem; }
       .slot-job { display: inline; }
     }
-    /* 캐릭터 현황 카드: 카드 콘텐츠 폭 300px 미만이면 레이드 배지를 1글자(종/4/성/세/벨)로.
-       풀 라벨 5개 + 레벨의 최대 필요 폭이 ~294px 이라 300 을 경계로 둔다. */
-    .pool-card { container-type: inline-size; }
-    .raid-tag-full { display: none; }
-    .raid-tag-short { display: inline; }
-    @container (min-width: 300px) {
-      .raid-tag-full { display: inline; }
-      .raid-tag-short { display: none; }
-    }
     .modal-scroll::-webkit-scrollbar {
       width: 6px;
     }
@@ -126,7 +120,7 @@
           <i data-lucide="shield" class="w-6 h-6 text-yellow-500"></i>
           <span class="font-bold text-lg text-white tracking-wide whitespace-nowrap"><span class="sm:hidden">공대</span><span class="hidden sm:inline">로아 공대</span></span>
           <button onclick="openInfoModal('changelog')" class="text-[10px] font-mono font-bold px-1.5 sm:px-2 py-0.5 rounded bg-yellow-500/10 text-yellow-400 border border-yellow-500/30 hover:bg-yellow-500/20 transition cursor-pointer" title="클릭하여 업데이트 이력 확인">
-            v2.6
+            v2.7
           </button>
         </div>
 
@@ -367,7 +361,10 @@
       </div>
 
       <div class="flex items-center justify-between text-xs text-gray-400 mb-3 -mt-2">
-        <span>조회된 캐릭터: <strong id="poolCount" class="text-yellow-400">0</strong>개</span>
+        <span class="flex items-center gap-2">
+          <span>조회된 캐릭터: <strong id="poolCount" class="text-yellow-400">0</strong>개</span>
+          <button type="button" id="poolHiddenCharsLink" onclick="openHiddenCharsModal()" class="hidden text-gray-500 hover:text-gray-300 underline decoration-dashed transition"></button>
+        </span>
         <span id="poolLastSyncedLabel" class="text-[11px] text-gray-500"></span>
       </div>
 
@@ -405,8 +402,6 @@
         </div>
       </div>
     </div>
-
-    <!-- 4. [DEV 전용] 레벨 구간별 골드 기준표 디버그 뷰 -->
   </main>
 
   <!-- 원클릭 캐릭터 즉시 변경 모달 -->
@@ -522,12 +517,43 @@
       </div>
       <p class="text-xs text-gray-400 mb-3" id="raidProgressStatusText"></p>
 
-      <div id="raidProgressRoster" class="mb-5 space-y-1"></div>
+      <div id="raidProgressRoster" class="mb-3 space-y-1"></div>
+
+      <button onclick="openAuctionCalcModal()" class="w-full mb-3 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold text-gray-300 hover:text-white bg-gray-800 hover:bg-gray-700 border border-gray-700 transition">
+        <i data-lucide="gavel" class="w-3.5 h-3.5 text-cyan-400"></i>
+        <span>경매 계산기</span>
+      </button>
 
       <div class="flex items-center justify-between gap-2">
         <button onclick="cancelRaidBlock()" class="px-3 py-2 rounded-lg text-xs font-semibold text-red-400 hover:text-red-300 bg-red-950/40 border border-red-900/60 transition">되돌리기</button>
         <button onclick="completeRaidBlock()" class="px-4 py-2 rounded-lg text-xs font-bold text-black bg-emerald-400 hover:bg-emerald-300 transition">완료 처리</button>
       </div>
+    </div>
+  </div>
+
+  <!-- 레이드 진행 관리 모달의 "경매 계산기" 버튼에서만 열리는, 경매 입찰가 계산기 -->
+  <div id="auctionCalcModal" onclick="if (event.target === this) closeAuctionCalcModal()" class="js-modal fixed inset-0 z-50 bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="card-bg w-full max-w-sm rounded-2xl p-6 border border-gray-700 shadow-2xl relative">
+      <button onclick="closeAuctionCalcModal()" class="absolute top-4 right-4 text-gray-400 hover:text-white">
+        <i data-lucide="x" class="w-5 h-5"></i>
+      </button>
+      <div class="flex items-center space-x-2 text-yellow-400 mb-4">
+        <i data-lucide="coins" class="w-5 h-5"></i>
+        <h3 class="text-sm font-bold text-white">경매 계산기</h3>
+      </div>
+
+      <label class="block text-xs font-semibold text-gray-400 mb-1.5">아이템 가격</label>
+      <input type="number" id="auctionCalcPriceInput" oninput="renderAuctionCalcResult()" placeholder="0"
+        class="w-full bg-[#0d1117] border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-yellow-500 transition mb-3" />
+
+      <div class="grid grid-cols-3 gap-1.5 mb-4" id="auctionCalcPartySizeGroup">
+        <button type="button" onclick="setAuctionCalcPartySize(4)" data-size="4" class="px-2.5 py-1.5 rounded-md text-xs font-semibold transition">4인</button>
+        <button type="button" onclick="setAuctionCalcPartySize(8)" data-size="8" class="px-2.5 py-1.5 rounded-md text-xs font-semibold transition">8인</button>
+        <button type="button" onclick="setAuctionCalcPartySize(16)" data-size="16" class="px-2.5 py-1.5 rounded-md text-xs font-semibold transition">16인</button>
+      </div>
+
+      <div id="auctionCalcResult" class="space-y-1.5"></div>
+      <p class="text-[11px] text-gray-600 mt-3">낙찰가는 클릭하면 복사됩니다.</p>
     </div>
   </div>
 
@@ -596,17 +622,17 @@
     </div>
   </div>
 
-  <!-- "기타 유용한 도구" 로아랩 버튼 클릭 시 뜨는, 로아랩 세부 도구 선택 모달 -->
-  <div id="loarabToolsModal" onclick="if (event.target === this) closeLoarabToolsModal()" class="js-modal fixed inset-0 z-50 bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-4">
-    <div class="card-bg w-full max-w-sm rounded-2xl p-6 border border-gray-700 shadow-2xl relative">
-      <button onclick="closeLoarabToolsModal()" class="absolute top-4 right-4 text-gray-400 hover:text-white">
+  <!-- 캐릭터 현황의 "숨긴 캐릭터 N명" 링크에서 여는, 숨긴 캐릭터 목록/해제 모달 -->
+  <div id="hiddenCharsModal" onclick="if (event.target === this) closeHiddenCharsModal()" class="js-modal fixed inset-0 z-50 bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="card-bg w-full max-w-sm max-h-[70vh] rounded-2xl p-6 border border-gray-700 shadow-2xl relative flex flex-col">
+      <button onclick="closeHiddenCharsModal()" class="absolute top-4 right-4 text-gray-400 hover:text-white">
         <i data-lucide="x" class="w-5 h-5"></i>
       </button>
       <div class="flex items-center space-x-2 text-yellow-400 mb-4">
-        <i data-lucide="wrench" class="w-5 h-5"></i>
-        <h3 class="text-sm font-bold text-white">로아랩 도구 바로가기</h3>
+        <i data-lucide="eye-off" class="w-5 h-5"></i>
+        <h3 class="text-sm font-bold text-white">숨긴 캐릭터</h3>
       </div>
-      <div id="loarabToolsModalItems" class="space-y-2"></div>
+      <div id="hiddenCharsModalItems" class="space-y-2 overflow-y-auto modal-scroll pr-1.5 flex-1"></div>
     </div>
   </div>
 
@@ -764,6 +790,12 @@
             </ul>
           </div>
           <div class="bg-[#0d1117] p-3.5 rounded-xl border border-gray-800">
+            <h4 class="font-bold text-xs mb-1.5 text-yellow-400">Q. 캐릭터 현황에서 레이드 뱃지가 몇 개 안 보여요.</h4>
+            <p class="text-xs text-gray-300 leading-relaxed">
+              레벨이 높아져서 더 이상 챙길 필요 없는 오래된 레이드는 자동으로 목록에서 빠집니다. 반대로 아직 레벨이 낮아 못 가는 레이드는 계속 잠금 표시로 보여줍니다.
+            </p>
+          </div>
+          <div class="bg-[#0d1117] p-3.5 rounded-xl border border-gray-800">
             <h4 class="font-bold text-xs mb-1.5 text-yellow-400">Q. 캐릭터 이름 옆의 (2/3)과 '골드 제외'는 무엇인가요?</h4>
             <ul class="text-xs text-gray-300 space-y-1 list-disc pl-4">
               <li><strong>(2/3)</strong> : 이번 주 골드 3칸 중 채운 개수입니다. 선택 구간 2개를 다 돌아도 골드는 1칸이라 1로 셉니다.</li>
@@ -777,9 +809,21 @@
             </p>
           </div>
           <div class="bg-[#0d1117] p-3.5 rounded-xl border border-gray-800">
+            <h4 class="font-bold text-xs mb-1.5 text-yellow-400">Q. 캐릭터 목록에서 특정 캐릭터를 안 보이게 할 수 있나요?</h4>
+            <p class="text-xs text-gray-300 leading-relaxed">
+              카드 우측 상단의 눈 모양 아이콘을 누르면 캐릭터 현황 목록에서 숨길 수 있습니다. 골드/숙제 기록은 그대로 남고, "숨긴 캐릭터 N명" 링크에서 언제든 다시 보이게 할 수 있습니다.
+            </p>
+          </div>
+          <div class="bg-[#0d1117] p-3.5 rounded-xl border border-gray-800">
             <h4 class="font-bold text-xs mb-1.5 text-yellow-400">Q. [진행] / [완료 처리] 버튼은 무엇인가요?</h4>
             <p class="text-xs text-gray-300 leading-relaxed">
-              레이드를 시작하면 <strong>[진행]</strong> 버튼을 눌러 진행중으로 표시하고, 끝나면 <strong>[완료 처리]</strong>를 눌러주세요. 완료 처리해야 캐릭터 현황의 체크(V)가 반영됩니다. 헤더의 <strong>[현재 레이드]</strong> 배지에서 지금 진행중인 레이드를 한눈에 볼 수 있습니다.
+              레이드를 시작하면 <strong>[진행]</strong> 버튼을 눌러 진행중으로 표시하고, 끝나면 <strong>[완료 처리]</strong>를 눌러주세요. 완료 처리해야 캐릭터 현황에 체크로 반영됩니다. 헤더의 <strong>[현재 레이드]</strong> 배지에서 지금 진행중인 레이드를 한눈에 볼 수 있습니다.
+            </p>
+          </div>
+          <div class="bg-[#0d1117] p-3.5 rounded-xl border border-gray-800">
+            <h4 class="font-bold text-xs mb-1.5 text-yellow-400">Q. 레이드 진행 관리 창의 [경매 계산기]는 어떻게 쓰나요?</h4>
+            <p class="text-xs text-gray-300 leading-relaxed">
+              진행 관리 창에서 <strong>[경매 계산기]</strong> 버튼을 누르면 그 레이드 인원수가 자동으로 선택된 상태로 뜹니다. 아이템 가격을 넣으면 직접 사용가 / 선점가 등을 계산해주고, 값을 클릭하면 바로 복사됩니다.
             </p>
           </div>
           <div class="bg-[#0d1117] p-3.5 rounded-xl border border-gray-800">
@@ -806,10 +850,25 @@
         <div id="infoContentChangelog" class="space-y-3 hidden">
           <div class="border-l-2 border-yellow-500 pl-3 py-1 mb-3">
             <div class="flex items-center justify-between">
-              <span class="font-bold text-white text-xs">v2.6 - 유용한 링크 탭 추가</span>
-              <span class="text-[11px] text-gray-500">2026.09.12</span>
+              <span class="font-bold text-white text-xs">v2.7 - 유용한 링크 확장 + 경매 계산기 + 캐릭터 숨기기</span>
+              <span class="text-[11px] text-gray-500">2026.09.13</span>
             </div>
             <ul class="text-xs text-gray-400 mt-1 space-y-0.5 list-disc pl-3">
+              <li>유용한 링크 탭: 재련 최적화 / 강화 계산기를 사이트별 버튼 하나로 통합, 지옥 보상 · 젬파고 링크 추가</li>
+              <li>스펙 조회 사이트 이름을 로펙 / 로아와 / 로아랩으로 표기</li>
+              <li>레이드 진행 관리 창에 경매 계산기 추가 (인원수 자동 선택, 입찰가 클릭 시 복사)</li>
+              <li>캐릭터 현황에서 캐릭터 숨기기 기능 추가 (언제든 다시 볼 수 있음)</li>
+              <li>레벨이 높아져 더 이상 챙기지 않아도 되는 오래된 레이드는 뱃지가 자동으로 정리됨</li>
+              <li>캐릭터 풀에 들어오는 최소 레벨 기준을 낮춤 (점핑권 지급 기준에 맞춤)</li>
+            </ul>
+          </div>
+
+          <div class="border-l-2 border-gray-700 pl-3 py-1 mb-3">
+            <div class="flex items-center justify-between">
+              <span class="font-bold text-gray-300 text-xs">v2.6 - 유용한 링크 탭 추가</span>
+              <span class="text-[11px] text-gray-500">2026.09.12</span>
+            </div>
+            <ul class="text-xs text-gray-500 mt-1 space-y-0.5 list-disc pl-3">
               <li>유용한 링크 탭 추가 (스펙 조회, 강화/재화 계산기 등 자주 쓰는 외부 도구 모음)</li>
               <li>캐릭터 현황 캐릭터명 클릭 시 스펙 조회 가능</li>
               <li>상단 탭 구성 정리 (일정표 / 캐릭터 현황 / 기타)</li>
@@ -961,7 +1020,22 @@
     const IS_DEV = false;  // 정식(index.html). dev.html 은 true 로 되어 있다.
     const SPREADSHEET_ID = '1dDM5LoLM75hhojd8p1vA-095J-HcOgFQPTQiaErXHi0';
     const APPS_SCRIPT_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbwM4McotA-ZAQkfQGzP4572om4cJQkTp0-eyLPVOOPRSUeMdB0RMx23qZxcVBht4RYV/exec';
-    
+
+    // 서버에 no-cors POST로 액션을 보낸다 - 응답을 읽을 수 없는 fire-and-forget 방식이라, 호출부는
+    // 항상 먼저 화면 상태를 낙관적으로 갱신해둔 뒤 이 함수를 호출한다(실패해도 별도 알림 없이 콘솔에만 기록).
+    async function postAction(action, payload, errorLabel) {
+      try {
+        await fetch(APPS_SCRIPT_WEB_APP_URL, {
+          method: 'POST',
+          mode: 'no-cors',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(Object.assign({ action }, payload))
+        });
+      } catch (err) {
+        console.error(`${errorLabel || action} 오류:`, err);
+      }
+    }
+
     const SHEET_CONFIG = [
       { id: 'Main_8Man', fixedTitle: '[토요일 고정]', is8Man: true },
       { id: 'Sub_Group1', is8Man: false },
@@ -979,13 +1053,22 @@
       { key: 'belga', label: '벨가', minLevel: 1750 }
     ];
 
+    // 캐릭터 현황 카드에 한 번에 배지로 보여줄 레이드 계열 최대 개수.
+    // 4 = 주간 골드 획득 가능 레이드 수(GOLD_SLOT_LIMIT=3) + 선택 구간 후보 1개. 레벨이 높아
+    // 이미 골드 대상에서 벗어난(NONE 티어) 오래된 레이드는 안 보여줘도 실질적인 손실이 없다는
+    // 전제(2026-09-13, 실제 골드 티어 계산과 대조해서 전 레벨대 검증 완료 - EARN/MAYBE 레이드가
+    // 창 밖으로 밀려나는 경우 없음)로 정한 값. getVisibleRaidDefsForLevel() 참고.
+    // 이 값은 레벨 기준 정렬(getOrderedRaidFamilies)로 숨김 여부를 정하지, 그때그때의 실제 골드
+    // 티어를 직접 보는 게 아니다 - 나중에 BOUND_GOLD_WEIGHT_LOW/HIGH나 레이드 골드량이 바뀌면
+    // 위 검증(각 레벨대에서 EARN/MAYBE 레이드가 숨겨지는지)을 다시 해볼 것.
+    const VISIBLE_RAID_WINDOW = 4;
+
     // ─── 골드 판별 엔진 설정 ───────────────────────────────────
     // 주간 골드 획득 가능 레이드 수
     const GOLD_SLOT_LIMIT = 3;
     // 귀속골드를 유통골드 대비 몇 배로 칠 것인가(가중치 w).
     // 사람마다 판단이 달라서 하나로 못 정하므로 범위로 다룬다.
     // 두 끝값 모두에서 상위 3개에 들면 '확정', 한쪽에서만 들면 '선택 구간'.
-    // 값을 조정하려면 [DEV] 기준표의 '역전 w' 컬럼을 보고 판단할 것.
     const BOUND_GOLD_WEIGHT_LOW = 0.8;
     const BOUND_GOLD_WEIGHT_HIGH = 1.0;
     // 선택 구간 공통 안내 문구 (짝을 특정할 수 없을 때의 기본값)
@@ -995,7 +1078,6 @@
     const ATTENDANCE_WEEKS = 4;
     const ATTENDANCE_STATUSES = ['불참', '지각', '미정'];
 
-    // 건의사항 분류
     const SUGGEST_CATEGORIES = ['기능 추가', '버그 신고', '기타'];
     let pendingSuggestCategory = SUGGEST_CATEGORIES[0];
 
@@ -1023,6 +1105,8 @@
     let slotGoldStatusMap = {};
     let characterPoolData = [];
     let mainCharByUser = {}; // Members 시트: 유저명(본계정 기준) -> 대표캐릭터명. "유용한 링크" 탭의 대표캐릭터 조회 링크용
+    let hiddenCharNames = new Set(); // Hidden_Characters 시트: 캐릭터 현황에서 숨긴 캐릭터명 목록 (화면 표시 여부만 결정, Character_Pool 자체는 그대로)
+    let wildClearsData = new Set(); // Wild_Clears 시트: 개별 수동 완료(W) 목록, "캐릭터명|레이드키" 형태로 저장. V(일정표 자동)는 저장 없이 그때그때 계산.
     let raidInfoData = [];
     let activeSwapTarget = null;
     let pendingSwapChar = null;
@@ -1044,7 +1128,7 @@
     let activeProgressTarget = null;  // 진행/완료 모달이 대상으로 하는 블록 정보
     // 자동 팝업 중복 방지 - 이미 띄운 진행중 건은 같은 건이 유지되는 동안 다시 띄우지 않는다.
     let lastAutoPopupKey = null;
-    let siteConfig = { maintenanceMode: false, noticeText: '', subGroupDays: {}, raidWeekAnchor: '', poolLastSyncedAt: '' };  // Config 시트 원본
+    let siteConfig = { maintenanceMode: false, noticeText: '', subGroupDays: {}, raidWeekAnchor: '', poolLastSyncedAt: '', appVersion: '' };  // Config 시트 원본
     let suggestionsData = [];         // Suggestions 시트 원본
     // 시트별로 편성 인스턴스를 나눠 보관한다. 한 시트만 다시 받아도 골드 재계산이 가능해진다.
     let allRaidInstancesBySheet = {};
@@ -1057,6 +1141,15 @@
     // gviz 요청이 실패 응답도 없이 그냥 무한 대기할 때(구글시트 자체가 멈췄을 때 실제로 겪음)
     // 이 시간이 지나면 강제로 중단시킨다. 없으면 새로고침 스피너가 영원히 안 멎는다.
     const FETCH_TIMEOUT_MS = 10000;
+    // Raid_Status/Config 전용 짧은 주기 폴링 간격. 이 탭이 계속 포커스를 잡고 있으면 전체 갱신은
+    // 다시 안 도는데(위 visibilitychange 참고), 그래도 (1) 다른 사람이 레이드 진행/완료 처리한 걸
+    // 놓치지 않아야 하고 (2) 운영 버전이 바뀐 걸 알아채야 해서, 이 두 시트만 가볍게 따로 돈다.
+    // 둘 다 몇 KB 안 되는 시트라 15초 주기로도 트래픽/성능 부담이 없다(gviz 읽기는 Apps Script
+    // 일일 할당량과도 무관 - project_loa_dashboard_status 참고).
+    const RAID_STATUS_POLL_MS = 15000;
+    // 운영(index.html)에 배포된 실제 버전. Config 시트 '앱버전' 값과 달라지면 새로고침을 유도한다.
+    // dev.html은 빌드 번호가 세션마다 바뀌므로 이 체크 자체를 IS_DEV로 건너뛴다.
+    const APP_VERSION = '2.7';
     let pendingAttendance = { date: '', status: '', memo: '' };
 
     document.addEventListener('DOMContentLoaded', () => {
@@ -1102,6 +1195,53 @@
       if (Date.now() - lastFullSyncAt < FULL_REFRESH_MS) return;
       fetchSheetData();
     });
+
+    // Raid_Status/Config 전용 짧은 주기 폴링. 탭에 계속 포커스가 가있어서 위 visibilitychange가
+    // 안 돌더라도, 다른 사람의 레이드 진행/완료 처리와 운영 버전 변경만큼은 놓치지 않게 한다.
+    // 완료/버전 변경은 흔한 일이 아니라서(대부분의 tick은 "가져와보니 그대로") 매번 화면을
+    // 다시 그리면 저사양 PC에서 낭비다 - 실제로 내용이 달라졌을 때만 다시 그린다.
+    let lastRaidStatusRaw = null;
+    let lastConfigRaw = null;
+
+    function renderRaidStatusDependents() {
+      recalcGoldFromStore();
+      renderTabs();
+      renderActiveTabContent();
+      renderCurrentRaidsBadge();
+      if (currentMainView === 'pool') renderPoolView();
+      drawIcons();
+    }
+
+    async function pollRaidStatusAndVersion() {
+      if (siteConfig.maintenanceMode && !IS_DEV) return; // 점검 화면에서는 조용히 쉰다
+      const bust = Date.now();
+      const [statusRows, configRows] = await Promise.all([
+        fetchSheetCsv('Raid_Status', bust).catch(() => null),
+        fetchSheetCsv('Config', bust).catch(() => null)
+      ]);
+
+      if (statusRows) {
+        lastSheetFetchAt['Raid_Status'] = Date.now(); // 다른 곳(탭 전환 등)의 중복 재조회 방지용으로도 갱신
+        const raw = JSON.stringify(statusRows);
+        if (raw !== lastRaidStatusRaw) {
+          lastRaidStatusRaw = raw;
+          parseRaidStatus(statusRows);
+          renderRaidStatusDependents();
+          maybeAutoPopupCurrentRaid();
+        }
+      }
+
+      if (configRows) {
+        lastSheetFetchAt['Config'] = Date.now();
+        const raw = JSON.stringify(configRows);
+        if (raw !== lastConfigRaw) {
+          lastConfigRaw = raw;
+          parseSiteConfig(configRows);
+          maybeForceReloadOnVersionMismatch();
+        }
+      }
+    }
+    setInterval(pollRaidStatusAndVersion, RAID_STATUS_POLL_MS);
 
     // ─── 커스텀 드롭다운(네이티브 select 대체) ─────────────────────────────
     // select 팝업(펼쳤을 때 뜨는 목록)은 브라우저가 직접 그려서 CSS로 모양을 못 바꾼다.
@@ -1161,7 +1301,7 @@
       label.textContent = isUnselectedUserSelector ? '' : (current ? current.textContent : '');
 
       panel.innerHTML = options.map(o => `
-        <button type="button" onclick="selectCustomOption('${selectId}', '${o.value.replace(/'/g, "\\'")}')"
+        <button type="button" onclick="selectCustomOption('${selectId}', '${escQ(o.value)}')"
           class="w-full text-left px-3 py-2 text-xs transition ${o.value === select.value ? 'bg-yellow-500/15 text-yellow-400 font-semibold' : 'text-gray-300 hover:bg-gray-800'}">${o.textContent}</button>
       `).join('');
     }
@@ -1241,7 +1381,7 @@
       drawIcons();
 
       // 각 뷰가 실제로 쓰는 시트만 뒤에서 갱신한다
-      if (view === 'pool') refreshSheets(['Character_Pool']);
+      if (view === 'pool') refreshSheets(['Character_Pool', 'Raid_Status', 'Wild_Clears']);
       if (view === 'gold') refreshSheets(['Raid_Info']);
       if (view === 'links') refreshSheets(['Members']);
       if (view === 'schedule') {
@@ -1350,8 +1490,10 @@
               charName: sl.name,
               slotUid: sl.slotUid,
               raidTitle: b.title,
+              rawRaidTitle: b.rawTitle,
               sheetTitle: config.fixedTitle || config.id,
               sheetId: config.id,
+              blockIndex: sl.blockIndex,
               sheetRow: sl.sheetRow,
               colIndex: sl.colIndex,
               user: sl.user,
@@ -1394,8 +1536,10 @@
             charName: s.name,
             slotUid: s.slotUid,
             raidTitle: b.title,
+            rawRaidTitle: b.rawTitle,
             sheetTitle: cur.config.fixedTitle || sheetId,
             sheetId: sheetId,
+            blockIndex: s.blockIndex,
             sheetRow: s.sheetRow,
             colIndex: s.colIndex,
             user: s.user,
@@ -1408,7 +1552,6 @@
       recalcGoldFromStore();
     }
 
-    // 현재 보고 있는 화면만 다시 그린다.
     function renderCurrentViews() {
       populateUserSelector();
       renderTabs();
@@ -1453,6 +1596,9 @@
           else if (name === 'Suggestions') parseSuggestions(rows);
           else if (name === 'Raid_Status') parseRaidStatus(rows);
           else if (name === 'Members') parseMembers(rows);
+          else if (name === 'Config') parseSiteConfig(rows);
+          else if (name === 'Hidden_Characters') parseHiddenCharacters(rows);
+          else if (name === 'Wild_Clears') parseWildClears(rows);
           changed = true;
         });
 
@@ -1478,14 +1624,16 @@
       try {
         // 시트를 순차로 받으면 왕복 8번이 그대로 더해진다. 서로 의존하지 않으므로 전부 병렬로 받는다.
         const bust = Date.now();
-        const [sheetRows, poolRows, attRows, raidRows, configRows, statusRows, memberRows] = await Promise.all([
+        const [sheetRows, poolRows, attRows, raidRows, configRows, statusRows, memberRows, hiddenRows, wildRows] = await Promise.all([
           Promise.all(SHEET_CONFIG.map(cfg => fetchSheetCsv(cfg.id, bust))),
           fetchSheetCsv('Character_Pool', bust),
           fetchSheetCsv('Attendance', bust).catch(() => null),
           fetchSheetCsv('Raid_Info', bust).catch(() => null),
           fetchSheetCsv('Config', bust).catch(() => null),
           fetchSheetCsv('Raid_Status', bust).catch(() => null),
-          fetchSheetCsv('Members', bust).catch(() => null)
+          fetchSheetCsv('Members', bust).catch(() => null),
+          fetchSheetCsv('Hidden_Characters', bust).catch(() => null),
+          fetchSheetCsv('Wild_Clears', bust).catch(() => null)
         ]);
 
         // processScheduleSheet(enrichSlotFromPool 포함)가 characterPoolData 를 조회하므로,
@@ -1510,6 +1658,8 @@
 
         if (statusRows) parseRaidStatus(statusRows); else raidStatusData = [];
         if (memberRows) parseMembers(memberRows); else mainCharByUser = {};
+        if (hiddenRows) parseHiddenCharacters(hiddenRows); else hiddenCharNames = new Set();
+        if (wildRows) parseWildClears(wildRows); else wildClearsData = new Set();
         document.getElementById('mainContent').classList.remove('hidden');
         document.getElementById('maintenanceScreen').classList.add('hidden');
         renderMaintenanceBanner();
@@ -1555,6 +1705,27 @@
       });
     }
 
+    // Hidden_Characters 시트: A=캐릭터명, B=숨긴일시(표시용, 프론트에서는 안 씀).
+    // 시트 자체가 없을 수도 있어서(첫 숨기기 전까지는 생성 안 됨) rows가 비어있으면 그냥 빈 Set.
+    function parseHiddenCharacters(rows) {
+      hiddenCharNames = new Set(
+        rows.slice(1).map(row => (row[0] || '').toString().trim()).filter(Boolean)
+      );
+    }
+
+    // Wild_Clears 시트: A=캐릭터명, B=레이드키(act4/final/serka/cathedral/belga), C=체크일시(표시용, 프론트에서는 안 씀).
+    // "캐릭터명|레이드키" 조합 키로 저장한다. 시트 자체가 없을 수도 있어서(첫 개별 체크 전까지는 생성 안 됨) rows가 비어있으면 그냥 빈 Set.
+    function parseWildClears(rows) {
+      wildClearsData = new Set(
+        rows.slice(1).map(row => {
+          const name = (row[0] || '').toString().trim();
+          const raidKey = (row[1] || '').toString().trim();
+          return (name && raidKey) ? `${name}|${raidKey}` : null;
+        }).filter(Boolean)
+      );
+    }
+
+    // Character_Pool 열 순서(A~H): 유저명/서버/캐릭터명/직업/포지션/현재 레벨/예정 레벨/최종 레벨(수식) - 2026-09-13 재배치.
     function parseCharacterPool(rows) {
       characterPoolData = [];
       goldEligibleCharNames = new Set();
@@ -1566,10 +1737,11 @@
         const server = (row[1] || '').toString().trim();
         const name = (row[2] || '').toString().trim();
         const job = (row[3] || '').toString().trim();
+        const pos = (row[4] || '딜러').toString().trim();
 
-        const valE = parseFloat(String(row[4]).replace(/,/g, '')) || 0;
-        const valF = parseFloat(String(row[5]).replace(/,/g, '')) || 0;
-        const valG = parseFloat(String(row[6]).replace(/,/g, '')) || 0;
+        const valE = parseFloat(String(row[5]).replace(/,/g, '')) || 0;
+        const valF = parseFloat(String(row[6]).replace(/,/g, '')) || 0;
+        const valG = parseFloat(String(row[7]).replace(/,/g, '')) || 0;
 
         let finalLevel = 0;
         if (valF >= 1000) finalLevel = valF;
@@ -1577,23 +1749,13 @@
         else if (valG >= 1000) finalLevel = valG;
         else finalLevel = valE || valF || valG;
 
-        const pos = (row[7] || '딜러').toString().trim();
-
-        // Character_Pool I~M 열 순서 = 4막 / 종막 / 세르카 / 성당 / 벨가 (출시 순) - Sync.gs syncRaidCompletions, Api.gs toggleWildClearInPool 과 동일해야 한다
-        const stAct4 = (row[8] || '').toString().trim().toUpperCase();
-        const stFinal = (row[9] || '').toString().trim().toUpperCase();
-        const stSerka = (row[10] || '').toString().trim().toUpperCase();
-        const stCathedral = (row[11] || '').toString().trim().toUpperCase();
-        const stBelga = (row[12] || '').toString().trim().toUpperCase();
-
         if (name && !isHeaderWord(name)) {
           const charObj = {
             user, server, name, job,
             level: finalLevel,
-            currentLevel: valE,   // E열: API로 갱신되는 실제 현재 레벨 (참고용, 수정 불가)
-            plannedLevel: valF,   // F열: 예정 레벨 (대시보드에서 직접 수정 가능)
-            pos,
-            raids: { final: stFinal, act4: stAct4, cathedral: stCathedral, serka: stSerka, belga: stBelga }
+            currentLevel: valE,   // F열: API로 갱신되는 실제 현재 레벨 (참고용, 수정 불가)
+            plannedLevel: valF,   // G열: 예정 레벨 (대시보드에서 직접 수정 가능)
+            pos
           };
           characterPoolData.push(charObj);
 
@@ -1628,6 +1790,21 @@
           });
         }
       }
+    }
+
+    // 문자열을 onclick="...('${str}')" 같은 인라인 핸들러 안에 안전하게 끼워 넣기 위한 홑따옴표 이스케이프.
+    function escQ(str) {
+      return (str || '').replace(/'/g, "\\'");
+    }
+
+    // 포지션(딜러/서포터/스왑가능) 뱃지 - 일정표 슬롯 카드와 캐릭터 현황 카드에서 공용으로 쓴다.
+    // extraClass: 두 화면의 레이아웃 차이(고정폭 vs 좌우 패딩)만 호출부에서 넘겨받는다.
+    // swapLabel: 슬롯 카드는 폭이 좁아 "스왑", 캐릭터 현황 카드는 "스왑가능"으로 표기.
+    function renderPosBadge(pos, extraClass, swapLabel) {
+      const base = c => `${c} ${extraClass} whitespace-nowrap text-[11px] font-semibold py-0.5 rounded`;
+      if (pos === '서포터') return `<span class="${base('badge-supporter')}">서포터</span>`;
+      if (pos === '스왑가능') return `<span class="${base('badge-swap')}">${swapLabel || '스왑가능'}</span>`;
+      return `<span class="${base('badge-dealer')}">딜러</span>`;
     }
 
     function isHeaderWord(word) {
@@ -1820,7 +1997,7 @@
           // 서브조 탭의 날짜는 클릭해서 요일을 바로 바꿀 수 있게, 밑줄 힌트를 준 버튼으로 그린다.
           const dayName = siteConfig.subGroupDays && siteConfig.subGroupDays[cfg.id];
           const dayIdx = weekdayNameToIndex(dayName);
-          const escTitle = tabTitle.replace(/'/g, "\\'");
+          const escTitle = escQ(tabTitle);
           let dateLabel = '요일 설정';
           if (dayIdx !== null) {
             const d = getAnchorWeekDate(dayIdx) || getUpcomingWeekdays(dayIdx, 1)[0];
@@ -1887,16 +2064,7 @@
       siteConfig.subGroupDays[sheetId] = dayName;
       renderTabs();
 
-      try {
-        await fetch(APPS_SCRIPT_WEB_APP_URL, {
-          method: 'POST',
-          mode: 'no-cors',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'updateSubGroupDay', sheetId, dayName })
-        });
-      } catch (err) {
-        console.error('서브그룹 요일 저장 오류:', err);
-      }
+      await postAction('updateSubGroupDay', { sheetId, dayName }, '서브그룹 요일 저장');
     }
 
     // 8인 레이드 슬롯 정렬: 서포터 → 스왑가능 → 딜러, 같은 등급이면 레벨 내림차순.
@@ -1963,8 +2131,8 @@
         const defaultCollapsed = !!(statusInfo && statusInfo.status === '완료');
         const isCollapsed = collapsedOverride.has(blockKey) ? collapsedOverride.get(blockKey) : defaultCollapsed;
 
-        const escRawTitle = block.rawTitle.replace(/'/g, "\\'");
-        const escDisplayTitle = block.title.replace(/'/g, "\\'");
+        const escRawTitle = escQ(block.rawTitle);
+        const escDisplayTitle = escQ(block.title);
 
         let progressControl = '';
         if (!statusInfo) {
@@ -2159,16 +2327,7 @@
       renderActiveTabContent();
       renderCurrentRaidsBadge();
 
-      try {
-        await fetch(APPS_SCRIPT_WEB_APP_URL, {
-          method: 'POST',
-          mode: 'no-cors',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'startRaidProgress', sheetId, blockIndex, rawRaidTitle, user: selectedUser })
-        });
-      } catch (err) {
-        console.error('레이드 진행 시작 오류:', err);
-      }
+      await postAction('startRaidProgress', { sheetId, blockIndex, rawRaidTitle, user: selectedUser }, '레이드 진행 시작');
 
       openRaidProgressModal(sheetId, blockIndex, rawRaidTitle, displayTitle);
     }
@@ -2218,6 +2377,88 @@
       document.getElementById('raidProgressModal').classList.add('hidden');
     }
 
+    // ─── 경매 계산기 (레이드 진행 관리 모달의 "경매 계산기" 버튼에서만 연다) ─────
+    // 로아차트/로아랩 등 커뮤니티 계산기를 실측해서 확인한 공식을 그대로 옮긴 것.
+    // 낙찰가는 낙찰자를 제외한 나머지 인원에게 (n-1)/n 만큼 분배되고, 되팔 때는
+    // 경매장 수수료 5%가 붙는다는 게 기준 - 시세 조회 없이 순수 계산만 하므로
+    // 별도 데이터/유지보수 없이 그대로 쓸 수 있다.
+    let auctionCalcPartySize = 4;
+
+    function openAuctionCalcModal() {
+      document.getElementById('auctionCalcPriceInput').value = '';
+      // 지금 열려있는 진행 중인 레이드의 실제 인원수를 알 수 있으니, 매번 4인부터 다시 고르지 않도록
+      // 그 레이드의 인원수로 미리 선택해둔다 (모르면 4인으로 기본).
+      let initialSize = 4;
+      if (activeProgressTarget) {
+        const block = sheetsDataStore[activeProgressTarget.sheetId] &&
+          sheetsDataStore[activeProgressTarget.sheetId].blocks[activeProgressTarget.blockIndex];
+        if (block) initialSize = getBlockCapacity(block);
+      }
+      setAuctionCalcPartySize(initialSize);
+      document.getElementById('auctionCalcModal').classList.remove('hidden');
+      drawIcons();
+    }
+
+    function closeAuctionCalcModal() {
+      document.getElementById('auctionCalcModal').classList.add('hidden');
+    }
+
+    function setAuctionCalcPartySize(n) {
+      auctionCalcPartySize = n;
+      document.querySelectorAll('#auctionCalcPartySizeGroup button').forEach(btn => {
+        const active = parseInt(btn.dataset.size, 10) === n;
+        btn.className = active
+          ? 'px-2.5 py-1.5 rounded-md text-xs font-semibold bg-yellow-500/20 text-yellow-400 border border-yellow-500/50 transition'
+          : 'px-2.5 py-1.5 rounded-md text-xs font-semibold bg-gray-800 text-gray-400 border border-gray-700 hover:text-white transition';
+      });
+      renderAuctionCalcResult();
+    }
+
+    function computeAuctionBids(price, n) {
+      const base = price * (n - 1) / n; // 직접 사용 - 수수료 미반영 기준가
+      const breakEven = base * 0.95;    // 손익분기점 - 재판매 수수료 5% 반영
+      const tiers = [
+        { label: '손익분기점', margin: 0 },
+        { label: '25%', margin: 0.025 },
+        { label: '50%', margin: 0.05 },
+        { label: '75%', margin: 0.075 },
+        { label: '선점', margin: 0.10 }
+      ].map(t => {
+        const bid = breakEven / (1 + t.margin);
+        return { label: t.label, bid: Math.round(bid), profit: Math.round(bid * t.margin) };
+      });
+      return { directUse: Math.round(base), tiers };
+    }
+
+    function renderAuctionCalcResult() {
+      const price = parseFloat(document.getElementById('auctionCalcPriceInput').value) || 0;
+      const resultEl = document.getElementById('auctionCalcResult');
+      if (price <= 0) {
+        resultEl.innerHTML = `<p class="text-xs text-gray-500 text-center py-4">아이템 가격을 입력해 주세요</p>`;
+        return;
+      }
+      const { tiers } = computeAuctionBids(price, auctionCalcPartySize);
+      // 6단계 전부 대신 실사용할 3개(사용/50%/선점)만 추린다 - computeAuctionBids 자체는
+      // 그대로 두고 화면에 보여줄 줄만 필터링하는 거라, 나중에 다시 늘리기도 쉽다.
+      const wanted = { '손익분기점': '사용', '50%': '50%', '선점': '선점' };
+      const rows = tiers
+        .filter(t => wanted[t.label])
+        .map(t => ({ ...t, label: wanted[t.label] }));
+      resultEl.innerHTML = rows.map(r => `
+        <div class="flex items-center justify-between px-3 py-2 rounded-lg bg-[#0d1117] border border-gray-800">
+          <span class="text-xs text-gray-400">${r.label}${r.profit ? ` <span class="text-gray-600">(+${r.profit.toLocaleString()}G)</span>` : ''}</span>
+          <button onclick="copyAuctionBid(${r.bid}, this)" class="text-sm font-bold text-yellow-400 hover:text-yellow-300 transition">${r.bid.toLocaleString()}G</button>
+        </div>
+      `).join('');
+    }
+
+    function copyAuctionBid(value, el) {
+      navigator.clipboard.writeText(String(value));
+      const orig = el.textContent;
+      el.textContent = '복사됨!';
+      setTimeout(() => { el.textContent = orig; }, 1200);
+    }
+
     // '완료 처리' - 이 블록을 완료로 표시한다. 모든 그룹의 모든 블록이 이걸로 완료됐다면
     // 서버가 그 자리에서 바로 다음 주기로 조기 리셋하므로, 잠시 후 Raid_Status/Config 를 다시 받는다.
     async function completeRaidBlock() {
@@ -2234,18 +2475,9 @@
       renderActiveTabContent();
       renderCurrentRaidsBadge();
 
-      try {
-        await fetch(APPS_SCRIPT_WEB_APP_URL, {
-          method: 'POST',
-          mode: 'no-cors',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'completeRaidProgress', sheetId, blockIndex, rawRaidTitle, user: selectedUser })
-        });
-      } catch (err) {
-        console.error('레이드 완료 처리 오류:', err);
-      }
+      await postAction('completeRaidProgress', { sheetId, blockIndex, rawRaidTitle, user: selectedUser }, '레이드 완료 처리');
 
-      setTimeout(() => refreshSheets(['Raid_Status'], true), 1500);
+      setTimeout(() => refreshSheets(['Raid_Status', 'Config'], true), 1500);
     }
 
     // '되돌리기' - 진행중/완료 표시 자체를 지운다.
@@ -2261,16 +2493,7 @@
       renderActiveTabContent();
       renderCurrentRaidsBadge();
 
-      try {
-        await fetch(APPS_SCRIPT_WEB_APP_URL, {
-          method: 'POST',
-          mode: 'no-cors',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'cancelRaidProgress', sheetId, blockIndex, rawRaidTitle })
-        });
-      } catch (err) {
-        console.error('레이드 진행 취소 오류:', err);
-      }
+      await postAction('cancelRaidProgress', { sheetId, blockIndex, rawRaidTitle }, '레이드 진행 취소');
     }
 
     // 헤더의 '현재 레이드' 배지. 진행중인 게 있을 때만 보여준다.
@@ -2306,8 +2529,8 @@
           const sheetInfo = sheetsDataStore[s.sheetId];
           const sheetLabel = sheetInfo ? sheetInfo.title : s.sheetId;
           const displayTitle = sanitizeTitle(s.rawRaidTitle);
-          const esc = s.rawRaidTitle.replace(/'/g, "\\'");
-          const escDisplay = displayTitle.replace(/'/g, "\\'");
+          const esc = escQ(s.rawRaidTitle);
+          const escDisplay = escQ(displayTitle);
           return `
             <div onclick="jumpToRaidProgress('${s.sheetId}', ${s.blockIndex}, '${esc}', '${escDisplay}')" class="flex items-center justify-between p-3 rounded-lg border border-gray-800 bg-[#0d1117] hover:border-amber-500/60 cursor-pointer transition">
               <div>
@@ -2460,12 +2683,7 @@
           slotMaybeDesc = getMaybePairDesc(slot.foundInPool ? slot.level : 0);
         }
 
-        let posBadge = `<span class="badge-dealer shrink-0 whitespace-nowrap w-14 text-center text-[11px] font-semibold py-0.5 rounded">딜러</span>`;
-        if (isSupporter) {
-          posBadge = `<span class="badge-supporter shrink-0 whitespace-nowrap w-14 text-center text-[11px] font-semibold py-0.5 rounded">서포터</span>`;
-        } else if (isSwap) {
-          posBadge = `<span class="badge-swap shrink-0 whitespace-nowrap w-14 text-center text-[11px] font-semibold py-0.5 rounded">스왑</span>`;
-        }
+        const posBadge = renderPosBadge(slot.pos, 'shrink-0 w-14 text-center', '스왑');
 
         const rowStyle = isMe
           ? 'my-highlight'
@@ -2544,10 +2762,28 @@
       return !!(siteConfig.raidWeekAnchor && fmtDate(new Date()) < siteConfig.raidWeekAnchor);
     }
 
+    // 이 캐릭터가 일정표 편성을 통해 이 레이드 계열을 완료 처리했는지(V).
+    // 예전 서버측 syncRaidCompletions()가 Character_Pool에 저장하던 로직을 프론트로 그대로 이식한 것 -
+    // "이 캐릭터가 이 계열로 편성된 블록 중, 그 블록이 완료 처리된 게 하나라도 있는가"를 그때그때 계산한다.
+    function isFamilyRaidCompletedForChar(charName, famKey) {
+      return (window.allRaidInstancesStore || []).some(i => {
+        if (i.charName !== charName || getRaidFamilyKey(i.raidTitle) !== famKey) return false;
+        const statusInfo = getRaidStatusFor(i.sheetId, i.blockIndex, i.rawRaidTitle);
+        return !!statusInfo && statusInfo.status === '완료';
+      });
+    }
+
+    // 캐릭터x레이드계열의 체크 상태 ('V' 일정표 자동 / 'W' 개별 수동 / '' 미완료).
+    // 예전에는 Character_Pool I~M 열에 저장했지만, 이제는 저장하지 않고 매번
+    // Raid_Status+일정표(V), Wild_Clears(W)로 그때그때 계산한다.
+    function getCharRaidStatus(charName, famKey) {
+      if (isFamilyRaidCompletedForChar(charName, famKey)) return 'V';
+      if (wildClearsData.has(`${charName}|${famKey}`)) return 'W';
+      return '';
+    }
+
     function renderRaidTag(label, status, charLevel, raidKey, charName, goldTier, maybeDesc, isScheduled) {
-      // 카드 폭이 좁으면(폰 1열, PC 1024 3열 등 카드 콘텐츠 300px 미만) 1글자 라벨(종/4/성/세/벨)로 표시한다.
-      // 어느 쪽을 보일지는 <style> 의 .pool-card 컨테이너 쿼리(.raid-tag-short / .raid-tag-full)가 정한다.
-      const labelHtml = `<span class="raid-tag-short">${label.charAt(0)}</span><span class="raid-tag-full">${label}</span>`;
+      const labelHtml = label;
       const minCut = getRaidMinLevel(raidKey);
       const canEnter = charLevel >= minCut;
       const base = 'px-1.5 py-0.5 rounded text-[10px] font-bold select-none';
@@ -2569,7 +2805,7 @@
       const tip = isMaybe ? ` title="${maybeDesc || MAYBE_GOLD_DESC}"` : '';
       const help = isMaybe ? ' cursor-help' : '';
 
-      const esc = charName.replace(/'/g, "\\'");
+      const esc = escQ(charName);
 
       // 1) 일정표 자동 등록(V) — 실선 테두리, 웹에서 해제 불가
       if (status === 'V') {
@@ -2604,7 +2840,7 @@
       const charObj = characterPoolData.find(c => c.name === charName);
       if (!charObj) return;
 
-      const curStatus = charObj.raids[raidKey];
+      const curStatus = getCharRaidStatus(charName, raidKey);
       if (curStatus === 'V') return; // 공대 일정 종속 상태는 웹에서 해제 불가
 
       // 완료 여부와 무관하게, 지금 일정표에 이 레이드 계열로 편성되어 있으면 개별 체크를 못 쓴다 -
@@ -2617,27 +2853,14 @@
       const minCut = getRaidMinLevel(raidKey);
       if (curStatus !== 'W' && charObj.level < minCut) return; // 입장 불가 레벨이면 클릭 무시
 
-      const newStatus = (curStatus === 'W') ? '' : 'W';
-      charObj.raids[raidKey] = newStatus;
+      const wcKey = `${charName}|${raidKey}`;
+      if (curStatus === 'W') wildClearsData.delete(wcKey); else wildClearsData.add(wcKey);
       renderPoolView();
 
-      try {
-        await fetch(APPS_SCRIPT_WEB_APP_URL, {
-          method: 'POST',
-          mode: 'no-cors',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            action: 'toggleWildClear',
-            charName: charName,
-            raidKey: raidKey
-          })
-        });
-      } catch (err) {
-        console.error('숙제 상태 저장 오류:', err);
-      }
+      await postAction('toggleWildClear', { charName, raidKey }, '숙제 상태 저장');
     }
 
-    // 본인 캐릭터의 예정 레벨(Character_Pool F열)을 직접 수정한다.
+    // 본인 캐릭터의 예정 레벨(Character_Pool G열)을 직접 수정한다.
     // 빈 값으로 지우면 예정 레벨을 취소하고(현재 레벨 기준으로 돌아감), 숫자를 넣으면 그 값으로 고정된다.
     // (executeAddSlot/executeInstantSwap 이 자동으로 올려주는 것과 달리, 여기서는 낮추는 것도 가능하다.)
     async function editPlannedLevel(charName) {
@@ -2666,20 +2889,10 @@
       charObj.level = newPlanned > 0 ? newPlanned : charObj.currentLevel;
       renderPoolView();
 
-      try {
-        await fetch(APPS_SCRIPT_WEB_APP_URL, {
-          method: 'POST',
-          mode: 'no-cors',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            action: 'setPlannedLevel',
-            charName: charName,
-            plannedLevel: newPlanned > 0 ? newPlanned.toFixed(2) : ''
-          })
-        });
-      } catch (err) {
-        console.error('예정 레벨 저장 오류:', err);
-      }
+      await postAction('setPlannedLevel', {
+        charName,
+        plannedLevel: newPlanned > 0 ? newPlanned.toFixed(2) : ''
+      }, '예정 레벨 저장');
     }
 
     // ─── 유용한 링크 탭 ─────────────────────────────────
@@ -2689,41 +2902,54 @@
       {
         title: '캐릭터 스펙 조회',
         items: [
-          { name: 'LOPEC', mainUrl: 'https://lopec.kr/', charUrlTemplate: 'https://lopec.kr/character/specPoint/{name}' },
-          { name: 'LOAWA', mainUrl: 'https://loawa.com/', charUrlTemplate: 'https://loawa.com/char/{name}' },
+          { name: '로펙', mainUrl: 'https://lopec.kr/', charUrlTemplate: 'https://lopec.kr/character/specPoint/{name}' },
+          { name: '로아와', mainUrl: 'https://loawa.com/', charUrlTemplate: 'https://loawa.com/char/{name}' },
           { name: 'KLOA', mainUrl: 'https://kloa.gg/', charUrlTemplate: 'https://kloa.gg/characters/{name}' },
           { name: 'ILOA', mainUrl: 'https://iloa.gg/', charUrlTemplate: 'https://iloa.gg/character/{name}' },
-          { name: 'LOALAB', mainUrl: 'https://lo4.app/', charUrlTemplate: 'https://lo4.app/characters?name={name}' },
+          { name: '로아랩', mainUrl: 'https://lo4.app/', charUrlTemplate: 'https://lo4.app/characters?name={name}' },
           { name: '다중 검색', url: 'https://loawa.com/ezsearch' }
         ]
       },
       {
         title: '강화 계산',
         items: [
-          { name: '재련 최적화(아이스펭)', url: 'https://loa.icepeng.com/refining' },
-          { name: '재련 최적화(로아랩)', url: 'https://lo4.app/tools/normal-refine' },
-          { name: '강화 계산기(로아베스팅)', url: 'https://www.loavesting.com/calculator/t4' },
-          { name: '강화 계산기(loacal)', url: 'https://loacal-beta.up.railway.app/tools?tab=refine' }
+          { name: '재련 최적화', options: [
+            { label: '아이스펭', url: 'https://loa.icepeng.com/refining' },
+            { label: '로아랩', url: 'https://lo4.app/tools/normal-refine' }
+          ] },
+          { name: '강화 계산기', options: [
+            { label: '로아베스팅', url: 'https://www.loavesting.com/calculator/t4' },
+            { label: 'loacal', url: 'https://loacal-beta.up.railway.app/tools?tab=refine' }
+          ] },
+          { name: '젬파고', url: 'https://loatto.kr/gempago' }
         ]
       },
       {
         title: '재화 계산',
         items: [
-          { name: '경매 계산기(로아차트)', url: 'https://loachart.com/bidcalc' },
-          { name: '경매 계산기(로아랩)', url: 'https://lo4.app/tools/auction-calculator' },
+          { name: '경매 계산기', options: [
+            { label: '로아차트', url: 'https://loachart.com/bidcalc' },
+            { label: '로아랩', url: 'https://lo4.app/tools/auction-calculator' }
+          ] },
+          { name: '지옥 보상', options: [
+            { label: '로아랩', url: 'https://lo4.app/tools/hell-reward' },
+            { label: '로아또', url: 'https://loatto.kr/hell-rewards' }
+          ] },
           { name: '더보기 효율 계산기', url: 'https://loachart.com/rewardcalc' },
-          { name: '도감작 계산기', url: 'https://loachart.com/cardcalc/recommend' },
-          { name: '생활가루 계산기', url: 'https://lostgld.com/conversion' }
+          { name: '싱글코인', url: 'https://loatto.kr/single-exchange' }
         ]
       },
       {
         title: '기타 유용한 도구',
         items: [
-          { name: '로아랩 도구 모음', action: 'openLoarabToolsModal()' },
-          { name: '염색 도우미', url: 'https://loacal-beta.up.railway.app/tools?tab=dye' },
-          { name: '히든 업적 체크리스트', url: 'https://loa-hidden-check.vercel.app/' },
+          { name: '생활가루 계산기', url: 'https://lostgld.com/conversion' },
           { name: '떠돌이 상인 (KLOA)', url: 'https://kloa.gg/merchant' },
-          { name: '스토브 플레이크', url: 'https://reward.onstove.com/ko/event' }
+          { name: '도감작 계산기', url: 'https://loachart.com/cardcalc/recommend' },
+          { name: '염색 도우미', url: 'https://loacal-beta.up.railway.app/tools?tab=dye' },
+          { name: '스토브 플레이크', url: 'https://reward.onstove.com/ko/event' },
+          { name: '치명타 계산기(로아랩)', url: 'https://lo4.app/tools/blunt-thorn' },
+          { name: '음돌 계산기(로아랩)', url: 'https://lo4.app/tools/supersonic-breakthrough' },
+          { name: '히든 업적 체크리스트', url: 'https://loa-hidden-check.vercel.app/' }
         ]
       },
       {
@@ -2740,24 +2966,6 @@
       .filter(it => it.charUrlTemplate)
       .map(it => ({ name: it.name, urlTemplate: it.charUrlTemplate }));
 
-    // "기타 유용한 도구"의 로아랩 버튼에서 뜨는, 로아랩 세부 도구 선택 모달
-    const LOARAB_TOOLS = [
-      { name: '낙원-지옥 보상 효율', url: 'https://lo4.app/tools/hell-reward' },
-      { name: '치명타 계산기', url: 'https://lo4.app/tools/blunt-thorn' },
-      { name: '음돌 계산기', url: 'https://lo4.app/tools/supersonic-breakthrough' }
-    ];
-
-    function openLoarabToolsModal() {
-      document.getElementById('loarabToolsModalItems').innerHTML = LOARAB_TOOLS.map(tool =>
-        `<button onclick="window.open('${tool.url}', '_blank', 'noopener'); closeLoarabToolsModal();" class="w-full text-left px-3 py-2.5 rounded-lg text-sm font-medium bg-gray-800 text-gray-200 hover:bg-gray-700 transition">${tool.name}</button>`
-      ).join('');
-      document.getElementById('loarabToolsModal').classList.remove('hidden');
-      drawIcons();
-    }
-
-    function closeLoarabToolsModal() {
-      document.getElementById('loarabToolsModal').classList.add('hidden');
-    }
 
     function renderUsefulLinksView() {
       const container = document.getElementById('usefulLinksContainer');
@@ -2783,14 +2991,23 @@
                 </div>
               </div>`;
           }
+          // 같은 기능을 사이트별로 여러 개 걸어두는 항목(재련 최적화, 경매 계산기 등)은
+          // 캐릭터 스펙 조회 카드처럼 제목 하나에 사이트별 버튼을 나란히 둔다.
+          if (item.options) {
+            const optBtns = item.options.map(opt =>
+              `<button onclick="window.open('${opt.url}', '_blank', 'noopener')" class="px-2.5 py-1 rounded-md text-xs font-medium bg-gray-800 text-gray-300 hover:bg-gray-700 transition">${opt.label}</button>`
+            ).join('');
+            return `
+              <div class="card-bg p-3 rounded-xl border border-gray-800 flex items-center justify-between gap-2 flex-wrap">
+                <div class="text-sm font-semibold text-white">${item.name}</div>
+                <div class="flex items-center gap-1.5 flex-wrap">${optBtns}</div>
+              </div>`;
+          }
           // 버튼이 하나뿐인 항목은 카드 전체를 탭 영역으로 써서(특히 모바일에서) 누르기 쉽게 한다.
-          // action 항목은 새 탭이 아니라 이 화면 안에서 모달을 띄우는 것이므로, 외부 이동을 뜻하는 화살표 대신 목록 아이콘을 쓴다.
-          const clickHandler = item.action || `window.open('${item.url}', '_blank', 'noopener')`;
-          const cardIcon = item.action ? 'list' : 'arrow-up-right';
           return `
-            <div onclick="${clickHandler}" class="card-bg p-3 rounded-xl border border-gray-800 flex items-center justify-between gap-2 cursor-pointer hover:border-gray-600 hover:bg-white/5 transition">
+            <div onclick="window.open('${item.url}', '_blank', 'noopener')" class="card-bg p-3 rounded-xl border border-gray-800 flex items-center justify-between gap-2 cursor-pointer hover:border-gray-600 hover:bg-white/5 transition">
               <div class="text-sm font-semibold text-white">${item.name}</div>
-              <i data-lucide="${cardIcon}" class="w-4 h-4 text-gray-500 shrink-0"></i>
+              <i data-lucide="arrow-up-right" class="w-4 h-4 text-gray-500 shrink-0"></i>
             </div>`;
         }).join('');
 
@@ -2826,6 +3043,50 @@
       closeCharLinkModal();
     }
 
+    // ─── 캐릭터 숨기기 (Character_Pool은 안 건드리고 Hidden_Characters 시트만 사용) ─────
+    // no-cors라 서버 응답을 못 읽으므로, 다른 슬롯 편집 기능들과 같은 패턴으로
+    // 화면부터 낙관적으로 갱신하고 서버에는 그대로 던진다.
+    async function hideCharacter(name) {
+      const ok = await customConfirm(`'${name}' 캐릭터를 캐릭터 현황 목록에서 숨길까요?\n골드/숙제 체크 기록은 그대로 남고, "숨긴 캐릭터" 목록에서 언제든 다시 보이게 할 수 있어요.`, '캐릭터 숨기기');
+      if (!ok) return;
+      hiddenCharNames.add(name);
+      renderPoolView();
+      drawIcons();
+      await postAction('toggleHiddenCharacter', { charName: name }, '캐릭터 숨기기');
+    }
+
+    async function unhideCharacter(name) {
+      hiddenCharNames.delete(name);
+      renderHiddenCharsModalList();
+      renderPoolView();
+      drawIcons();
+      await postAction('toggleHiddenCharacter', { charName: name }, '캐릭터 숨김 해제');
+    }
+
+    function openHiddenCharsModal() {
+      renderHiddenCharsModalList();
+      document.getElementById('hiddenCharsModal').classList.remove('hidden');
+      drawIcons();
+    }
+
+    function closeHiddenCharsModal() {
+      document.getElementById('hiddenCharsModal').classList.add('hidden');
+    }
+
+    function renderHiddenCharsModalList() {
+      const el = document.getElementById('hiddenCharsModalItems');
+      if (!el) return;
+      const names = Array.from(hiddenCharNames).sort();
+      el.innerHTML = names.length === 0
+        ? `<p class="text-xs text-gray-500 text-center py-4">숨긴 캐릭터가 없습니다</p>`
+        : names.map(n => `
+            <div class="flex items-center justify-between px-3 py-2 rounded-lg bg-[#0d1117] border border-gray-800">
+              <span class="text-sm text-gray-200">${n}</span>
+              <button onclick="unhideCharacter('${escQ(n)}')" class="px-2.5 py-1 rounded-md text-xs font-medium bg-gray-800 text-gray-300 hover:bg-gray-700 transition">숨김 해제</button>
+            </div>
+          `).join('');
+    }
+
     // Sync.gs 가 Config 시트에 'yyyy-MM-dd HH:mm' 그대로(텍스트 고정) 남긴 값을 표시용으로 짧게 자른다.
     // Date 파싱을 쓰지 않는 이유: 브라우저 로케일에 따라 문자열이 달라질 수 있어 직접 정규식으로 뗀다.
     function formatPoolSyncedAt(raw) {
@@ -2841,6 +3102,7 @@
       const lFilter = parseFloat(document.getElementById('poolLevelFilter').value) || 0;
 
       const filtered = characterPoolData.filter(c => {
+        if (hiddenCharNames.has(c.name)) return false;
         if (uFilter && !c.user.startsWith(uFilter)) return false;
         if (lFilter > 0 && c.level < lFilter) return false;
 
@@ -2854,6 +3116,17 @@
 
       const poolCountEl = document.getElementById('poolCount');
       if (poolCountEl) poolCountEl.textContent = filtered.length;
+
+      // 숨긴 캐릭터가 있을 때만 링크를 보여준다 - 대부분은 하나도 안 숨겼을 테니 평소엔 화면에서 안 보임.
+      const hiddenLinkEl = document.getElementById('poolHiddenCharsLink');
+      if (hiddenLinkEl) {
+        if (hiddenCharNames.size > 0) {
+          hiddenLinkEl.textContent = `숨긴 캐릭터 ${hiddenCharNames.size}명`;
+          hiddenLinkEl.classList.remove('hidden');
+        } else {
+          hiddenLinkEl.classList.add('hidden');
+        }
+      }
 
       const syncedLabelEl = document.getElementById('poolLastSyncedLabel');
       if (syncedLabelEl) {
@@ -2869,9 +3142,7 @@
 
       grid.innerHTML = filtered.map(c => {
         const isMe = selectedUser && c.user.startsWith(selectedUser);
-        let posBadge = `<span class="badge-dealer whitespace-nowrap text-[11px] font-semibold px-2 py-0.5 rounded">딜러</span>`;
-        if (c.pos === '서포터') posBadge = `<span class="badge-supporter whitespace-nowrap text-[11px] font-semibold px-2 py-0.5 rounded">서포터</span>`;
-        else if (c.pos === '스왑가능') posBadge = `<span class="badge-swap whitespace-nowrap text-[11px] font-semibold px-2 py-0.5 rounded">스왑가능</span>`;
+        const posBadge = renderPosBadge(c.pos, 'px-2');
 
         const isGoldChar = goldEligibleCharNames.has(c.name);
 
@@ -2882,10 +3153,16 @@
         // 조기 리셋 유예 기간에는 "편성돼 있던" 자동 대상을 완료로 쳐서 진행도 계산에 반영한다
         // (renderRaidTag 의 3번 분기와 동일한 규칙 - 편성 자체가 없던 계열은 대상에서 제외,
         // 개별 W체크는 그대로 실제 값을 따른다).
-        const isDone = k => c.raids[k] === 'V' || c.raids[k] === 'W'
-          || (isScheduledInFamily(c.name, k) && isRaidWeekAnchorFuture());
-        const earnKeys = RAID_DEFINITIONS.map(d => d.key).filter(k => tierMap[k] === 'EARN');
-        const maybeKeys = RAID_DEFINITIONS.map(d => d.key).filter(k => tierMap[k] === 'MAYBE');
+        const isDone = k => {
+          const st = getCharRaidStatus(c.name, k);
+          return st === 'V' || st === 'W' || (isScheduledInFamily(c.name, k) && isRaidWeekAnchorFuture());
+        };
+        // 카드에 실제로 보여줄 레이드 계열 (졸업한 저티어는 슬라이딩 윈도우 밖으로 밀려나 제외됨).
+        // 진행도(n/m) 카운터도 안 보이는 레이드를 세면 화면과 안 맞으므로 같은 목록으로 필터링한다.
+        const visibleRaidDefs = getVisibleRaidDefsForLevel(c.level);
+        const visibleRaidKeys = new Set(visibleRaidDefs.map(d => d.key));
+        const earnKeys = RAID_DEFINITIONS.map(d => d.key).filter(k => tierMap[k] === 'EARN' && visibleRaidKeys.has(k));
+        const maybeKeys = RAID_DEFINITIONS.map(d => d.key).filter(k => tierMap[k] === 'MAYBE' && visibleRaidKeys.has(k));
 
         const maybeDesc = maybeKeys.length ? getMaybePairDesc(c.level) : '';
 
@@ -2914,12 +3191,17 @@
               <div>
                 <div class="text-xs text-gray-400 font-medium mb-0.5">${c.user} (${c.server})</div>
                 <div class="text-base font-bold text-white flex items-center space-x-2">
-                  <span class="cursor-pointer hover:underline decoration-dashed" onclick="openCharLinkModal('${c.name.replace(/'/g, "\\'")}')" title="클릭해서 스펙 조회 사이트 열기">${c.name}</span>
+                  <span class="cursor-pointer hover:underline decoration-dashed" onclick="openCharLinkModal('${escQ(c.name)}')" title="클릭해서 스펙 조회 사이트 열기">${c.name}</span>
                   ${counterHtml}
                 </div>
               </div>
               <div class="text-right space-y-1">
-                ${posBadge}
+                <div class="flex items-center justify-end gap-1.5">
+                  ${posBadge}
+                  <button onclick="hideCharacter('${escQ(c.name)}')" title="캐릭터 숨기기" class="text-gray-600 hover:text-gray-300 transition shrink-0">
+                    <i data-lucide="eye-off" class="w-3.5 h-3.5"></i>
+                  </button>
+                </div>
                 <div class="text-xs text-gray-400">${c.job}</div>
               </div>
             </div>
@@ -2929,14 +3211,13 @@
             <div class="flex items-center justify-between border-t border-gray-800/60 pt-2.5">
               <span
                 class="text-sm font-mono font-bold text-yellow-500/90${isMe ? ' cursor-pointer hover:underline decoration-dashed' : ''}"
-                ${isMe ? `onclick="editPlannedLevel('${c.name.replace(/'/g, "\\'")}')" title="클릭해서 예정 레벨 수정"` : ''}
+                ${isMe ? `onclick="editPlannedLevel('${escQ(c.name)}')" title="클릭해서 예정 레벨 수정"` : ''}
               >${c.level.toLocaleString('ko-KR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
               <div class="flex items-center flex-wrap justify-end gap-1">
-                ${renderRaidTag('4막', c.raids.act4, c.level, 'act4', c.name, tierMap.act4, maybeDesc, isScheduledInFamily(c.name, 'act4'))}
-                ${renderRaidTag('종막', c.raids.final, c.level, 'final', c.name, tierMap.final, maybeDesc, isScheduledInFamily(c.name, 'final'))}
-                ${renderRaidTag('세르카', c.raids.serka, c.level, 'serka', c.name, tierMap.serka, maybeDesc, isScheduledInFamily(c.name, 'serka'))}
-                ${renderRaidTag('성당', c.raids.cathedral, c.level, 'cathedral', c.name, tierMap.cathedral, maybeDesc, isScheduledInFamily(c.name, 'cathedral'))}
-                ${renderRaidTag('벨가', c.raids.belga, c.level, 'belga', c.name, tierMap.belga, maybeDesc, isScheduledInFamily(c.name, 'belga'))}
+                ${RAID_DEFINITIONS.filter(def => visibleRaidKeys.has(def.key)).map(def => renderRaidTag(
+                  def.label, getCharRaidStatus(c.name, def.key), c.level, def.key, c.name,
+                  tierMap[def.key], maybeDesc, isScheduledInFamily(c.name, def.key)
+                )).join('')}
               </div>
             </div>
           </div>
@@ -2963,7 +3244,14 @@
         return;
       }
 
-      tbody.innerHTML = raidInfoData.map(r => `
+      // 요구 레벨 높은 순 -> 총골드 높은 순 -> 유통골드 높은 순 (getCharTop3Raids와 동일한 기준 - 최신/고티어 레이드가 위로).
+      const sortedRaidInfo = raidInfoData.slice().sort((a, b) =>
+        (parseGoldNum(b.level) - parseGoldNum(a.level))
+        || (parseGoldNum(b.goldTotal) - parseGoldNum(a.goldTotal))
+        || (parseGoldNum(b.goldTrade) - parseGoldNum(a.goldTrade))
+      );
+
+      tbody.innerHTML = sortedRaidInfo.map(r => `
         <tr class="hover:bg-gray-800/40 transition">
           <td class="px-4 py-3 font-semibold text-white">${r.name}</td>
           <td class="px-4 py-3"><span class="px-2 py-0.5 rounded text-xs bg-blue-950 text-blue-400 border border-blue-800">${r.partyType || '-'}</span></td>
@@ -3022,6 +3310,47 @@
       return candidates;
     }
 
+    // 레이드 계열 하나의 "참고용 골드값" - 난이도 중 총골드가 가장 큰 것을 대표값으로 쓴다.
+    // 캐릭터 레벨과 무관한 정적인 값이라, 레이드 계열 전체를 한 줄로 세워 정렬할 때만 쓴다
+    // (실제 골드 판정은 언제나 computeGoldTiers/getCharTop3Raids 쪽이 계산 - 여긴 정렬용 참고치일 뿐).
+    function getFamilyReferenceGold(famKey) {
+      let best = { total: 0, trade: 0 };
+      raidInfoData.forEach(r => {
+        if (getRaidFamilyKey(r.name) !== famKey) return;
+        const total = parseGoldNum(r.goldTotal);
+        if (total > best.total) best = { total, trade: parseGoldNum(r.goldTrade) };
+      });
+      return best;
+    }
+
+    // 전체 레이드 계열을 요구 레벨 오름차순(=출시 순)으로 한 줄 세운다. 요구 레벨이 같으면
+    // 총골드 오름차순 -> 유통골드 오름차순으로 (더 높은 티어로 취급할 레이드가 뒤쪽에 오도록 -
+    // 전체 정렬 방향이 오름차순이라, 타이브레이크도 "값이 클수록 뒤로" 가려면 똑같이 오름차순이어야 한다).
+    function getOrderedRaidFamilies() {
+      return RAID_DEFINITIONS.slice().sort((a, b) => {
+        if (a.minLevel !== b.minLevel) return a.minLevel - b.minLevel;
+        const ga = getFamilyReferenceGold(a.key), gb = getFamilyReferenceGold(b.key);
+        return (ga.total - gb.total) || (ga.trade - gb.trade);
+      });
+    }
+
+    // 캐릭터 현황 카드에 배지로 보여줄 레이드 계열 목록 (항상 최대 VISIBLE_RAID_WINDOW개, 순서는
+    // getOrderedRaidFamilies() 기준).
+    //
+    // "입장 가능 여부와 무관하게 안 보여주는 칸 없이 항상 N개를 채워서 보여주되, 그 N개 창이
+    //  캐릭터 레벨을 따라 점점 뒤로 밀린다"는 슬라이딩 윈도우 방식 - 레벨이 낮은 캐릭터는 창 안에
+    // 아직 "입장 불가"(잠김) 레이드가 섞여 미리보기 역할을 하고, 입장 가능한 레이드 수가 창 크기를
+    // 넘어서는 순간부터 가장 오래된(요구 레벨 낮은) 레이드가 창 밖으로 밀려나 카드에서 사라진다.
+    // 총 레이드 수가 VISIBLE_RAID_WINDOW 이하인 동안(지금 5개)은 창이 항상 전체를 덮어 아무 것도 안 숨겨진다.
+    function getVisibleRaidDefsForLevel(charLevel) {
+      const ordered = getOrderedRaidFamilies();
+      const total = ordered.length;
+      const enterableCount = ordered.filter(d => charLevel >= d.minLevel).length;
+      const windowEnd = Math.min(total, Math.max(VISIBLE_RAID_WINDOW, enterableCount));
+      const windowStart = Math.max(0, windowEnd - VISIBLE_RAID_WINDOW);
+      return ordered.slice(windowStart, windowEnd);
+    }
+
     // 귀속골드 가중치 w를 적용한 환산 점수
     function goldScore(raid, w) {
       return raid.trade + raid.bound * w;
@@ -3065,13 +3394,6 @@
       });
 
       return tierMap;
-    }
-
-    // 두 레이드의 점수가 같아지는 w(손익분기). 순위가 뒤집히는 지점이라 [DEV] 기준표에서 튜닝 근거로 쓴다.
-    function goldBreakEvenW(a, b) {
-      const db = a.bound - b.bound;
-      if (db === 0) return null;
-      return (b.trade - a.trade) / db;
     }
 
     // ─── 블록 정원 계산 ───────────────────────────────────────
@@ -3216,7 +3538,7 @@
     };
 
     function parseSiteConfig(rows) {
-      siteConfig = { maintenanceMode: false, noticeText: '', subGroupDays: { ...DEFAULT_SUB_GROUP_DAYS }, raidWeekAnchor: '', poolLastSyncedAt: '' };
+      siteConfig = { maintenanceMode: false, noticeText: '', subGroupDays: { ...DEFAULT_SUB_GROUP_DAYS }, raidWeekAnchor: '', poolLastSyncedAt: '', appVersion: '' };
       if (!rows || rows.length < 2) return;
 
       const map = {};
@@ -3231,6 +3553,7 @@
       siteConfig.noticeText = map['공지문구'] || '';
       siteConfig.raidWeekAnchor = map['현재레이드주차'] || '';
       siteConfig.poolLastSyncedAt = map['캐릭터풀_최종갱신'] || ''; // Sync.gs updateCharacterPool_ 가 매시간 성공 시 갱신
+      siteConfig.appVersion = map['앱버전'] || ''; // 운영 배포 시 사용자가 Config 시트에 직접 적어두는 값
 
       Object.keys(DEFAULT_SUB_GROUP_DAYS).forEach(sheetId => {
         const num = sheetId.replace('Sub_Group', '');
@@ -3239,6 +3562,21 @@
           siteConfig.subGroupDays[sheetId] = override;
         }
       });
+    }
+
+    // Config 시트 '앱버전'이 지금 로드된 스크립트의 APP_VERSION과 다르면(=운영 배포 이후 안 새로고침한
+    // 옛날 탭), 강제로 새로고침을 유도한다. no-cors 쓰기 요청은 실패해도 화면에 에러가 안 뜨기 때문에
+    // (project_loa_dashboard_status 참고) 스키마가 바뀐 채로 조용히 잘못된 쓰기를 보내는 것보다 낫다.
+    // Config에 '앱버전' 키 자체가 아직 없으면(값이 빈 문자열) 비교하지 않는다 - 오탐 방지.
+    let versionMismatchAlertShown = false;
+    async function maybeForceReloadOnVersionMismatch() {
+      if (IS_DEV) return;
+      if (versionMismatchAlertShown) return;
+      const serverVersion = siteConfig.appVersion;
+      if (!serverVersion || serverVersion === APP_VERSION) return;
+      versionMismatchAlertShown = true;
+      await customAlert(`새 버전(${serverVersion})이 배포되었습니다. 확인을 누르면 새로고침됩니다.`, '업데이트 안내');
+      location.reload();
     }
 
     // 점검 배너 표시.
@@ -3611,27 +3949,17 @@
         renderActiveTabContent();
       }
 
-      try {
-        await fetch(APPS_SCRIPT_WEB_APP_URL, {
-          method: 'POST',
-          mode: 'no-cors',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            action: 'clearSlot',
-            sheetId: t.sheetId,
-            sheetRow: t.sheetRow,
-            colIndex: t.colIndex,
-            blockIndex: t.blockIndex,
-            rawRaidTitle: t.rawRaidTitle || t.raidTitle,
-            targetRaid: `[${t.sheetId}] ${t.raidTitle}`,
-            user: t.user,
-            oldCharName: t.name,
-            oldChar: `${t.name} (${t.job} / ${t.level} / ${t.pos})`
-          })
-        });
-      } catch (err) {
-        console.error('슬롯 비우기 오류:', err);
-      }
+      await postAction('clearSlot', {
+        sheetId: t.sheetId,
+        sheetRow: t.sheetRow,
+        colIndex: t.colIndex,
+        blockIndex: t.blockIndex,
+        rawRaidTitle: t.rawRaidTitle || t.raidTitle,
+        targetRaid: `[${t.sheetId}] ${t.raidTitle}`,
+        user: t.user,
+        oldCharName: t.name,
+        oldChar: `${t.name} (${t.job} / ${t.level} / ${t.pos})`
+      }, '슬롯 비우기');
     }
 
     function openQuickSwapModal(slotJsonEncoded) {
@@ -3737,20 +4065,10 @@
     // 자동으로 올려준다. 서버가 기존 예정 레벨과 비교해 더 높은 쪽만 반영하므로 낮출 일은 없다.
     async function maybeUpdatePlannedLevel(charName, needsLevelUp, requiredLevel) {
       if (!needsLevelUp || !requiredLevel) return;
-      try {
-        await fetch(APPS_SCRIPT_WEB_APP_URL, {
-          method: 'POST',
-          mode: 'no-cors',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            action: 'updatePlannedLevel',
-            charName: charName,
-            plannedLevel: requiredLevel.toFixed(2)
-          })
-        });
-      } catch (err) {
-        console.error('예정 레벨 자동 갱신 오류:', err);
-      }
+      await postAction('updatePlannedLevel', {
+        charName,
+        plannedLevel: requiredLevel.toFixed(2)
+      }, '예정 레벨 자동 갱신');
     }
 
     // 빈 자리에 본인 캐릭 추가. 기록할 행은 서버가 블록에서 찾는다.
@@ -3786,27 +4104,17 @@
         }
       }
 
-      try {
-        await fetch(APPS_SCRIPT_WEB_APP_URL, {
-          method: 'POST',
-          mode: 'no-cors',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            action: 'addSlot',
-            sheetId: info.sheetId,
-            blockIndex: info.blockIndex,
-            rawRaidTitle: info.rawRaidTitle,
-            targetRaid: `[${info.sheetId}] ${info.raidTitle}`,
-            user: newChar.user,
-            newCharName: newChar.name,
-            newJob: newChar.job,
-            newLevel: newChar.level.toFixed(2),
-            newPos: newChar.pos
-          })
-        });
-      } catch (err) {
-        console.error('슬롯 추가 오류:', err);
-      }
+      await postAction('addSlot', {
+        sheetId: info.sheetId,
+        blockIndex: info.blockIndex,
+        rawRaidTitle: info.rawRaidTitle,
+        targetRaid: `[${info.sheetId}] ${info.raidTitle}`,
+        user: newChar.user,
+        newCharName: newChar.name,
+        newJob: newChar.job,
+        newLevel: newChar.level.toFixed(2),
+        newPos: newChar.pos
+      }, '슬롯 추가');
 
       maybeUpdatePlannedLevel(newChar.name, needsLevelUp, requiredLevel);
     }
@@ -3846,8 +4154,7 @@
         renderActiveTabContent();
       }
 
-      const payload = {
-        action: 'swap',
+      await postAction('swap', {
         sheetId: target.sheetId,
         sheetRow: target.sheetRow,
         blockIndex: target.blockIndex,
@@ -3862,18 +4169,7 @@
         newLevel: newChar.level.toFixed(2),
         newPos: newChar.pos,
         reason: '대시보드 원클릭 즉시 변경'
-      };
-
-      try {
-        await fetch(APPS_SCRIPT_WEB_APP_URL, {
-          method: 'POST',
-          mode: 'no-cors',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-      } catch (err) {
-        console.error('시트 저장 오류:', err);
-      }
+      }, '시트 저장');
 
       maybeUpdatePlannedLevel(newChar.name, needsLevelUp, requiredLevel);
     }
@@ -4022,7 +4318,7 @@
         const levelUpBadge = x.needsLevelUp
           ? `<span class="text-[10px] font-normal px-1.5 py-0.5 rounded bg-rose-500/15 text-rose-400 border border-rose-600/40">레벨업 필요</span>`
           : '';
-        const esc = c.name.replace(/'/g, "\\'");
+        const esc = escQ(c.name);
         const boxClass = isSel ? 'border-cyan-400 bg-cyan-950/20' : 'border-gray-800 bg-[#0d1117] hover:border-gray-600';
         return `
           <div onclick="toggleAddBlockChar('${esc}')" class="flex items-center justify-between p-2.5 rounded-lg border ${boxClass} cursor-pointer transition">
@@ -4159,23 +4455,13 @@
 
       closeAddBlockModal();
 
-      try {
-        await fetch(APPS_SCRIPT_WEB_APP_URL, {
-          method: 'POST',
-          mode: 'no-cors',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            action: 'addBlock',
-            sheetId: sheetId,
-            raidName: abbrName,
-            diff: abbrDiff,
-            requestedBy: selectedUser,
-            characters: chars
-          })
-        });
-      } catch (err) {
-        console.error('블록 추가 오류:', err);
-      }
+      await postAction('addBlock', {
+        sheetId,
+        raidName: abbrName,
+        diff: abbrDiff,
+        requestedBy: selectedUser,
+        characters: chars
+      }, '블록 추가');
 
       // 새 블록은 낙관적 반영 없이(구조가 복잡해 재구성보다 재조회가 안전) 바로 새로고침한다.
       await refreshSheets([sheetId], true);
@@ -4305,23 +4591,13 @@
       renderAttendanceStatusList();
       updateAttendanceSubmitState();
 
-      try {
-        await fetch(APPS_SCRIPT_WEB_APP_URL, {
-          method: 'POST',
-          mode: 'no-cors',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            action: 'submitAttendance',
-            user: record.user,
-            kind: record.kind,
-            target: record.target,
-            status: record.status,
-            memo: record.memo
-          })
-        });
-      } catch (err) {
-        console.error('참여 상태 등록 오류:', err);
-      }
+      await postAction('submitAttendance', {
+        user: record.user,
+        kind: record.kind,
+        target: record.target,
+        status: record.status,
+        memo: record.memo
+      }, '참여 상태 등록');
     }
 
     async function cancelAttendance(dateKey) {
@@ -4335,20 +4611,7 @@
       renderAttendanceMyList();
       renderActiveTabContent();
 
-      try {
-        await fetch(APPS_SCRIPT_WEB_APP_URL, {
-          method: 'POST',
-          mode: 'no-cors',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            action: 'cancelAttendance',
-            user: selectedUser,
-            target: dateKey
-          })
-        });
-      } catch (err) {
-        console.error('참여 상태 취소 오류:', err);
-      }
+      await postAction('cancelAttendance', { user: selectedUser, target: dateKey }, '참여 상태 취소');
     }
 
     function openInfoModal(defaultTab = 'guide') {
@@ -4444,20 +4707,7 @@
       });
       renderSuggestMyList();
 
-      try {
-        await fetch(APPS_SCRIPT_WEB_APP_URL, {
-          method: 'POST',
-          mode: 'no-cors',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            action: 'deleteSuggestion',
-            user: selectedUser,
-            content: content
-          })
-        });
-      } catch (err) {
-        console.error('건의 삭제 오류:', err);
-      }
+      await postAction('deleteSuggestion', { user: selectedUser, content }, '건의 삭제');
     }
 
     function selectSuggestCategory(cat) {
