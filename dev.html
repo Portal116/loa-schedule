@@ -120,7 +120,7 @@
           <i data-lucide="flask-conical" class="w-6 h-6 text-purple-400"></i>
           <span class="font-bold text-lg text-white tracking-wide whitespace-nowrap"><span class="sm:hidden">공대</span><span class="hidden sm:inline">로아 공대</span></span>
           <button onclick="openInfoModal('changelog')" class="text-[10px] font-mono font-bold px-1.5 sm:px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/30 hover:bg-purple-500/20 transition cursor-pointer" title="클릭하여 업데이트 이력 확인">
-            v2.6.20
+            v2.7.0
           </button>
         </div>
 
@@ -790,6 +790,12 @@
             </ul>
           </div>
           <div class="bg-[#0d1117] p-3.5 rounded-xl border border-gray-800">
+            <h4 class="font-bold text-xs mb-1.5 text-yellow-400">Q. 캐릭터 현황에서 레이드 뱃지가 몇 개 안 보여요.</h4>
+            <p class="text-xs text-gray-300 leading-relaxed">
+              레벨이 높아져서 더 이상 챙길 필요 없는 오래된 레이드는 자동으로 목록에서 빠집니다. 반대로 아직 레벨이 낮아 못 가는 레이드는 계속 잠금 표시로 보여줍니다.
+            </p>
+          </div>
+          <div class="bg-[#0d1117] p-3.5 rounded-xl border border-gray-800">
             <h4 class="font-bold text-xs mb-1.5 text-yellow-400">Q. 캐릭터 이름 옆의 (2/3)과 '골드 제외'는 무엇인가요?</h4>
             <ul class="text-xs text-gray-300 space-y-1 list-disc pl-4">
               <li><strong>(2/3)</strong> : 이번 주 골드 3칸 중 채운 개수입니다. 선택 구간 2개를 다 돌아도 골드는 1칸이라 1로 셉니다.</li>
@@ -803,9 +809,21 @@
             </p>
           </div>
           <div class="bg-[#0d1117] p-3.5 rounded-xl border border-gray-800">
+            <h4 class="font-bold text-xs mb-1.5 text-yellow-400">Q. 캐릭터 목록에서 특정 캐릭터를 안 보이게 할 수 있나요?</h4>
+            <p class="text-xs text-gray-300 leading-relaxed">
+              카드 우측 상단의 눈 모양 아이콘을 누르면 캐릭터 현황 목록에서 숨길 수 있습니다. 골드/숙제 기록은 그대로 남고, "숨긴 캐릭터 N명" 링크에서 언제든 다시 보이게 할 수 있습니다.
+            </p>
+          </div>
+          <div class="bg-[#0d1117] p-3.5 rounded-xl border border-gray-800">
             <h4 class="font-bold text-xs mb-1.5 text-yellow-400">Q. [진행] / [완료 처리] 버튼은 무엇인가요?</h4>
             <p class="text-xs text-gray-300 leading-relaxed">
-              레이드를 시작하면 <strong>[진행]</strong> 버튼을 눌러 진행중으로 표시하고, 끝나면 <strong>[완료 처리]</strong>를 눌러주세요. 완료 처리해야 캐릭터 현황의 체크(V)가 반영됩니다. 헤더의 <strong>[현재 레이드]</strong> 배지에서 지금 진행중인 레이드를 한눈에 볼 수 있습니다.
+              레이드를 시작하면 <strong>[진행]</strong> 버튼을 눌러 진행중으로 표시하고, 끝나면 <strong>[완료 처리]</strong>를 눌러주세요. 완료 처리해야 캐릭터 현황에 체크로 반영됩니다. 헤더의 <strong>[현재 레이드]</strong> 배지에서 지금 진행중인 레이드를 한눈에 볼 수 있습니다.
+            </p>
+          </div>
+          <div class="bg-[#0d1117] p-3.5 rounded-xl border border-gray-800">
+            <h4 class="font-bold text-xs mb-1.5 text-yellow-400">Q. 레이드 진행 관리 창의 [경매 계산기]는 어떻게 쓰나요?</h4>
+            <p class="text-xs text-gray-300 leading-relaxed">
+              진행 관리 창에서 <strong>[경매 계산기]</strong> 버튼을 누르면 그 레이드 인원수가 자동으로 선택된 상태로 뜹니다. 아이템 가격을 넣으면 직접 사용가 / 선점가 등을 계산해주고, 값을 클릭하면 바로 복사됩니다.
             </p>
           </div>
           <div class="bg-[#0d1117] p-3.5 rounded-xl border border-gray-800">
@@ -832,10 +850,25 @@
         <div id="infoContentChangelog" class="space-y-3 hidden">
           <div class="border-l-2 border-yellow-500 pl-3 py-1 mb-3">
             <div class="flex items-center justify-between">
-              <span class="font-bold text-white text-xs">v2.6 - 유용한 링크 탭 추가</span>
-              <span class="text-[11px] text-gray-500">2026.09.12</span>
+              <span class="font-bold text-white text-xs">v2.7 - 유용한 링크 확장 + 경매 계산기 + 캐릭터 숨기기</span>
+              <span class="text-[11px] text-gray-500">2026.09.13</span>
             </div>
             <ul class="text-xs text-gray-400 mt-1 space-y-0.5 list-disc pl-3">
+              <li>유용한 링크 탭: 재련 최적화 / 강화 계산기를 사이트별 버튼 하나로 통합, 지옥 보상 · 젬파고 링크 추가</li>
+              <li>스펙 조회 사이트 이름을 로펙 / 로아와 / 로아랩으로 표기</li>
+              <li>레이드 진행 관리 창에 경매 계산기 추가 (인원수 자동 선택, 입찰가 클릭 시 복사)</li>
+              <li>캐릭터 현황에서 캐릭터 숨기기 기능 추가 (언제든 다시 볼 수 있음)</li>
+              <li>레벨이 높아져 더 이상 챙기지 않아도 되는 오래된 레이드는 뱃지가 자동으로 정리됨</li>
+              <li>캐릭터 풀에 들어오는 최소 레벨 기준을 낮춤 (점핑권 지급 기준에 맞춤)</li>
+            </ul>
+          </div>
+
+          <div class="border-l-2 border-gray-700 pl-3 py-1 mb-3">
+            <div class="flex items-center justify-between">
+              <span class="font-bold text-gray-300 text-xs">v2.6 - 유용한 링크 탭 추가</span>
+              <span class="text-[11px] text-gray-500">2026.09.12</span>
+            </div>
+            <ul class="text-xs text-gray-500 mt-1 space-y-0.5 list-disc pl-3">
               <li>유용한 링크 탭 추가 (스펙 조회, 강화/재화 계산기 등 자주 쓰는 외부 도구 모음)</li>
               <li>캐릭터 현황 캐릭터명 클릭 시 스펙 조회 가능</li>
               <li>상단 탭 구성 정리 (일정표 / 캐릭터 현황 / 기타)</li>
