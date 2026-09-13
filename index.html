@@ -3801,7 +3801,7 @@
       const minLevel = row ? parseGoldNum(row.level) : 0;
 
       return characterPoolData
-        .filter(c => c.user.startsWith(selectedUser))
+        .filter(c => c.user.startsWith(selectedUser) && (!hiddenCharNames.has(c.name) || c.name === currentCharName))
         .map(c => {
           const isCurrent = c.name === currentCharName;
 
@@ -4269,11 +4269,11 @@
       // 쓸지는 매 레이드마다 다를 수 있으므로 캐릭터명이 아니라 유저 단위로 제한하고,
       // 실제 캐릭터 선택 자체는 자동이 아니라 수동으로 - 유저당 정확히 1명씩 골라야 확정할 수 있다.
       addBlockFixedRoster = (currentActiveTab !== 'Main_8Man');
-      let basePool = characterPoolData;
+      let basePool = characterPoolData.filter(c => !hiddenCharNames.has(c.name));
       let members = new Set();
       if (addBlockFixedRoster) {
         members = getSheetMemberBaseUsers(currentActiveTab);
-        basePool = characterPoolData.filter(c => members.has((c.user || '').split('(')[0].trim()));
+        basePool = basePool.filter(c => members.has((c.user || '').split('(')[0].trim()));
       }
       window.__addBlockMemberUsers = members;
       const cands = basePool.map(c => ({ c, needsLevelUp: minLevel > 0 && c.level < minLevel }));
