@@ -96,15 +96,6 @@
       .slot-meta { flex-direction: row; align-items: center; column-gap: 0.5rem; }
       .slot-job { display: inline; }
     }
-    /* 캐릭터 현황 카드: 카드 콘텐츠 폭 300px 미만이면 레이드 배지를 1글자(종/4/성/세/벨)로.
-       풀 라벨 5개 + 레벨의 최대 필요 폭이 ~294px 이라 300 을 경계로 둔다. */
-    .pool-card { container-type: inline-size; }
-    .raid-tag-full { display: none; }
-    .raid-tag-short { display: inline; }
-    @container (min-width: 300px) {
-      .raid-tag-full { display: inline; }
-      .raid-tag-short { display: none; }
-    }
     .modal-scroll::-webkit-scrollbar {
       width: 6px;
     }
@@ -129,7 +120,7 @@
           <i data-lucide="flask-conical" class="w-6 h-6 text-purple-400"></i>
           <span class="font-bold text-lg text-white tracking-wide whitespace-nowrap"><span class="sm:hidden">공대</span><span class="hidden sm:inline">로아 공대</span></span>
           <button onclick="openInfoModal('changelog')" class="text-[10px] font-mono font-bold px-1.5 sm:px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/30 hover:bg-purple-500/20 transition cursor-pointer" title="클릭하여 업데이트 이력 확인">
-            v2.6.18
+            v2.6.20
           </button>
         </div>
 
@@ -1031,10 +1022,14 @@
     ];
 
     // 캐릭터 현황 카드에 한 번에 배지로 보여줄 레이드 계열 최대 개수.
-    // 지금은 RAID_DEFINITIONS 길이(5)와 같아서 실질적으로 전부 보임 - 나중에 레이드가 6개 이상으로
-    // 늘어나면 입장 가능한 레이드 중 가장 오래된(요구 레벨 낮은) 것부터 카드에서 숨겨지기 시작한다.
-    // (getVisibleRaidKeysForLevel 참고. 그 시점에 카드 레이아웃/게임 메타를 보고 이 값 자체를 재검토할 것.)
-    const VISIBLE_RAID_WINDOW = 5;
+    // 4 = 주간 골드 획득 가능 레이드 수(GOLD_SLOT_LIMIT=3) + 선택 구간 후보 1개. 레벨이 높아
+    // 이미 골드 대상에서 벗어난(NONE 티어) 오래된 레이드는 안 보여줘도 실질적인 손실이 없다는
+    // 전제(2026-09-13, 실제 골드 티어 계산과 대조해서 전 레벨대 검증 완료 - EARN/MAYBE 레이드가
+    // 창 밖으로 밀려나는 경우 없음)로 정한 값. getVisibleRaidDefsForLevel() 참고.
+    // 이 값은 레벨 기준 정렬(getOrderedRaidFamilies)로 숨김 여부를 정하지, 그때그때의 실제 골드
+    // 티어를 직접 보는 게 아니다 - 나중에 BOUND_GOLD_WEIGHT_LOW/HIGH나 레이드 골드량이 바뀌면
+    // 위 검증(각 레벨대에서 EARN/MAYBE 레이드가 숨겨지는지)을 다시 해볼 것.
+    const VISIBLE_RAID_WINDOW = 4;
 
     // ─── 골드 판별 엔진 설정 ───────────────────────────────────
     // 주간 골드 획득 가능 레이드 수
@@ -1698,6 +1693,7 @@
       );
     }
 
+    // Character_Pool 열 순서(A~H): 유저명/서버/캐릭터명/직업/포지션/현재 레벨/예정 레벨/최종 레벨(수식) - 2026-09-13 재배치.
     function parseCharacterPool(rows) {
       characterPoolData = [];
       goldEligibleCharNames = new Set();
@@ -1709,10 +1705,11 @@
         const server = (row[1] || '').toString().trim();
         const name = (row[2] || '').toString().trim();
         const job = (row[3] || '').toString().trim();
+        const pos = (row[4] || '딜러').toString().trim();
 
-        const valE = parseFloat(String(row[4]).replace(/,/g, '')) || 0;
-        const valF = parseFloat(String(row[5]).replace(/,/g, '')) || 0;
-        const valG = parseFloat(String(row[6]).replace(/,/g, '')) || 0;
+        const valE = parseFloat(String(row[5]).replace(/,/g, '')) || 0;
+        const valF = parseFloat(String(row[6]).replace(/,/g, '')) || 0;
+        const valG = parseFloat(String(row[7]).replace(/,/g, '')) || 0;
 
         let finalLevel = 0;
         if (valF >= 1000) finalLevel = valF;
@@ -1720,14 +1717,12 @@
         else if (valG >= 1000) finalLevel = valG;
         else finalLevel = valE || valF || valG;
 
-        const pos = (row[7] || '딜러').toString().trim();
-
         if (name && !isHeaderWord(name)) {
           const charObj = {
             user, server, name, job,
             level: finalLevel,
-            currentLevel: valE,   // E열: API로 갱신되는 실제 현재 레벨 (참고용, 수정 불가)
-            plannedLevel: valF,   // F열: 예정 레벨 (대시보드에서 직접 수정 가능)
+            currentLevel: valE,   // F열: API로 갱신되는 실제 현재 레벨 (참고용, 수정 불가)
+            plannedLevel: valF,   // G열: 예정 레벨 (대시보드에서 직접 수정 가능)
             pos
           };
           characterPoolData.push(charObj);
@@ -2756,9 +2751,7 @@
     }
 
     function renderRaidTag(label, status, charLevel, raidKey, charName, goldTier, maybeDesc, isScheduled) {
-      // 카드 폭이 좁으면(폰 1열, PC 1024 3열 등 카드 콘텐츠 300px 미만) 1글자 라벨(종/4/성/세/벨)로 표시한다.
-      // 어느 쪽을 보일지는 <style> 의 .pool-card 컨테이너 쿼리(.raid-tag-short / .raid-tag-full)가 정한다.
-      const labelHtml = `<span class="raid-tag-short">${label.charAt(0)}</span><span class="raid-tag-full">${label}</span>`;
+      const labelHtml = label;
       const minCut = getRaidMinLevel(raidKey);
       const canEnter = charLevel >= minCut;
       const base = 'px-1.5 py-0.5 rounded text-[10px] font-bold select-none';
@@ -2835,7 +2828,7 @@
       await postAction('toggleWildClear', { charName, raidKey }, '숙제 상태 저장');
     }
 
-    // 본인 캐릭터의 예정 레벨(Character_Pool F열)을 직접 수정한다.
+    // 본인 캐릭터의 예정 레벨(Character_Pool G열)을 직접 수정한다.
     // 빈 값으로 지우면 예정 레벨을 취소하고(현재 레벨 기준으로 돌아감), 숫자를 넣으면 그 값으로 고정된다.
     // (executeAddSlot/executeInstantSwap 이 자동으로 올려주는 것과 달리, 여기서는 낮추는 것도 가능하다.)
     async function editPlannedLevel(charName) {
@@ -3299,12 +3292,13 @@
     }
 
     // 전체 레이드 계열을 요구 레벨 오름차순(=출시 순)으로 한 줄 세운다. 요구 레벨이 같으면
-    // 총골드 내림차순 -> 유통골드 내림차순으로 (더 높은 티어로 취급할 레이드가 뒤쪽에 오도록).
+    // 총골드 오름차순 -> 유통골드 오름차순으로 (더 높은 티어로 취급할 레이드가 뒤쪽에 오도록 -
+    // 전체 정렬 방향이 오름차순이라, 타이브레이크도 "값이 클수록 뒤로" 가려면 똑같이 오름차순이어야 한다).
     function getOrderedRaidFamilies() {
       return RAID_DEFINITIONS.slice().sort((a, b) => {
         if (a.minLevel !== b.minLevel) return a.minLevel - b.minLevel;
         const ga = getFamilyReferenceGold(a.key), gb = getFamilyReferenceGold(b.key);
-        return (gb.total - ga.total) || (gb.trade - ga.trade);
+        return (ga.total - gb.total) || (ga.trade - gb.trade);
       });
     }
 
