@@ -120,7 +120,7 @@
           <i data-lucide="shield" class="w-6 h-6 text-yellow-500"></i>
           <span class="font-bold text-lg text-white tracking-wide whitespace-nowrap"><span class="sm:hidden">공대</span><span class="hidden sm:inline">로아 공대</span></span>
           <button onclick="openInfoModal('changelog')" class="text-[10px] font-mono font-bold px-1.5 sm:px-2 py-0.5 rounded bg-yellow-500/10 text-yellow-400 border border-yellow-500/30 hover:bg-yellow-500/20 transition cursor-pointer" title="클릭하여 업데이트 이력 확인">
-            v2.7
+            v2.8
           </button>
         </div>
 
@@ -225,7 +225,7 @@
             </label>
             <button onclick="openAddBlockModal()" class="flex items-center whitespace-nowrap space-x-1 bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white border border-gray-700 text-xs font-semibold px-2.5 py-1.5 rounded-lg transition">
               <i data-lucide="plus-circle" class="w-3.5 h-3.5 text-yellow-400"></i>
-              <span>블록 추가</span>
+              <span>레이드 추가</span>
             </button>
           </div>
         </div>
@@ -459,30 +459,42 @@
 
       <div class="flex items-center space-x-2 text-yellow-400 mb-2">
         <i data-lucide="plus-circle" class="w-5 h-5"></i>
-        <h3 class="text-lg font-bold text-white">레이드 블록 추가</h3>
+        <h3 class="text-lg font-bold text-white">레이드 추가</h3>
       </div>
       <p class="text-xs text-gray-400 mb-3">
-        현재 탭(<span id="addBlockSheetLabel" class="text-gray-300 font-semibold">-</span>)에 새 레이드를 추가합니다. 이미 있는 레이드를 또 골라도 자동으로 회차가 붙어서 구분됩니다.
+        선택한 조에 새 레이드를 추가합니다. 이미 있는 레이드를 또 골라도 자동으로 회차가 붙어서 구분됩니다.
       </p>
+
+      <div class="custom-select relative mb-3">
+        <label class="block text-xs font-semibold text-gray-400 mb-1.5">추가할 조</label>
+        <select id="addBlockSheetSelect" onchange="onAddBlockSheetChange()" class="hidden"></select>
+        <button type="button" onclick="toggleCustomSelect('addBlockSheetSelect', event)"
+          class="w-full flex items-center justify-between bg-[#0d1117] border border-gray-700 rounded-lg px-3 py-2 text-xs text-gray-200 focus:outline-none focus:border-yellow-500 transition">
+          <span id="addBlockSheetSelectLabel">-</span>
+          <i data-lucide="chevron-down" class="w-3.5 h-3.5 text-gray-400 shrink-0"></i>
+        </button>
+        <div id="addBlockSheetSelectPanel" class="hidden absolute z-30 top-full left-0 mt-1 w-full max-h-60 overflow-y-auto rounded-lg border border-gray-700 bg-[#161b22] shadow-lg py-1"></div>
+      </div>
+
       <div id="addBlockScopeNote" class="hidden items-start gap-2 mb-4 p-2.5 rounded-lg border border-amber-500/30 bg-amber-500/10 text-xs text-amber-400 leading-relaxed">
         <i data-lucide="info" class="w-3.5 h-3.5 mt-0.5 shrink-0"></i>
         <span>이 조는 인원이 고정돼 있어, 소속 조원(유저)의 캐릭터 중에서만 고를 수 있고 전원이 빠짐없이 들어가야 합니다.<br>부캐는 매번 직접 골라 주세요.</span>
       </div>
 
-      <div class="space-y-3 overflow-y-auto modal-scroll pr-1.5 flex-1">
-        <div class="custom-select relative">
-          <label class="block text-xs font-semibold text-gray-400 mb-1.5">레이드 선택</label>
-          <select id="addBlockRaidSelect" onchange="onAddBlockRaidChange()" class="hidden">
-            <option value="" class="bg-[#161b22]">레이드를 선택해 주세요</option>
-          </select>
-          <button type="button" onclick="toggleCustomSelect('addBlockRaidSelect', event)"
-            class="w-full flex items-center justify-between bg-[#0d1117] border border-gray-700 rounded-lg px-3 py-2 text-xs text-gray-200 focus:outline-none focus:border-yellow-500 transition">
-            <span id="addBlockRaidSelectLabel">레이드를 선택해 주세요</span>
-            <i data-lucide="chevron-down" class="w-3.5 h-3.5 text-gray-400 shrink-0"></i>
-          </button>
-          <div id="addBlockRaidSelectPanel" class="hidden absolute z-30 top-full left-0 mt-1 w-full max-h-60 overflow-y-auto rounded-lg border border-gray-700 bg-[#161b22] shadow-lg py-1"></div>
-        </div>
+      <div class="custom-select relative mb-3">
+        <label class="block text-xs font-semibold text-gray-400 mb-1.5">레이드 선택</label>
+        <select id="addBlockRaidSelect" onchange="onAddBlockRaidChange()" class="hidden">
+          <option value="" class="bg-[#161b22]">레이드를 선택해 주세요</option>
+        </select>
+        <button type="button" id="addBlockRaidSelectTrigger" onclick="toggleCustomSelect('addBlockRaidSelect', event)"
+          class="w-full flex items-center justify-between bg-[#0d1117] border border-gray-700 rounded-lg px-3 py-2 text-xs text-gray-200 focus:outline-none focus:border-yellow-500 transition disabled:opacity-40 disabled:cursor-not-allowed">
+          <span id="addBlockRaidSelectLabel">레이드를 선택해 주세요</span>
+          <i data-lucide="chevron-down" class="w-3.5 h-3.5 text-gray-400 shrink-0"></i>
+        </button>
+        <div id="addBlockRaidSelectPanel" class="hidden absolute z-30 top-full left-0 mt-1 w-full max-h-60 overflow-y-auto rounded-lg border border-gray-700 bg-[#161b22] shadow-lg py-1"></div>
+      </div>
 
+      <div class="space-y-3 overflow-y-auto modal-scroll pr-1.5 flex-1">
         <div id="addBlockCapacitySection" class="hidden space-y-2">
           <div class="flex items-center justify-between">
             <span class="text-xs font-semibold text-gray-400"><span id="addBlockListLabel">캐릭터 선택</span> <span id="addBlockSelectedCount" class="text-yellow-400 font-mono"></span></span>
@@ -827,9 +839,9 @@
             </p>
           </div>
           <div class="bg-[#0d1117] p-3.5 rounded-xl border border-gray-800">
-            <h4 class="font-bold text-xs mb-1.5 text-yellow-400">Q. [블록 추가]는 어떻게 쓰나요?</h4>
+            <h4 class="font-bold text-xs mb-1.5 text-yellow-400">Q. [레이드 추가]는 어떻게 쓰나요?</h4>
             <p class="text-xs text-gray-300 leading-relaxed">
-              현재 탭에 새 레이드 회차를 통째로 등록할 수 있습니다. [토요일 고정]은 아무 캐릭터나 자유롭게 고를 수 있고, 서브그룹은 소속 조원의 캐릭터 중에서만 골라야 하며 전원이 빠짐없이 들어가야 합니다.
+              원하는 조를 선택해서 새 레이드 회차를 통째로 등록할 수 있습니다. 목록에는 [토요일 고정]과 본인이 속한 서브그룹만 뜨고, "새 그룹에 추가"를 고르면 새 서브그룹이 만들어집니다. [토요일 고정]은 아무 캐릭터나 자유롭게 고를 수 있고, 기존 서브그룹은 소속 조원의 캐릭터 중에서만 골라야 하며 전원이 빠짐없이 들어가야 합니다.
             </p>
           </div>
           <div class="bg-[#0d1117] p-3.5 rounded-xl border border-gray-800">
@@ -850,10 +862,22 @@
         <div id="infoContentChangelog" class="space-y-3 hidden">
           <div class="border-l-2 border-yellow-500 pl-3 py-1 mb-3">
             <div class="flex items-center justify-between">
-              <span class="font-bold text-white text-xs">v2.7 - 유용한 링크 확장 + 경매 계산기 + 캐릭터 숨기기</span>
-              <span class="text-[11px] text-gray-500">2026.09.13</span>
+              <span class="font-bold text-white text-xs">v2.8 - 레이드 추가 기능 개편 + 유용한 링크 정리</span>
+              <span class="text-[11px] text-gray-500">2026.09.17</span>
             </div>
             <ul class="text-xs text-gray-400 mt-1 space-y-0.5 list-disc pl-3">
+              <li>[블록 추가] 기능 이름을 [레이드 추가]로 변경</li>
+              <li>[레이드 추가]에서 추가할 조를 직접 선택하거나 새로운 조를 만들 수 있음(본인이 속한 조만 표시되어 다른 조에 실수로 얹는 일 방지)</li>
+              <li>유용한 링크 탭 정리: "강화 계산" → "스펙 도구", "재화 계산" → "재화 도구"로 이름 변경, 치명타 계산기를 캐릭터별로 바로 조회 가능하도록 개선(캐릭터 현황에서도 지원)</li>
+            </ul>
+          </div>
+
+          <div class="border-l-2 border-gray-700 pl-3 py-1 mb-3">
+            <div class="flex items-center justify-between">
+              <span class="font-bold text-gray-300 text-xs">v2.7 - 유용한 링크 확장 + 경매 계산기 + 캐릭터 숨기기</span>
+              <span class="text-[11px] text-gray-500">2026.09.13</span>
+            </div>
+            <ul class="text-xs text-gray-500 mt-1 space-y-0.5 list-disc pl-3">
               <li>유용한 링크 탭: 재련 최적화 / 강화 계산기를 사이트별 버튼 하나로 통합, 지옥 보상 · 젬파고 링크 추가</li>
               <li>스펙 조회 사이트 이름을 로펙 / 로아와 / 로아랩으로 표기</li>
               <li>레이드 진행 관리 창에 경매 계산기 추가 (인원수 자동 선택, 입찰가 클릭 시 복사)</li>
@@ -1036,13 +1060,44 @@
       }
     }
 
-    const SHEET_CONFIG = [
+    // postAction과 달리 응답을 실제로 읽어야 하는 몇 안 되는 액션(예: 새 서브그룹 시트를
+    // 만들고 그 id를 돌려받는 것)에 쓴다. Content-Type을 text/plain으로 보내야
+    // "simple request"로 취급되어 프리플라이트(OPTIONS)가 안 붙는다 - Apps Script 웹앱은
+    // OPTIONS 요청을 처리하지 않으므로 application/json으로 보내면 이 요청 자체가 브라우저
+    // 단에서 막힌다. 서버(doPost_)는 Content-Type과 무관하게 본문을 그냥 JSON.parse 하므로
+    // 이렇게 보내도 동작에는 문제없다.
+    async function postActionRead(action, payload, errorLabel) {
+      try {
+        const res = await fetch(APPS_SCRIPT_WEB_APP_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify(Object.assign({ action }, payload))
+        });
+        return await res.json();
+      } catch (err) {
+        console.error(`${errorLabel || action} 오류:`, err);
+        return { status: 'error', message: '서버와 통신하지 못했습니다.' };
+      }
+    }
+
+    // 서브그룹 개수가 고정이 아니게 되면서(블록 추가 화면의 "새 그룹에 추가"로 언제든 늘어날 수
+    // 있음), 정적 배열 대신 Config의 '서브그룹_목록'을 파싱한 뒤 rebuildSheetConfig()로 채운다.
+    // parseSiteConfig가 항상 먼저 호출되므로, 그 전까지의 기본값으로 DEFAULT_SUB_GROUP_LIST를 쓴다.
+    let SHEET_CONFIG = [
       { id: 'Main_8Man', fixedTitle: '[토요일 고정]', is8Man: true },
       { id: 'Sub_Group1', is8Man: false },
       { id: 'Sub_Group2', is8Man: false },
       { id: 'Sub_Group3', is8Man: false },
       { id: 'Sub_Group4', is8Man: false },
     ];
+
+    function rebuildSheetConfig() {
+      const subIds = siteConfig.subGroupList || [];
+      SHEET_CONFIG = [
+        { id: 'Main_8Man', fixedTitle: '[토요일 고정]', is8Man: true },
+        ...subIds.map(id => ({ id, is8Man: false }))
+      ];
+    }
 
     // 표시 순서 = 출시 순 (4막 → 종막 → 세르카 → 성당 → 벨가, 벨가가 최신). 계산 로직은 순서에 의존하지 않는다.
     const RAID_DEFINITIONS = [
@@ -1119,6 +1174,9 @@
     let addBlockSelectedChars = new Set(); // 블록 추가 모달에서 선택한 캐릭터명들
     let addBlockFixedRoster = false;     // 서브그룹 탭이라 소속 인원 전체가 강제 편성되는 모드인지
     let addBlockRosterOverflow = false;  // 고정 인원이 이 레이드 정원보다 많아서 추가 불가능한 상태인지
+    let addBlockTargetSheet = 'Main_8Man'; // 블록 추가 모달의 "추가할 조" 선택값 (기본값 = 열었을 때의 현재 탭)
+    const ADD_BLOCK_NEW_GROUP_VALUE = '__new_group__'; // "새 그룹에 추가" 옵션 식별용 특수 값
+    const ADD_BLOCK_UNSELECTED_VALUE = '__unselected__'; // "조를 선택해 주세요" 옵션 식별용 특수 값
     let goldEligibleCharNames = new Set();
     let attendanceData = [];          // Attendance 시트 원본
     let raidStatusData = [];          // Raid_Status 시트 원본 (레이드 진행중/완료 상태)
@@ -1128,7 +1186,7 @@
     let activeProgressTarget = null;  // 진행/완료 모달이 대상으로 하는 블록 정보
     // 자동 팝업 중복 방지 - 이미 띄운 진행중 건은 같은 건이 유지되는 동안 다시 띄우지 않는다.
     let lastAutoPopupKey = null;
-    let siteConfig = { maintenanceMode: false, noticeText: '', subGroupDays: {}, raidWeekAnchor: '', poolLastSyncedAt: '', appVersion: '' };  // Config 시트 원본
+    let siteConfig = { maintenanceMode: false, noticeText: '', subGroupList: [], subGroupDays: {}, raidWeekAnchor: '', poolLastSyncedAt: '', appVersion: '' };  // Config 시트 원본
     let suggestionsData = [];         // Suggestions 시트 원본
     // 시트별로 편성 인스턴스를 나눠 보관한다. 한 시트만 다시 받아도 골드 재계산이 가능해진다.
     let allRaidInstancesBySheet = {};
@@ -1149,7 +1207,7 @@
     const RAID_STATUS_POLL_MS = 15000;
     // 운영(index.html)에 배포된 실제 버전. Config 시트 '앱버전' 값과 달라지면 새로고침을 유도한다.
     // dev.html은 빌드 번호가 세션마다 바뀌므로 이 체크 자체를 IS_DEV로 건너뛴다.
-    const APP_VERSION = '2.7';
+    const APP_VERSION = '2.8';
     let pendingAttendance = { date: '', status: '', memo: '' };
 
     document.addEventListener('DOMContentLoaded', () => {
@@ -1247,7 +1305,7 @@
     // select 팝업(펼쳤을 때 뜨는 목록)은 브라우저가 직접 그려서 CSS로 모양을 못 바꾼다.
     // 그래서 실제 값 저장소는 화면에서만 숨긴 <select>를 그대로 쓰고(기존 onchange/.value 로직 재사용),
     // 그 위에 앱 스타일 그대로인 트리거 버튼 + 목록 패널을 얹어서 화면에는 이것만 보이게 한다.
-    const CUSTOM_SELECT_IDS = ['userSelector', 'poolUserFilter', 'poolPosFilter', 'poolLevelFilter', 'addBlockRaidSelect', 'subGroupDaySelect', 'miscView'];
+    const CUSTOM_SELECT_IDS = ['userSelector', 'poolUserFilter', 'poolPosFilter', 'poolLevelFilter', 'addBlockSheetSelect', 'addBlockRaidSelect', 'subGroupDaySelect', 'miscView'];
     let openCustomSelectId = null;
 
     function initCustomSelect(selectId) {
@@ -1622,10 +1680,11 @@
       allRaidInstancesBySheet = {};
 
       try {
-        // 시트를 순차로 받으면 왕복 8번이 그대로 더해진다. 서로 의존하지 않으므로 전부 병렬로 받는다.
+        // 시트를 순차로 받으면 왕복이 그대로 더해진다. 서로 의존하지 않는 것들은 병렬로 받되,
+        // 일정 시트(SHEET_CONFIG)만은 예외 - 서브그룹이 몇 개인지(어떤 이름으로 받아야 하는지)를
+        // Config의 '서브그룹_목록'을 먼저 파싱해야 알 수 있어서, Config 응답이 온 뒤 2단계로 받는다.
         const bust = Date.now();
-        const [sheetRows, poolRows, attRows, raidRows, configRows, statusRows, memberRows, hiddenRows, wildRows] = await Promise.all([
-          Promise.all(SHEET_CONFIG.map(cfg => fetchSheetCsv(cfg.id, bust))),
+        const [poolRows, attRows, raidRows, configRows, statusRows, memberRows, hiddenRows, wildRows] = await Promise.all([
           fetchSheetCsv('Character_Pool', bust),
           fetchSheetCsv('Attendance', bust).catch(() => null),
           fetchSheetCsv('Raid_Info', bust).catch(() => null),
@@ -1636,6 +1695,10 @@
           fetchSheetCsv('Wild_Clears', bust).catch(() => null)
         ]);
 
+        // Config를 먼저 파싱해 SHEET_CONFIG(서브그룹 목록)를 확정한 다음에야 일정 시트를 받을 수 있다.
+        parseSiteConfig(configRows);
+        const sheetRows = await Promise.all(SHEET_CONFIG.map(cfg => fetchSheetCsv(cfg.id, bust)));
+
         // processScheduleSheet(enrichSlotFromPool 포함)가 characterPoolData 를 조회하므로,
         // 반드시 parseCharacterPool 을 먼저 실행해야 한다. 순서가 바뀌면 첫 로딩 시
         // characterPoolData 가 비어 있는 채로 조회되어 전부 '정보 없음'으로 나온다
@@ -1643,10 +1706,9 @@
         parseCharacterPool(poolRows);
         SHEET_CONFIG.forEach((config, idx) => processScheduleSheet(config, sheetRows[idx]));
 
-        // Attendance / Raid_Info / Config / Raid_Status 는 없어도 나머지 기능이 동작해야 한다
+        // Attendance / Raid_Info / Raid_Status 는 없어도 나머지 기능이 동작해야 한다
         if (attRows) parseAttendance(attRows); else attendanceData = [];
         if (raidRows) parseRaidInfo(raidRows);
-        parseSiteConfig(configRows);
 
         // 운영(index.html)과 동일한 점검모드 하드게이트. dev 에서는 &&!IS_DEV 로 항상 건너뛴다 -
         // dev 는 나 혼자 테스트하는 환경이라 정상 화면을 그대로 봐야 검증 의미가 있어서다 (위 배너로 대신 알림).
@@ -1939,9 +2001,12 @@
       const nav = document.getElementById('tabNav');
       nav.innerHTML = '';
 
-      let availableTabs = SHEET_CONFIG;
+      // 블록이 하나도 없는 서브그룹(방금 만들어졌거나, 조 통합으로 비게 된 시트)은 탭 자체를
+      // 숨긴다 - "새 그룹에 추가"로 빈 시트를 재사용하는 구조라, 안 그러면 아무 내용 없는
+      // 탭(raw 시트 id만 표시)이 계속 눈에 밟히게 된다.
+      let availableTabs = SHEET_CONFIG.filter(cfg => cfg.is8Man || (sheetsDataStore[cfg.id] && sheetsDataStore[cfg.id].users.length > 0));
       if (filterMySubOnly && selectedUser) {
-        availableTabs = SHEET_CONFIG.filter(cfg => {
+        availableTabs = availableTabs.filter(cfg => {
           if (cfg.is8Man) return true;
           const sheetInfo = sheetsDataStore[cfg.id];
           return sheetInfo && sheetInfo.users.includes(selectedUser);
@@ -2039,7 +2104,7 @@
       subGroupDayEditingSheetId = sheetId;
       document.getElementById('subGroupDayModalLabel').textContent = tabTitle;
       const select = document.getElementById('subGroupDaySelect');
-      select.value = (siteConfig.subGroupDays && siteConfig.subGroupDays[sheetId]) || DEFAULT_SUB_GROUP_DAYS[sheetId] || '목요일';
+      select.value = (siteConfig.subGroupDays && siteConfig.subGroupDays[sheetId]) || '목요일';
       syncCustomSelect('subGroupDaySelect');
       document.body.style.overflow = 'hidden';
       document.getElementById('subGroupDayModal').classList.remove('hidden');
@@ -2911,7 +2976,7 @@
         ]
       },
       {
-        title: '강화 계산',
+        title: '스펙 도구',
         items: [
           { name: '재련 최적화', options: [
             { label: '아이스펭', url: 'https://loa.icepeng.com/refining' },
@@ -2921,11 +2986,13 @@
             { label: '로아베스팅', url: 'https://www.loavesting.com/calculator/t4' },
             { label: 'loacal', url: 'https://loacal-beta.up.railway.app/tools?tab=refine' }
           ] },
-          { name: '젬파고', url: 'https://loatto.kr/gempago' }
+          { name: '젬파고', url: 'https://loatto.kr/gempago' },
+          { name: '치명타 계산기(로아랩)', mainUrl: 'https://lo4.app/tools/blunt-thorn', charUrlTemplate: 'https://lo4.app/tools/blunt-thorn?name={name}' },
+          { name: '음돌 계산기(로아랩)', url: 'https://lo4.app/tools/supersonic-breakthrough' }
         ]
       },
       {
-        title: '재화 계산',
+        title: '재화 도구',
         items: [
           { name: '경매 계산기', options: [
             { label: '로아차트', url: 'https://loachart.com/bidcalc' },
@@ -2947,8 +3014,6 @@
           { name: '도감작 계산기', url: 'https://loachart.com/cardcalc/recommend' },
           { name: '염색 도우미', url: 'https://loacal-beta.up.railway.app/tools?tab=dye' },
           { name: '스토브 플레이크', url: 'https://reward.onstove.com/ko/event' },
-          { name: '치명타 계산기(로아랩)', url: 'https://lo4.app/tools/blunt-thorn' },
-          { name: '음돌 계산기(로아랩)', url: 'https://lo4.app/tools/supersonic-breakthrough' },
           { name: '히든 업적 체크리스트', url: 'https://loa-hidden-check.vercel.app/' }
         ]
       },
@@ -2961,8 +3026,8 @@
       }
     ];
 
-    // 캐릭터 현황에서 캐릭터명 클릭 시 뜨는 목록도 스펙 조회 사이트 3곳을 그대로 재사용한다.
-    const CHAR_LOOKUP_SITES = USEFUL_LINK_SECTIONS[0].items
+    // 캐릭터 현황에서 캐릭터명 클릭 시 뜨는 목록 - charUrlTemplate 이 있는 항목(스펙 조회 사이트 + 치명타 계산기 등)을 전 섹션에서 모아 재사용한다.
+    const CHAR_LOOKUP_SITES = USEFUL_LINK_SECTIONS.flatMap(section => section.items)
       .filter(it => it.charUrlTemplate)
       .map(it => ({ name: it.name, urlTemplate: it.charUrlTemplate }));
 
@@ -3529,17 +3594,13 @@
     // 열: A신청일시 B유저명 C구분 D대상 E상태 F메모
     // Config 시트 파싱. 재배포 없이 시트 값만 바꿔서 대시보드 동작(점검 배너 등)을
     // 조정할 수 있도록 하는 설정용 시트. 없거나 값이 비어 있으면 기본값(정상 상태)으로 둔다.
-    // 서브조 요일 기본값. Config 시트에 '서브그룹N_요일' 키가 없으면 이 값을 쓴다.
-    const DEFAULT_SUB_GROUP_DAYS = {
-      Sub_Group1: '목요일',
-      Sub_Group2: '목요일',
-      Sub_Group3: '금요일',
-      Sub_Group4: '토요일'
-    };
+    // Config에 '서브그룹_목록' 키가 아직 없을 때 쓰는 기본값 - 이 프로젝트가 오랫동안
+    // Sub_Group1~4 4개로 고정되어 있었던 값 그대로다(마이그레이션 전 안전망).
+    const DEFAULT_SUB_GROUP_LIST = ['Sub_Group1', 'Sub_Group2', 'Sub_Group3', 'Sub_Group4'];
 
     function parseSiteConfig(rows) {
-      siteConfig = { maintenanceMode: false, noticeText: '', subGroupDays: { ...DEFAULT_SUB_GROUP_DAYS }, raidWeekAnchor: '', poolLastSyncedAt: '', appVersion: '' };
-      if (!rows || rows.length < 2) return;
+      siteConfig = { maintenanceMode: false, noticeText: '', subGroupList: [...DEFAULT_SUB_GROUP_LIST], subGroupDays: {}, raidWeekAnchor: '', poolLastSyncedAt: '', appVersion: '' };
+      if (!rows || rows.length < 2) { rebuildSheetConfig(); return; }
 
       const map = {};
       for (let r = 1; r < rows.length; r++) {
@@ -3555,13 +3616,22 @@
       siteConfig.poolLastSyncedAt = map['캐릭터풀_최종갱신'] || ''; // Sync.gs updateCharacterPool_ 가 매시간 성공 시 갱신
       siteConfig.appVersion = map['앱버전'] || ''; // 운영 배포 시 사용자가 Config 시트에 직접 적어두는 값
 
-      Object.keys(DEFAULT_SUB_GROUP_DAYS).forEach(sheetId => {
-        const num = sheetId.replace('Sub_Group', '');
-        const override = map[`서브그룹${num}_요일`];
-        if (override && weekdayNameToIndex(override) !== null) {
-          siteConfig.subGroupDays[sheetId] = override;
+      // gviz는 스프레드시트의 시트 목록 자체를 조회할 방법이 없어서, 어떤 Sub_GroupN을
+      // fetch해야 할지는 이 Config 값에 의존한다(reserveSubGroupSlot이 새 시트를 만들 때 갱신).
+      if (map['서브그룹_목록']) {
+        siteConfig.subGroupList = map['서브그룹_목록'].split(',').map(s => s.trim()).filter(Boolean);
+      }
+
+      // 요일: 몇 번 그룹까지 있는지 미리 알 필요 없이, Config에 실제로 있는
+      // '서브그룹N_요일' 값을 전부 반영한다(없는 그룹은 사용하는 쪽에서 기본값 '목요일'로 대체).
+      Object.keys(map).forEach(key => {
+        const m = key.match(/^서브그룹(\d+)_요일$/);
+        if (m && weekdayNameToIndex(map[key]) !== null) {
+          siteConfig.subGroupDays['Sub_Group' + m[1]] = map[key];
         }
       });
+
+      rebuildSheetConfig();
     }
 
     // Config 시트 '앱버전'이 지금 로드된 스크립트의 APP_VERSION과 다르면(=운영 배포 이후 안 새로고침한
@@ -4187,16 +4257,18 @@
       addBlockSelectedChars = new Set();
       addBlockFixedRoster = false;
       addBlockRosterOverflow = false;
+      // 현재 보고 있던 탭이 본인 소속 그룹(또는 [토요일 고정])이면 그걸 자동으로 선택해주고,
+      // 남의 서브그룹을 보고 있던 경우(예: "내 서브 조만 보기"를 꺼둔 상태)엔 미선택 상태로
+      // 시작해서 사용자가 직접 고르게 한다.
+      addBlockTargetSheet = (currentActiveTab === 'Main_8Man' || getSheetMemberBaseUsers(currentActiveTab).has(selectedUser))
+        ? currentActiveTab
+        : ADD_BLOCK_UNSELECTED_VALUE;
 
-      const sheetInfo = sheetsDataStore[currentActiveTab];
-      const label = document.getElementById('addBlockSheetLabel');
-      if (label) label.textContent = sheetInfo ? sheetInfo.title : currentActiveTab;
-      const scopeNote = document.getElementById('addBlockScopeNote');
-      if (scopeNote) {
-        const showScopeNote = currentActiveTab !== 'Main_8Man';
-        scopeNote.classList.toggle('hidden', !showScopeNote);
-        scopeNote.classList.toggle('flex', showScopeNote);
-      }
+      const sheetSelect = document.getElementById('addBlockSheetSelect');
+      sheetSelect.innerHTML = buildAddBlockSheetOptions();
+      sheetSelect.value = addBlockTargetSheet;
+      syncCustomSelect('addBlockSheetSelect');
+      applyAddBlockTargetSheetUI();
 
       const select = document.getElementById('addBlockRaidSelect');
       select.innerHTML = '<option value="" class="bg-[#161b22]">레이드를 선택해 주세요</option>' + buildAddBlockRaidOptions();
@@ -4216,6 +4288,62 @@
     function closeAddBlockModal() {
       document.body.style.overflow = '';
       document.getElementById('addBlockModal').classList.add('hidden');
+    }
+
+    // "추가할 조" 목록에는 맨 앞에 "조를 선택해 주세요"(미선택 상태) 하나, 그다음 [토요일 고정]
+    // (누구나 자유롭게 참여)과 본인이 소속된 서브그룹만, 맨 끝에 "새 그룹에 추가"를 붙인다 -
+    // 남의 조에 함부로 레이드를 얹지 못하게 막는다. 실제로 시트를 만들거나 재사용하는 건
+    // (선택하는 시점이 아니라) confirmAddBlock에서 블록을 확정할 때만 일어난다 - 드롭다운만
+    // 골라보고 취소해도 스프레드시트에 빈 시트가 만들어지는 일이 없게 하기 위해서다.
+    function buildAddBlockSheetOptions() {
+      const visible = SHEET_CONFIG.filter(cfg =>
+        cfg.is8Man || (
+          sheetsDataStore[cfg.id] && sheetsDataStore[cfg.id].users.length > 0 &&
+          getSheetMemberBaseUsers(cfg.id).has(selectedUser)
+        )
+      );
+      const opts = [`<option value="${ADD_BLOCK_UNSELECTED_VALUE}" class="bg-[#161b22]">조를 선택해 주세요</option>`];
+      visible.forEach(cfg => {
+        const label = cfg.is8Man ? (cfg.fixedTitle || cfg.id) : sheetsDataStore[cfg.id].title;
+        opts.push(`<option value="${cfg.id}" class="bg-[#161b22]">${label}</option>`);
+      });
+      opts.push(`<option value="${ADD_BLOCK_NEW_GROUP_VALUE}" class="bg-[#161b22]">➕ 새 그룹에 추가</option>`);
+      return opts.join('');
+    }
+
+    // addBlockTargetSheet가 바뀔 때마다(모달을 열 때 포함) 안내 문구/후보 목록/레이드 선택
+    // 가능 여부를 그 시트 기준으로 다시 그린다.
+    function applyAddBlockTargetSheetUI() {
+      const isUnselected = addBlockTargetSheet === ADD_BLOCK_UNSELECTED_VALUE;
+
+      // 조를 아직 안 골랐으면 레이드 선택 자체를 막는다.
+      const raidTrigger = document.getElementById('addBlockRaidSelectTrigger');
+      if (raidTrigger) raidTrigger.disabled = isUnselected;
+      if (isUnselected) {
+        const raidSelect = document.getElementById('addBlockRaidSelect');
+        if (raidSelect) raidSelect.value = '';
+        syncCustomSelect('addBlockRaidSelect');
+        document.getElementById('addBlockCapacitySection').classList.add('hidden');
+      }
+
+      const scopeNote = document.getElementById('addBlockScopeNote');
+      if (scopeNote) {
+        // "새 그룹에 추가"(아직 어떤 시트인지도 안 정해짐)나, 기존 유저가 0명인 서브그룹은
+        // 자유 선택 모드라 "인원 고정" 안내를 보여줄 필요가 없다 - onAddBlockRaidChange의
+        // 판정 조건과 맞춰야 한다. getSheetMemberBaseUsers는 존재하지 않는 시트 id에도
+        // 안전하게 빈 Set을 돌려주므로 별도 분기 없이 그대로 재사용한다.
+        const showScopeNote = !isUnselected && addBlockTargetSheet !== 'Main_8Man' && getSheetMemberBaseUsers(addBlockTargetSheet).size > 0;
+        scopeNote.classList.toggle('hidden', !showScopeNote);
+        scopeNote.classList.toggle('flex', showScopeNote);
+      }
+    }
+
+    // "추가할 조" 선택이 바뀌었을 때 - 네트워크 요청 없이 로컬 상태만 바꾼다.
+    // "새 그룹에 추가"를 고른 것만으로는 아무 시트도 만들어지지 않는다.
+    function onAddBlockSheetChange() {
+      addBlockTargetSheet = document.getElementById('addBlockSheetSelect').value;
+      applyAddBlockTargetSheetUI();
+      onAddBlockRaidChange();
     }
 
     // Raid_Info 를 이름+난이도 기준으로 중복 제거해서 드롭다운 옵션으로 만든다.
@@ -4268,11 +4396,15 @@
       // (아니면 같은 조인데 레이드마다 인원 구성이 달라져 버릴 수 있음). 단, 유저별로 어떤 부캐를
       // 쓸지는 매 레이드마다 다를 수 있으므로 캐릭터명이 아니라 유저 단위로 제한하고,
       // 실제 캐릭터 선택 자체는 자동이 아니라 수동으로 - 유저당 정확히 1명씩 골라야 확정할 수 있다.
-      addBlockFixedRoster = (currentActiveTab !== 'Main_8Man');
+      // 단, 방금 만들었거나 조 통합으로 비어버린 서브그룹(기존 유저 0명)은 아직 고정할 로스터가
+      // 없으므로 Main_8Man처럼 자유 선택으로 둔다 - 여기서 처음 고른 유저들이 저장되는 순간부터
+      // getSheetMemberBaseUsers가 그 조의 로스터로 자동 인식한다(별도 "소속 설정" 단계 불필요).
+      const existingMembers = getSheetMemberBaseUsers(addBlockTargetSheet);
+      addBlockFixedRoster = (addBlockTargetSheet !== 'Main_8Man') && existingMembers.size > 0;
       let basePool = characterPoolData.filter(c => !hiddenCharNames.has(c.name));
       let members = new Set();
       if (addBlockFixedRoster) {
-        members = getSheetMemberBaseUsers(currentActiveTab);
+        members = existingMembers;
         basePool = basePool.filter(c => members.has((c.user || '').split('(')[0].trim()));
       }
       window.__addBlockMemberUsers = members;
@@ -4383,6 +4515,12 @@
       }
       if (!btn) return;
 
+      if (addBlockTargetSheet === ADD_BLOCK_UNSELECTED_VALUE) {
+        btn.disabled = true;
+        btn.textContent = '조를 먼저 선택해 주세요';
+        return;
+      }
+
       if (!addBlockCurrentRaid) {
         btn.disabled = true;
         btn.textContent = '레이드를 먼저 선택해 주세요';
@@ -4406,14 +4544,14 @@
           btn.textContent = `조원 전체 선택 필요 (${coveredUsers.size}/${totalMembers}명)`;
         } else {
           btn.disabled = false;
-          btn.textContent = `이 조 전원(${totalMembers}명)으로 블록 추가`;
+          btn.textContent = `이 조 전원(${totalMembers}명)으로 레이드 추가`;
         }
       } else if (addBlockSelectedChars.size === 0) {
         btn.disabled = true;
         btn.textContent = '캐릭터를 선택해 주세요';
       } else {
         btn.disabled = false;
-        btn.textContent = `${addBlockSelectedChars.size}명으로 블록 추가`;
+        btn.textContent = `${addBlockSelectedChars.size}명으로 레이드 추가`;
       }
     }
 
@@ -4435,7 +4573,29 @@
 
     async function confirmAddBlock() {
       if (!addBlockCurrentRaid || addBlockSelectedChars.size === 0) return;
-      const sheetId = currentActiveTab;
+      let sheetId = addBlockTargetSheet;
+
+      // "새 그룹에 추가"는 선택 시점엔 아무 시트도 정해두지 않았다 - 여기, 실제로 확정하는
+      // 순간에만 서버에 빈 서브그룹 시트를 요청한다(있으면 재사용, 없으면 새로 생성).
+      if (sheetId === ADD_BLOCK_NEW_GROUP_VALUE) {
+        const btn = document.getElementById('addBlockConfirmBtn');
+        if (btn) { btn.disabled = true; btn.textContent = '새 그룹 준비 중...'; }
+
+        const result = await postActionRead('reserveSubGroupSlot', {}, '새 그룹 만들기');
+        if (!result || result.status !== 'success' || !result.sheetId) {
+          customAlert('새 그룹을 만들지 못했습니다. 잠시 후 다시 시도해 주세요.');
+          updateAddBlockConfirmState();
+          return;
+        }
+        sheetId = result.sheetId;
+        if (!SHEET_CONFIG.some(cfg => cfg.id === sheetId)) {
+          SHEET_CONFIG.push({ id: sheetId, is8Man: false });
+        }
+        if (!sheetsDataStore[sheetId]) {
+          sheetsDataStore[sheetId] = { config: SHEET_CONFIG.find(c => c.id === sheetId), blocks: [], users: [], title: sheetId };
+        }
+      }
+
       const chars = Array.from(addBlockSelectedChars).map(name => {
         const c = characterPoolData.find(x => x.name === name);
         return { user: c ? c.user : '', name: name };
@@ -4465,6 +4625,20 @@
 
       // 새 블록은 낙관적 반영 없이(구조가 복잡해 재구성보다 재조회가 안전) 바로 새로고침한다.
       await refreshSheets([sheetId], true);
+      // 방금 새로 만든 시트는 gviz가 아직 색인하기 전이라, 쓰자마자 바로 조회하면 빈 상태로
+      // 돌아올 때가 있다(실측으로 확인됨) - 그런 경우에 한해 한 번만 더 재시도한다.
+      if (sheetsDataStore[sheetId] && sheetsDataStore[sheetId].users.length === 0) {
+        await new Promise(resolve => setTimeout(resolve, 1500));
+        await refreshSheets([sheetId], true);
+      }
+
+      // 다른 조(또는 방금 만든 새 그룹)에 추가했다면, 그 조로 바로 이동해서 결과를 보여준다.
+      // refreshSheets가 이미 이전 currentActiveTab 기준으로 한 번 그렸으므로, 여기서 다시 그려야 한다.
+      if (sheetId !== currentActiveTab) {
+        currentActiveTab = sheetId;
+        renderTabs();
+        renderActiveTabContent();
+      }
     }
 
 // ─── 참여 상태 모달 ───────────────────────────────────────
