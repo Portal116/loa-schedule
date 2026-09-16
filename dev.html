@@ -120,7 +120,7 @@
           <i data-lucide="flask-conical" class="w-6 h-6 text-purple-400"></i>
           <span class="font-bold text-lg text-white tracking-wide whitespace-nowrap"><span class="sm:hidden">공대</span><span class="hidden sm:inline">로아 공대</span></span>
           <button onclick="openInfoModal('changelog')" class="text-[10px] font-mono font-bold px-1.5 sm:px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/30 hover:bg-purple-500/20 transition cursor-pointer" title="클릭하여 업데이트 이력 확인">
-            v2.7.6
+            v2.8.0
           </button>
         </div>
 
@@ -862,10 +862,22 @@
         <div id="infoContentChangelog" class="space-y-3 hidden">
           <div class="border-l-2 border-yellow-500 pl-3 py-1 mb-3">
             <div class="flex items-center justify-between">
-              <span class="font-bold text-white text-xs">v2.7 - 유용한 링크 확장 + 경매 계산기 + 캐릭터 숨기기</span>
-              <span class="text-[11px] text-gray-500">2026.09.13</span>
+              <span class="font-bold text-white text-xs">v2.8 - 레이드 추가 기능 개편 + 유용한 링크 정리</span>
+              <span class="text-[11px] text-gray-500">2026.09.17</span>
             </div>
             <ul class="text-xs text-gray-400 mt-1 space-y-0.5 list-disc pl-3">
+              <li>[블록 추가] 기능 이름을 [레이드 추가]로 변경</li>
+              <li>[레이드 추가]에서 추가할 조를 직접 선택하거나 새로운 조를 만들 수 있음(본인이 속한 조만 표시되어 다른 조에 실수로 얹는 일 방지)</li>
+              <li>유용한 링크 탭 정리: "강화 계산" → "스펙 도구", "재화 계산" → "재화 도구"로 이름 변경, 치명타 계산기를 캐릭터별로 바로 조회 가능하도록 개선(캐릭터 현황에서도 지원)</li>
+            </ul>
+          </div>
+
+          <div class="border-l-2 border-gray-700 pl-3 py-1 mb-3">
+            <div class="flex items-center justify-between">
+              <span class="font-bold text-gray-300 text-xs">v2.7 - 유용한 링크 확장 + 경매 계산기 + 캐릭터 숨기기</span>
+              <span class="text-[11px] text-gray-500">2026.09.13</span>
+            </div>
+            <ul class="text-xs text-gray-500 mt-1 space-y-0.5 list-disc pl-3">
               <li>유용한 링크 탭: 재련 최적화 / 강화 계산기를 사이트별 버튼 하나로 통합, 지옥 보상 · 젬파고 링크 추가</li>
               <li>스펙 조회 사이트 이름을 로펙 / 로아와 / 로아랩으로 표기</li>
               <li>레이드 진행 관리 창에 경매 계산기 추가 (인원수 자동 선택, 입찰가 클릭 시 복사)</li>
