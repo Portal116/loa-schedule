@@ -82,6 +82,49 @@
     .modal-scroll {
       overscroll-behavior: contain;
     }
+    /* 헤더를 4개 단위로 쪼개 폭에 따라 각자 축약한다.
+       A = 마크+상단 탭(원본/축약형/미니 3단계), B = 내 캐릭터 강조 라벨, C = 참여 상태·도움말 라벨,
+       D = 새로고침 옆 갱신 시각. 실측 전체 폭(패딩 32px, A-BCD 사이 gap 16px 기준):
+         A: 원본 498px / 축약형(일정·캐릭터·도구·골드표, 플랫) 389px / 미니(일정·캐릭터·기타 드롭다운) 308px
+         BCD 합계: 전부 풀 470px / B만 축약 419px / B+C 축약 331px / B+C+D 축약 273px
+       1줄 공유 중엔 A(원본→축약형) → B → C → D → A(축약형→미니) 순서로 줄인다(요청 우선순위).
+       2줄이 되면 A는 자기 줄 폭만으로, B~D는 자기 줄 폭만으로 각각 같은 우선순위를 독자적으로
+       다시 적용한다 - 그래서 줄 폭에 여유가 생기면 풀→축약→미니 순서가 한 번 더 반복된다
+       (아래 각 구간은 1줄일 때 범위와 2줄일 때 범위, 두 군데로 나뉘어 있는 게 정상).
+       1줄: 1020↑ 원본+BCD풀 / 915~1019 축약형A / 865~914 B축약 / 775~864 +C축약 / 715~774 +D축약 / 630~714 미니 / 630 미만 2줄
+       2줄: A 535~629 원본, 425~534 축약형, ~424 미니 / B 510↑풀 / C 460↑풀 / D 370↑풀
+       (B/C/D 자체 기준치는 실측값보다 5px 여유를 둔 값이고, A(마크+탭)가 바뀌는 지점과
+       공유 상한(629)은 실측 원본값을 그대로 쓴다) */
+    .nav-a-full, .nav-a-short, .nav-a-mini { display: none; }
+    .mark-wide { display: none; }
+    .mark-narrow { display: inline; }
+    @media (min-width: 1020px), (min-width: 535px) and (max-width: 629px) {
+      .nav-a-full { display: flex; }
+      .mark-wide { display: inline; }
+      .mark-narrow { display: none; }
+    }
+    @media (min-width: 715px) and (max-width: 1019px), (min-width: 425px) and (max-width: 534px) {
+      .nav-a-short { display: flex; }
+      .mark-wide { display: inline; }
+      .mark-narrow { display: none; }
+    }
+    @media (max-width: 424px), (min-width: 630px) and (max-width: 714px) {
+      .nav-a-mini { display: flex; }
+    }
+
+    .unit-b-full, .unit-c-full, .unit-d-full { display: none; }
+    .unit-b-abbr { display: inline; }
+    @media (min-width: 915px), (min-width: 510px) and (max-width: 629px) {
+      .unit-b-full { display: inline; }
+      .unit-b-abbr { display: none; }
+    }
+    @media (min-width: 865px), (min-width: 460px) and (max-width: 629px) {
+      .unit-c-full { display: inline; }
+    }
+    @media (min-width: 775px), (min-width: 370px) and (max-width: 629px) {
+      .unit-d-full { display: inline; }
+    }
+
     /* 가로 스크롤은 유지하되 스크롤바만 숨긴다 (탭 줄 등) */
     .no-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
     .no-scrollbar::-webkit-scrollbar { display: none; }
@@ -118,24 +161,37 @@
       <div class="flex items-center flex-wrap gap-2 sm:gap-3 min-w-0">
         <div class="flex items-center gap-1.5 sm:gap-2 shrink-0">
           <i data-lucide="flask-conical" class="w-6 h-6 text-purple-400"></i>
-          <span class="font-bold text-lg text-white tracking-wide whitespace-nowrap"><span class="sm:hidden">공대</span><span class="hidden sm:inline">로아 공대</span></span>
+          <span class="font-bold text-lg text-white tracking-wide whitespace-nowrap"><span class="mark-narrow">공대</span><span class="mark-wide">로아 공대</span></span>
+          <!-- 마크(로고 텍스트)는 A가 "미니"로 접힐 때만 같이 줄어든다(축약형 단계에서는 로고는 풀네임 유지) -->
           <button onclick="openInfoModal('changelog')" class="text-[10px] font-mono font-bold px-1.5 sm:px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/30 hover:bg-purple-500/20 transition cursor-pointer" title="클릭하여 업데이트 이력 확인">
-            v2.8.0
+            v2.8.10
           </button>
         </div>
 
         <div class="flex bg-[#0d1117] p-1 rounded-lg border border-gray-800 text-xs flex-nowrap gap-1">
-          <!-- 탭이 "일정/캐릭터/기타" 3개로 고정이라(늘어나는 항목은 전부 기타 드롭다운 안으로) 더 이상
-               가로 스크롤이 필요 없다 - 오히려 overflow-x-auto가 있으면 "기타" 드롭다운 패널이 이 줄
-               경계에서 잘려 보이는 문제가 있어서 제거했다. -->
-          <button onclick="switchMainView('schedule')" id="viewBtnSchedule" class="whitespace-nowrap px-2.5 py-1.5 rounded-md font-semibold bg-gray-800 text-white transition"><span class="sm:hidden">일정</span><span class="hidden sm:inline">일정표</span></button>
-          <button onclick="switchMainView('pool')" id="viewBtnPool" class="whitespace-nowrap px-2.5 py-1.5 rounded-md font-medium text-gray-400 hover:text-white transition"><span class="sm:hidden">캐릭터</span><span class="hidden sm:inline">캐릭터 현황</span></button>
-          <div class="custom-select relative">
-            <button type="button" onclick="toggleCustomSelect('miscView', event)" id="viewBtnMisc" class="whitespace-nowrap px-2.5 py-1.5 rounded-md font-medium text-gray-400 hover:text-white transition flex items-center gap-1">
-              <span>기타</span>
-              <i data-lucide="chevron-down" class="w-3 h-3"></i>
-            </button>
-            <div id="miscViewPanel" class="hidden absolute z-30 top-full right-0 mt-1 min-w-max rounded-lg border border-gray-700 bg-[#161b22] shadow-lg py-1"></div>
+          <!-- Set A(마크+상단 탭) 3단계 전환: 원본(nav-a-full)/축약형(nav-a-short, 글자만 축약)/
+               미니(nav-a-mini, 일정·캐릭터 외엔 "기타" 드롭다운) - 세 그룹 다 항상 DOM에 존재하고
+               head의 <style>에 있는 breakpoint가 어느 쪽을 보일지 정한다. -->
+          <div id="navTabsFull" class="nav-a-full items-center gap-1">
+            <button data-view-btn="schedule" onclick="switchMainView('schedule')" class="whitespace-nowrap px-2.5 py-1.5 rounded-md font-semibold bg-gray-800 text-white transition">일정표</button>
+            <button data-view-btn="pool" onclick="switchMainView('pool')" class="whitespace-nowrap px-2.5 py-1.5 rounded-md font-medium text-gray-400 hover:text-white transition">캐릭터 현황</button>
+            <div id="navMiscFlat" class="flex items-center gap-1"></div>
+          </div>
+          <div id="navTabsShort" class="nav-a-short items-center gap-1">
+            <button data-view-btn="schedule" onclick="switchMainView('schedule')" class="whitespace-nowrap px-2.5 py-1.5 rounded-md font-semibold bg-gray-800 text-white transition">일정</button>
+            <button data-view-btn="pool" onclick="switchMainView('pool')" class="whitespace-nowrap px-2.5 py-1.5 rounded-md font-medium text-gray-400 hover:text-white transition">캐릭터</button>
+            <div id="navMiscFlatShort" class="flex items-center gap-1"></div>
+          </div>
+          <div id="navTabsMini" class="nav-a-mini items-center gap-1">
+            <button data-view-btn="schedule" onclick="switchMainView('schedule')" class="whitespace-nowrap px-2.5 py-1.5 rounded-md font-semibold bg-gray-800 text-white transition">일정</button>
+            <button data-view-btn="pool" onclick="switchMainView('pool')" class="whitespace-nowrap px-2.5 py-1.5 rounded-md font-medium text-gray-400 hover:text-white transition">캐릭터</button>
+            <div class="custom-select relative">
+              <button type="button" onclick="toggleCustomSelect('miscView', event)" id="viewBtnMisc" class="whitespace-nowrap px-2.5 py-1.5 rounded-md font-medium text-gray-400 hover:text-white transition flex items-center gap-1">
+                <span>기타</span>
+                <i data-lucide="chevron-down" class="w-3 h-3"></i>
+              </button>
+              <div id="miscViewPanel" class="hidden absolute z-30 top-full right-0 mt-1 min-w-max rounded-lg border border-gray-700 bg-[#161b22] shadow-lg py-1"></div>
+            </div>
           </div>
         </div>
       </div>
@@ -143,8 +199,8 @@
       <div class="flex items-center flex-wrap gap-2.5">
         <div class="custom-select relative flex items-center gap-2 bg-[#0d1117] px-3 py-1.5 rounded-lg border border-gray-700">
           <i data-lucide="user" class="w-4 h-4 text-gray-400"></i>
-          <span class="sm:hidden text-xs text-gray-400">강조:</span>
-          <span class="hidden sm:inline text-xs text-gray-400">내 캐릭터 강조:</span>
+          <span class="unit-b-abbr text-xs text-gray-400">강조:</span>
+          <span class="unit-b-full text-xs text-gray-400">내 캐릭터 강조:</span>
           <select id="userSelector" class="hidden">
             <option value="" class="bg-[#161b22] text-gray-300">선택 안 함 (전체)</option>
           </select>
@@ -169,16 +225,16 @@
 
         <button onclick="openAttendanceModal()" class="flex items-center gap-1 h-8 bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white border border-gray-700 text-xs font-semibold px-2.5 rounded-lg transition">
           <i data-lucide="calendar-x" class="w-3.5 h-3.5 text-orange-400"></i>
-          <span class="hidden sm:inline">참여 상태</span>
+          <span class="unit-c-full">참여 상태</span>
         </button>
 
         <button onclick="openInfoModal('guide')" class="flex items-center gap-1 h-8 bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white border border-gray-700 text-xs font-semibold px-2.5 rounded-lg transition" title="도움말 및 패치노트">
           <i data-lucide="help-circle" class="w-3.5 h-3.5 text-yellow-400"></i>
-          <span class="hidden sm:inline">도움말</span>
+          <span class="unit-c-full">도움말</span>
         </button>
 
         <div class="flex items-center gap-2">
-          <span id="lastSyncLabel" class="text-[11px] text-gray-500 hidden sm:inline"></span>
+          <span id="lastSyncLabel" class="text-[11px] text-gray-500 unit-d-full"></span>
           <button onclick="fetchSheetData()" title="시트 데이터 다시 받기" class="flex items-center justify-center bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white border border-gray-700 w-8 h-8 rounded-lg transition">
             <i data-lucide="refresh-cw" class="w-3.5 h-3.5" id="refreshIcon"></i>
           </button>
@@ -219,10 +275,15 @@
               <i data-lucide="mouse-pointer-click" class="w-3.5 h-3.5 text-yellow-400"></i>
               <span>상단에 '내 캐릭터 강조' 지정 후, 본인 슬롯을 클릭하면 캐릭터 교체</span>
             </span>
-            <label class="flex items-center whitespace-nowrap space-x-1.5 text-xs text-gray-300 cursor-pointer bg-[#161b22] px-3 py-1.5 rounded-lg border border-gray-700 hover:border-gray-500 transition">
-              <input type="checkbox" id="filterMySubToggle" class="rounded bg-gray-800 border-gray-600 text-yellow-500 focus:ring-0 cursor-pointer" />
-              <span>내 서브 조만 보기</span>
-            </label>
+            <!-- 라벨 자체가 지금 모드를 보여주는 토글 버튼(내 서브 조만 보기 ↔ 전체 보기) - 눌러서
+                 반대 모드로 전환한다. 아이콘 2개를 .hidden 클래스로 켜고 끄므로 gap을 쓴다 -
+                 space-x 계열은 HTML hidden 속성만 계산에서 빼주고 .hidden 클래스(display:none)는
+                 그대로 자식으로 쳐서, 안 보이는 아이콘도 마진을 만들어 여백이 생긴다. -->
+            <button type="button" id="filterMySubToggle" onclick="toggleFilterMySub()" class="flex items-center whitespace-nowrap gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg border transition">
+              <i data-lucide="user" class="w-3.5 h-3.5 filter-sub-icon-mine"></i>
+              <i data-lucide="users" class="w-3.5 h-3.5 filter-sub-icon-all"></i>
+              <span id="filterMySubToggleLabel"></span>
+            </button>
             <button onclick="openAddBlockModal()" class="flex items-center whitespace-nowrap space-x-1 bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white border border-gray-700 text-xs font-semibold px-2.5 py-1.5 rounded-lg transition">
               <i data-lucide="plus-circle" class="w-3.5 h-3.5 text-yellow-400"></i>
               <span>레이드 추가</span>
@@ -758,7 +819,7 @@
           <div class="bg-[#0d1117] p-3.5 rounded-xl border border-gray-800">
             <h4 class="font-bold text-xs mb-1.5 text-yellow-400">Q. 내가 출전하는 일정만 모아보고 싶어요!</h4>
             <p class="text-xs text-gray-300 leading-relaxed">
-              상단 우측의 <strong>[내 캐릭터 강조]</strong>에서 본인 닉네임을 선택하면 내 캐릭터가 노란색으로 강조됩니다. 추가로 <strong>[내 서브 조만 보기]</strong>를 체크하면 내가 참여하는 조의 탭만 깔끔하게 필터링됩니다.
+              상단 우측의 <strong>[내 캐릭터 강조]</strong>에서 본인 닉네임을 선택하면 내 캐릭터가 노란색으로 강조됩니다. 기본적으로 <strong>[내 서브 조만 보기]</strong> 상태라 내가 참여하는 조의 탭만 보이고, 눌러서 <strong>[전체 보기]</strong>로 바꿀 수 있습니다.
             </p>
           </div>
           <div class="bg-[#0d1117] p-3.5 rounded-xl border border-gray-800">
@@ -1112,7 +1173,7 @@
     // 캐릭터 현황 카드에 한 번에 배지로 보여줄 레이드 계열 최대 개수.
     // 4 = 주간 골드 획득 가능 레이드 수(GOLD_SLOT_LIMIT=3) + 선택 구간 후보 1개. 레벨이 높아
     // 이미 골드 대상에서 벗어난(NONE 티어) 오래된 레이드는 안 보여줘도 실질적인 손실이 없다는
-    // 전제(2026-09-13, 실제 골드 티어 계산과 대조해서 전 레벨대 검증 완료 - EARN/MAYBE 레이드가
+    // 전제(실제 골드 티어 계산과 대조해서 전 레벨대 검증됨 - EARN/MAYBE 레이드가
     // 창 밖으로 밀려나는 경우 없음)로 정한 값. getVisibleRaidDefsForLevel() 참고.
     // 이 값은 레벨 기준 정렬(getOrderedRaidFamilies)로 숨김 여부를 정하지, 그때그때의 실제 골드
     // 티어를 직접 보는 게 아니다 - 나중에 BOUND_GOLD_WEIGHT_LOW/HIGH나 레이드 골드량이 바뀌면
@@ -1155,7 +1216,30 @@
     let currentMainView = 'schedule';
     let currentActiveTab = 'Main_8Man';
     let selectedUser = localStorage.getItem('loa_selected_user') || '';
-    let filterMySubOnly = localStorage.getItem('loa_filter_sub') === 'true';
+    // 처음 켜는 사람은 기본값이 켜짐(내 서브 조만 보기)이고, 저장된 값이 있으면(껐다 켰다
+    // 직접 바꿔본 적 있는 사람) 그 값을 그대로 존중한다.
+    const storedFilterSub = localStorage.getItem('loa_filter_sub');
+    let filterMySubOnly = storedFilterSub === null ? true : storedFilterSub === 'true';
+
+    function renderFilterMySubToggle() {
+      const btn = document.getElementById('filterMySubToggle');
+      if (!btn) return;
+      document.getElementById('filterMySubToggleLabel').textContent = filterMySubOnly ? '내 서브 조만 보기' : '전체 보기';
+      btn.className = 'flex items-center whitespace-nowrap gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg border transition ' + (filterMySubOnly
+        ? 'bg-yellow-500/10 text-yellow-400 border-yellow-500/40'
+        : 'bg-[#161b22] text-gray-300 border-gray-700 hover:border-gray-500');
+      btn.querySelector('.filter-sub-icon-mine').classList.toggle('hidden', !filterMySubOnly);
+      btn.querySelector('.filter-sub-icon-all').classList.toggle('hidden', filterMySubOnly);
+    }
+
+    function toggleFilterMySub() {
+      filterMySubOnly = !filterMySubOnly;
+      localStorage.setItem('loa_filter_sub', filterMySubOnly);
+      renderFilterMySubToggle();
+      renderTabs();
+      renderActiveTabContent();
+    }
+
     let sheetsDataStore = {};
     let allMemberList = new Set();
     let slotGoldStatusMap = {};
@@ -1216,14 +1300,10 @@
       // 각자 옵션을 채우는 함수 - populateUserSelector, openAddBlockModal 등 - 에서 동기화한다).
       ['poolPosFilter', 'poolLevelFilter'].forEach(initCustomSelect);
       renderMiscViewPanel();
+      renderMiscFlatTabs();
+      renderMiscFlatTabsShort();
 
-      document.getElementById('filterMySubToggle').checked = filterMySubOnly;
-      document.getElementById('filterMySubToggle').addEventListener('change', (e) => {
-        filterMySubOnly = e.target.checked;
-        localStorage.setItem('loa_filter_sub', filterMySubOnly);
-        renderTabs();
-        renderActiveTabContent();
-      });
+      renderFilterMySubToggle();
 
       document.getElementById('userSelector').addEventListener('change', (e) => {
         selectedUser = e.target.value;
@@ -1381,8 +1461,8 @@
 
     // "기타" 드롭다운에 묶인 뷰들. 여기 추가하면 상단 탭 자체는 늘어나지 않고 기타 목록에만 항목이 늘어난다.
     const MISC_VIEWS = [
-      { id: 'links', label: '유용한 링크' },
-      { id: 'gold', label: '레이드 골드표' }
+      { id: 'links', label: '유용한 도구', shortLabel: '도구' },
+      { id: 'gold', label: '레이드 골드표', shortLabel: '골드표' }
     ];
     const ACTIVE_VIEW_BTN_CLASS = 'whitespace-nowrap px-2.5 py-1.5 rounded-md font-semibold bg-gray-800 text-white transition';
     const INACTIVE_VIEW_BTN_CLASS = 'whitespace-nowrap px-2.5 py-1.5 rounded-md font-medium text-gray-400 hover:text-white transition';
@@ -1396,26 +1476,44 @@
       `).join('');
     }
 
+    // 넓은 화면(.nav-a-full)에서 일정표/캐릭터 현황 옆에 나란히 풀어서 보여줄 탭들 -
+    // MISC_VIEWS 그대로 재사용해서, "기타" 드롭다운 목록과 항목이 절대 어긋나지 않게 한다.
+    function renderMiscFlatTabs() {
+      const wrap = document.getElementById('navMiscFlat');
+      if (!wrap) return;
+      wrap.innerHTML = MISC_VIEWS.map(v => `
+        <button data-view-btn="${v.id}" onclick="switchMainView('${v.id}')"
+          class="${v.id === currentMainView ? ACTIVE_VIEW_BTN_CLASS : INACTIVE_VIEW_BTN_CLASS}">${v.label}</button>
+      `).join('');
+    }
+
+    // 중간 축약 화면(.nav-a-short)용 - 글자만 짧아진 버전(shortLabel), 드롭다운으로 묶지는 않는다.
+    function renderMiscFlatTabsShort() {
+      const wrap = document.getElementById('navMiscFlatShort');
+      if (!wrap) return;
+      wrap.innerHTML = MISC_VIEWS.map(v => `
+        <button data-view-btn="${v.id}" onclick="switchMainView('${v.id}')"
+          class="${v.id === currentMainView ? ACTIVE_VIEW_BTN_CLASS : INACTIVE_VIEW_BTN_CLASS}">${v.shortLabel}</button>
+      `).join('');
+    }
+
     function switchMainView(view) {
       currentMainView = view;
       const isMiscView = MISC_VIEWS.some(v => v.id === view);
 
-      // 상단에 고정 버튼이 있는 뷰(일정/캐릭터)만 이 루프로 처리한다.
+      // 상단에 고정 버튼이 있는 뷰(일정/캐릭터)만 이 루프로 처리한다. 넓은 화면(.nav-tabs-wide)과
+      // 좁은 화면(.nav-tabs-narrow) 양쪽에 같은 data-view-btn 버튼이 하나씩 있어 querySelectorAll로 같이 갱신한다.
       ['schedule', 'pool'].forEach(v => {
-        const btn = document.getElementById('viewBtn' + v.charAt(0).toUpperCase() + v.slice(1));
+        document.querySelectorAll(`[data-view-btn="${v}"]`).forEach(btn => {
+          btn.className = (v === view) ? ACTIVE_VIEW_BTN_CLASS : INACTIVE_VIEW_BTN_CLASS;
+        });
         const sec = document.getElementById('section' + v.charAt(0).toUpperCase() + v.slice(1));
-        if (!btn || !sec) return;
-        if (v === view) {
-          btn.className = ACTIVE_VIEW_BTN_CLASS;
-          sec.classList.remove('hidden');
-        } else {
-          btn.className = INACTIVE_VIEW_BTN_CLASS;
-          sec.classList.add('hidden');
-        }
+        if (sec) sec.classList.toggle('hidden', v !== view);
       });
 
-      // "기타" 드롭다운에 묶인 뷰는 버튼이 따로 없으니 섹션 표시만 처리하고,
+      // "기타" 드롭다운에 묶인 뷰는 좁은 화면엔 전용 버튼이 없으니 섹션 표시만 처리하고,
       // "기타" 트리거 자체는 그 중 하나라도 활성화돼 있으면 선택된 걸로 표시한다.
+      // 넓은 화면의 flat 버튼(navMiscFlat)은 renderMiscFlatTabs가 매번 다시 그리며 활성 상태를 반영한다.
       MISC_VIEWS.forEach(v => {
         const sec = document.getElementById('section' + v.id.charAt(0).toUpperCase() + v.id.slice(1));
         if (sec) sec.classList.toggle('hidden', v.id !== view);
@@ -1425,6 +1523,8 @@
         miscBtn.className = (isMiscView ? ACTIVE_VIEW_BTN_CLASS : INACTIVE_VIEW_BTN_CLASS) + ' flex items-center gap-1';
       }
       renderMiscViewPanel();
+      renderMiscFlatTabs();
+      renderMiscFlatTabsShort();
 
       if (view === 'pool') {
         const poolUserFilter = document.getElementById('poolUserFilter');
@@ -1788,7 +1888,7 @@
       );
     }
 
-    // Character_Pool 열 순서(A~H): 유저명/서버/캐릭터명/직업/포지션/현재 레벨/예정 레벨/최종 레벨(수식) - 2026-09-13 재배치.
+    // Character_Pool 열 순서(A~H): 유저명/서버/캐릭터명/직업/포지션/현재 레벨/예정 레벨/최종 레벨(수식).
     function parseCharacterPool(rows) {
       characterPoolData = [];
       goldEligibleCharNames = new Set();
@@ -2648,7 +2748,7 @@
     // 새로고침/자동 갱신/사이트 오픈 시 호출된다. 본인이 포함된 진행중 레이드가 있고
     // 진행 관리 팝업 외 다른 모달이 떠 있지 않으면 진행 관리 창을 자동으로 띄운다(이미 다른
     // 레이드로 열려 있었다면 그 내용을 새 레이드로 갈아치운다 - 열린 채로 방치되면 다른 사람이
-    // 완료/다음 레이드 진행 처리를 해도 이 화면엔 옛 레이드가 그대로 남아있던 문제 수정, 2026-09-12).
+    // 완료/다음 레이드 진행 처리를 해도 이 화면엔 옛 레이드가 그대로 남아있는 걸 막는다).
     // 인원 겹침 방지(startRaidBlock) 덕분에 한 계정이 동시에 여러 진행중 레이드에 속할 일이 없어,
     // "어떤 레이드를 띄울지" 애매해질 걱정 없이 이 방식이 성립한다.
     function maybeAutoPopupCurrentRaid() {
@@ -3139,18 +3239,37 @@
       document.getElementById('hiddenCharsModal').classList.add('hidden');
     }
 
+    // 현재 캐릭터 현황 검색 범위(유저/포지션/레벨 필터) 안에 있는 숨긴 캐릭터만 모달에 보여준다 -
+    // 길드 전체 숨긴 캐릭터를 다 보여주면 검색 범위와 무관하게 아무나 아무 캐릭터나 숨김 해제할 수
+    // 있게 되어 범위가 너무 넓어진다. Character_Pool에서 이름이 안 찾아지는 경우(데이터 정합성이
+    // 깨진 예외 상황)는 필터로 걸러지지 않게 항상 표시해 숨김 해제 자체가 막히지 않게 한다.
     function renderHiddenCharsModalList() {
       const el = document.getElementById('hiddenCharsModalItems');
       if (!el) return;
-      const names = Array.from(hiddenCharNames).sort();
-      el.innerHTML = names.length === 0
-        ? `<p class="text-xs text-gray-500 text-center py-4">숨긴 캐릭터가 없습니다</p>`
-        : names.map(n => `
+      const uFilter = document.getElementById('poolUserFilter').value;
+      const pFilter = document.getElementById('poolPosFilter').value;
+      const lFilter = parseFloat(document.getElementById('poolLevelFilter').value) || 0;
+
+      const entries = Array.from(hiddenCharNames).map(n => ({ name: n, c: characterPoolData.find(c => c.name === n) }))
+        .filter(({ c }) => !c || matchesPoolFilters(c, uFilter, pFilter, lFilter))
+        .sort((a, b) => a.name.localeCompare(b.name));
+
+      // 목록 자체는 검색 범위로 넓게 보여주되, 실제 숨김 해제는 "내 캐릭터 강조"로 선택한 본인
+      // 캐릭터만 - 다른 사람 캐릭터를 실수로 해제하는 일을 막는다.
+      el.innerHTML = entries.length === 0
+        ? `<p class="text-xs text-gray-500 text-center py-4">현재 검색 범위 안에 숨긴 캐릭터가 없습니다</p>`
+        : entries.map(({ name, c }) => {
+            const isMe = !c || !!(selectedUser && c.user.startsWith(selectedUser));
+            const action = isMe
+              ? `<button onclick="unhideCharacter('${escQ(name)}')" class="px-2.5 py-1 rounded-md text-xs font-medium bg-gray-800 text-gray-300 hover:bg-gray-700 transition">숨김 해제</button>`
+              : `<span class="text-[11px] text-gray-600" title="내 캐릭터 강조에서 본인을 선택해야 해제할 수 있습니다">해제 불가</span>`;
+            return `
             <div class="flex items-center justify-between px-3 py-2 rounded-lg bg-[#0d1117] border border-gray-800">
-              <span class="text-sm text-gray-200">${n}</span>
-              <button onclick="unhideCharacter('${escQ(n)}')" class="px-2.5 py-1 rounded-md text-xs font-medium bg-gray-800 text-gray-300 hover:bg-gray-700 transition">숨김 해제</button>
+              <span class="text-sm text-gray-200">${name}</span>
+              ${action}
             </div>
-          `).join('');
+          `;
+          }).join('');
     }
 
     // Sync.gs 가 Config 시트에 'yyyy-MM-dd HH:mm' 그대로(텍스트 고정) 남긴 값을 표시용으로 짧게 자른다.
@@ -3161,6 +3280,19 @@
       return `${parseInt(m[2], 10)}/${parseInt(m[3], 10)} ${m[4]}:${m[5]}`;
     }
 
+    // 캐릭터 현황 필터(유저/포지션/레벨) 조건 하나를 캐릭터 하나에 적용 - 목록 표시와 "숨긴 캐릭터"
+    // 모달 양쪽에서 같이 써서, 숨긴 캐릭터 모달에도 항상 같은 검색 범위가 그대로 적용되게 한다.
+    function matchesPoolFilters(c, uFilter, pFilter, lFilter) {
+      if (uFilter && !c.user.startsWith(uFilter)) return false;
+      if (lFilter > 0 && c.level < lFilter) return false;
+      if (pFilter === 'DEALER') {
+        if (c.pos !== '딜러' && c.pos !== '스왑가능') return false;
+      } else if (pFilter === 'SUPPORTER') {
+        if (c.pos !== '서포터' && c.pos !== '스왑가능') return false;
+      }
+      return true;
+    }
+
     function renderPoolView() {
       const grid = document.getElementById('poolGrid');
       const uFilter = document.getElementById('poolUserFilter').value;
@@ -3169,25 +3301,22 @@
 
       const filtered = characterPoolData.filter(c => {
         if (hiddenCharNames.has(c.name)) return false;
-        if (uFilter && !c.user.startsWith(uFilter)) return false;
-        if (lFilter > 0 && c.level < lFilter) return false;
-
-        if (pFilter === 'DEALER') {
-          if (c.pos !== '딜러' && c.pos !== '스왑가능') return false;
-        } else if (pFilter === 'SUPPORTER') {
-          if (c.pos !== '서포터' && c.pos !== '스왑가능') return false;
-        }
-        return true;
+        return matchesPoolFilters(c, uFilter, pFilter, lFilter);
       });
 
       const poolCountEl = document.getElementById('poolCount');
       if (poolCountEl) poolCountEl.textContent = filtered.length;
 
-      // 숨긴 캐릭터가 있을 때만 링크를 보여준다 - 대부분은 하나도 안 숨겼을 테니 평소엔 화면에서 안 보임.
+      // 링크에 보이는 숫자와 클릭했을 때 모달에 뜨는 목록은 항상 같은 범위여야 하므로, 여기서도
+      // renderHiddenCharsModalList와 같은 검색 범위 기준으로 개수를 센다.
+      const hiddenInRangeCount = Array.from(hiddenCharNames).filter(n => {
+        const c = characterPoolData.find(c => c.name === n);
+        return !c || matchesPoolFilters(c, uFilter, pFilter, lFilter);
+      }).length;
       const hiddenLinkEl = document.getElementById('poolHiddenCharsLink');
       if (hiddenLinkEl) {
-        if (hiddenCharNames.size > 0) {
-          hiddenLinkEl.textContent = `숨긴 캐릭터 ${hiddenCharNames.size}명`;
+        if (hiddenInRangeCount > 0) {
+          hiddenLinkEl.textContent = `숨긴 캐릭터 ${hiddenInRangeCount}명`;
           hiddenLinkEl.classList.remove('hidden');
         } else {
           hiddenLinkEl.classList.add('hidden');
