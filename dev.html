@@ -164,7 +164,7 @@
           <span class="font-bold text-lg text-white tracking-wide whitespace-nowrap"><span class="mark-narrow">공대</span><span class="mark-wide">로아 공대</span></span>
           <!-- 마크(로고 텍스트)는 A가 "미니"로 접힐 때만 같이 줄어든다(축약형 단계에서는 로고는 풀네임 유지) -->
           <button onclick="openInfoModal('changelog')" class="text-[10px] font-mono font-bold px-1.5 sm:px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/30 hover:bg-purple-500/20 transition cursor-pointer" title="클릭하여 업데이트 이력 확인">
-            v2.9.17
+            v2.10.0
           </button>
         </div>
 
@@ -921,7 +921,7 @@
           <div class="bg-[#0d1117] p-3.5 rounded-xl border border-gray-800">
             <h4 class="font-bold text-xs mb-1.5 text-yellow-400">Q. [진행] / [완료 처리] 버튼은 무엇인가요?</h4>
             <p class="text-xs text-gray-300 leading-relaxed">
-              레이드를 시작하면 <strong>[진행]</strong> 버튼을 눌러 진행중으로 표시하고, 끝나면 <strong>[완료 처리]</strong>를 눌러주세요. 완료 처리해야 캐릭터 현황에 체크로 반영됩니다. 헤더의 <strong>[현재 레이드]</strong> 배지에서 지금 진행중인 레이드를 한눈에 볼 수 있습니다.
+              레이드를 시작하면 <strong>[진행]</strong> 버튼을 눌러 진행중으로 표시하고, 끝나면 <strong>[완료 처리]</strong>를 눌러주세요. 완료 처리해야 캐릭터 현황에 체크로 반영됩니다. 완료 처리를 누르면 확인창이 뜨고, 같은 조에 다음 레이드가 남아있으면 <strong>[다음 레이드 진행]</strong>을 선택해 바로 이어서 시작할 수 있습니다. 진행중인 레이드의 명단 아래에는 다음 레이드에서 내 캐릭터가 무엇인지도 미리 보여줍니다. 헤더의 <strong>[현재 레이드]</strong> 배지에서 지금 진행중인 레이드를 한눈에 볼 수 있습니다.
             </p>
           </div>
           <div class="bg-[#0d1117] p-3.5 rounded-xl border border-gray-800">
@@ -955,7 +955,22 @@
         <div id="infoContentChangelog" class="space-y-3 hidden">
           <div class="border-l-2 border-yellow-500 pl-3 py-1 mb-3">
             <div class="flex items-center justify-between">
-              <span class="font-bold text-white text-xs">v2.9 - 상단 메뉴 개선 + 캐릭터 숨기기 다듬기</span>
+              <span class="font-bold text-white text-xs">v2.10 - 레이드 진행 관리 개선 + 자주 묻는 질문 검색</span>
+              <span class="text-[11px] text-gray-500">2026.09.19</span>
+            </div>
+            <ul class="text-xs text-gray-400 mt-1 space-y-0.5 list-disc pl-3">
+              <li>완료 처리 시 확인창이 뜨고, 완료와 동시에 다음 레이드로 바로 이어서 시작할 수 있음</li>
+              <li>다음 레이드에서 내 캐릭터가 무엇인지 미리 보여줌 (계정을 바꿔야 하면 안내 표시)</li>
+              <li>레이드 시작 직후에는 완료 처리가 잠시 제한됨 (오작동 방지)</li>
+              <li>자주 묻는 질문에 검색 기능 추가</li>
+              <li>완료된 조 탭이 간단하게 축약되어 표시됨</li>
+              <li>골드 획득 범례 정렬이 깨지던 문제 수정</li>
+            </ul>
+          </div>
+
+          <div class="border-l-2 border-gray-700 pl-3 py-1 mb-3">
+            <div class="flex items-center justify-between">
+              <span class="font-bold text-gray-300 text-xs">v2.9 - 상단 메뉴 개선 + 캐릭터 숨기기 다듬기</span>
               <span class="text-[11px] text-gray-500">2026.09.17</span>
             </div>
             <ul class="text-xs text-gray-400 mt-1 space-y-0.5 list-disc pl-3">
