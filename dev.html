@@ -200,7 +200,7 @@
           <span class="font-bold text-lg text-white tracking-wide whitespace-nowrap"><span class="mark-narrow">공대</span><span class="mark-wide">로아 공대</span></span>
           <!-- 마크(로고 텍스트)는 A가 "미니"로 접힐 때만 같이 줄어든다(축약형 단계에서는 로고는 풀네임 유지) -->
           <button onclick="openInfoModal('changelog')" class="text-[10px] font-mono font-bold px-1.5 sm:px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/30 hover:bg-purple-500/20 transition cursor-pointer" title="클릭하여 업데이트 이력 확인">
-            v2.11.1
+            v2.11.3
           </button>
         </div>
 
@@ -3232,7 +3232,7 @@
     // 완료 처리가 들어오는 건 실제로 그렇게 빨리 끝난 게 아니라 경합/실수일 가능성이 높다고 보고
     // 막는 안전장치(2026-09-19, 실제로 "완료 처리 → 다음 레이드 시작 → 다른 사람이 그걸 또
     // 바로 완료 처리"하는 사고를 겪고 추가함). 값은 필요하면 조정.
-    const MIN_RAID_DURATION_MS = 1000; // TEMP: 테스트 중 임시로 1초로 낮춤 - 테스트 끝나면 3*60*1000으로 복구할 것
+    const MIN_RAID_DURATION_MS = 300 * 1000;
 
     // 실제 완료 처리(검증/확인 이후 호출) - 낙관적 로컬 갱신 + 서버 반영. 모든 그룹의 모든
     // 블록이 이걸로 완료됐다면 서버가 그 자리에서 바로 다음 주기로 조기 리셋하므로, 잠시 후
