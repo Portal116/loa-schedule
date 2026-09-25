@@ -200,7 +200,7 @@
           <span class="font-bold text-lg text-white tracking-wide whitespace-nowrap"><span class="mark-narrow">공대</span><span class="mark-wide">로아 공대</span></span>
           <!-- 마크(로고 텍스트)는 A가 "미니"로 접힐 때만 같이 줄어든다(축약형 단계에서는 로고는 풀네임 유지) -->
           <button onclick="openInfoModal('changelog')" class="text-[10px] font-mono font-bold px-1.5 sm:px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/30 hover:bg-purple-500/20 transition cursor-pointer" title="클릭하여 업데이트 이력 확인">
-            v2.11.5
+            v2.11.6
           </button>
         </div>
 
@@ -1971,30 +1971,41 @@
       buildFamilyScheduleIndex();
     }
 
-    // isScheduledInFamily/isFamilyRaidCompletedForChar가 캐릭터 현황 카드마다(캐릭터 수 x
-    // 레이드 계열 수) allRaidInstancesStore/raidStatusData를 매번 선형 탐색하던 걸 없애기 위한
+    // isScheduledInFamily/isExcludedByAttendanceForFamily가 캐릭터 현황 카드마다(캐릭터 수 x
+    // 레이드 계열 수) allRaidInstancesStore/attendanceData를 매번 선형 탐색하던 걸 없애기 위한
     // 캐시. allRaidInstancesStore가 다시 만들어질 때(recalcGoldFromStore)만 한 번 다시 계산하고,
-    // 캐릭터 현황을 그릴 때는 이 Map을 그냥 조회만 한다.
+    // 캐릭터 현황을 그릴 때는 이 Map을 그냥 조회만 한다. attendanceData만 바뀌었을 때도(참여상태
+    // 등록/해제) 최신 상태를 반영해야 하므로, 그 경로들도 이 함수를 다시 부른다.
     function buildFamilyScheduleIndex() {
-      const statusIndex = new Map(); // "sheetId|blockIndex|rawRaidTitle" -> status
-      raidStatusData.forEach(s => {
-        statusIndex.set(`${s.sheetId}|${s.blockIndex}|${s.rawRaidTitle}`, s.status);
-      });
-
       const scheduledMap = new Map(); // "캐릭명|famKey" -> true
-      const completedMap = new Map(); // "캐릭명|famKey" -> true (편성된 블록 중 하나라도 완료)
+      // "캐릭명|famKey" -> true (편성된 인스턴스가 전부 참여상태(불참/지각/미정)로 제외됨).
+      // 정상 참여 예정인 인스턴스가 하나라도 있으면 이 키는 안 남는다(아래 notExcludedSeen이
+      // 처리 순서와 무관하게 그 경우를 걸러낸다) - 참여상태는 미리 등록해두는 것이라, 블록이
+      // 완료되기 전이라도 이 캐릭터가 정식 편성으로는 크레딧을 못 받는다는 게 이미 확정된
+      // 상태다. Wild_Clears에 이미 기록(V/W)이 있는 캐릭터는 renderRaidTag에서 그 기록을
+      // 먼저 보고 여기까지 오지 않으므로, 완료 여부를 따로 볼 필요가 없다 - 정상 참여 예정으로
+      // 완료된 블록은 이미 Wild_Clears에 일정완료로 기록돼 있기 때문이다.
+      const excludedMap = new Map();
+      const notExcludedSeen = new Set();
 
       (window.allRaidInstancesStore || []).forEach(i => {
         const famKey = getRaidFamilyKey(i.raidTitle);
         if (!famKey) return;
         const key = `${i.charName}|${famKey}`;
         scheduledMap.set(key, true);
-        if (statusIndex.get(`${i.sheetId}|${i.blockIndex}|${i.rawRaidTitle}`) === '완료') {
-          completedMap.set(key, true);
+
+        const dateKey = getCurrentCycleDateKeyForSheet(i.sheetId);
+        const att = dateKey ? getAttendanceFor(i.user, dateKey) : null;
+        const isExcluded = !!att && (att.status === '불참' || att.status === '지각' || att.status === '미정');
+        if (isExcluded) {
+          if (!notExcludedSeen.has(key)) excludedMap.set(key, true);
+        } else {
+          notExcludedSeen.add(key);
+          excludedMap.delete(key);
         }
       });
 
-      window.__famScheduleIndex = { scheduledMap, completedMap };
+      window.__famScheduleIndex = { scheduledMap, excludedMap };
     }
 
     // 화면에서 슬롯을 편집한 뒤, 그 시트의 편성 인스턴스를 다시 만들고 골드 판정을 재계산한다.
@@ -2972,9 +2983,11 @@
       if (markAbsent) {
         attendanceData.push({ at: '', user, target: dateKey, status: '불참', memo: '' });
       }
+      buildFamilyScheduleIndex();
 
       refreshOpenRaidProgressModal();
       renderActiveTabContent();
+      if (currentMainView === 'pool') renderPoolView();
 
       if (markAbsent) {
         await postAction('submitAttendance', { user, target: dateKey, status: '불참', memo: '' }, '참여 상태 등록(진행중 명단)');
@@ -3700,23 +3713,26 @@
       return !!(siteConfig.raidWeekAnchor && fmtDate(new Date()) < siteConfig.raidWeekAnchor);
     }
 
-    // 이 캐릭터가 일정표 편성을 통해 이 레이드 계열을 완료 처리했는지(V).
-    // 예전 서버측 syncRaidCompletions()가 Character_Pool에 저장하던 로직을 프론트로 그대로 이식한 것 -
-    // "이 캐릭터가 이 계열로 편성된 블록 중, 그 블록이 완료 처리된 게 하나라도 있는가"를 그때그때 계산한다.
-    function isFamilyRaidCompletedForChar(charName, famKey) {
+    // 편성된 모든 인스턴스가 참여상태(불참/지각/미정)로 이미 제외돼 있는지 - 참여상태는
+    // 미리 등록해두는 것이라, 블록이 완료되기 전이라도 "이 캐릭터는 정식 편성으로는 크레딧을
+    // 못 받는다"는 게 이미 확정된 상태다. 그래서 완료를 기다릴 필요 없이 바로 개별 체크를
+    // 열어준다(예: 토요일 레이드에 불참 등록해두고 그 전에 미리 다녀오는 경우).
+    function isExcludedByAttendanceForFamily(charName, famKey) {
       const idx = window.__famScheduleIndex;
-      return !!(idx && idx.completedMap.get(`${charName}|${famKey}`));
+      return !!(idx && idx.excludedMap.get(`${charName}|${famKey}`));
     }
 
-    // "편성돼 있어서 개별 체크가 잠긴" 상태인지 - 편성돼 있어도 그 블록이 이미 완료됐다면
-    // (참여상태로 제외돼 Wild_Clears 기록이 없는 경우) 더 이상 기다릴 게 없으므로, 캐릭터
-    // 현황에서는 그냥 "편성 안 된 것"(자유 토글 가능)처럼 취급한다 - 참여상태/제외 개념을
-    // 캐릭터 현황이 따로 알 필요가 없게 하기 위해서다(되살리기는 진행중 명단에서 참여상태
-    // 자체를 지우는 걸로 처리 - renderRaidProgressRosterRows 참고).
+    // "편성돼 있어서 개별 체크가 잠긴" 상태인지 - 판단 순서는 renderRaidTag가 이미 Wild_Clears
+    // 기록(V/W)을 먼저 보고 있으면 여기까지 오지 않으므로, 여기 도달했다는 건 이 캐릭터가
+    // Wild_Clears에 아직 아무 기록도 없다는 뜻이다. 그 상태에서 (1) 아예 편성 안 됐거나
+    // (2) 참여상태로 미리 제외돼 있으면(완료 여부 무관 - 정상 참여 예정으로 완료됐다면 이미
+    // Wild_Clears에 일정완료가 있었을 것이므로) "편성 안 된 것"(자유 토글 가능)처럼 취급한다.
+    // 완료 후 되살리기는 진행중 명단에서 참여상태 자체를 지우는 걸로 처리한다
+    // (renderRaidProgressRosterRows 참고).
     function isEffectivelyScheduledInFamily(charName, famKey) {
       return isScheduledInFamily(charName, famKey) &&
-        !isFamilyRaidCompletedForChar(charName, famKey) &&
-        !isRaidWeekAnchorFuture();
+        !isRaidWeekAnchorFuture() &&
+        !isExcludedByAttendanceForFamily(charName, famKey);
     }
 
     // 캐릭터x레이드계열의 체크 상태 ('V' 일정완료 / 'W' 개별수동 / '' 미완료).
@@ -5682,8 +5698,12 @@
 
       // 낙관적 반영: 응답을 읽을 수 없는 no-cors 요청이라 화면을 먼저 갱신한다
       attendanceData.push(record);
+      // 참여상태가 캐릭터 현황의 개별 체크 잠금 여부(isExcludedByAttendanceForFamily)에도
+      // 영향을 주므로, 그 캐시도 같이 다시 만든다.
+      buildFamilyScheduleIndex();
       renderAttendanceMyList();
       renderActiveTabContent();
+      if (currentMainView === 'pool') renderPoolView();
       pendingAttendance = { date: '', status: '', memo: '' };
       if (memoEl) memoEl.value = '';
       const dateEl = document.getElementById('attendanceDateInput');
@@ -5707,8 +5727,10 @@
       attendanceData = attendanceData.filter(a =>
         !(a.target === dateKey && a.user.split('(')[0].trim() === base)
       );
+      buildFamilyScheduleIndex();
       renderAttendanceMyList();
       renderActiveTabContent();
+      if (currentMainView === 'pool') renderPoolView();
 
       await postAction('cancelAttendance', { user: selectedUser, target: dateKey }, '참여 상태 취소');
     }
