@@ -200,7 +200,7 @@
           <span class="font-bold text-lg text-white tracking-wide whitespace-nowrap"><span class="mark-narrow">공대</span><span class="mark-wide">로아 공대</span></span>
           <!-- 마크(로고 텍스트)는 A가 "미니"로 접힐 때만 같이 줄어든다(축약형 단계에서는 로고는 풀네임 유지) -->
           <button onclick="openInfoModal('changelog')" class="text-[10px] font-mono font-bold px-1.5 sm:px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/30 hover:bg-purple-500/20 transition cursor-pointer" title="클릭하여 업데이트 이력 확인">
-            v2.11.3
+            v2.11.5
           </button>
         </div>
 
@@ -1599,6 +1599,7 @@
     // 다시 그리면 저사양 PC에서 낭비다 - 실제로 내용이 달라졌을 때만 다시 그린다.
     let lastRaidStatusRaw = null;
     let lastConfigRaw = null;
+    let lastWildClearsRaw = null;
 
     function renderRaidStatusDependents() {
       recalcGoldFromStore();
@@ -1612,20 +1613,42 @@
     async function pollRaidStatusAndVersion() {
       if (siteConfig.maintenanceMode && !IS_DEV) return; // 점검 화면에서는 조용히 쉰다
       const bust = Date.now();
-      const [statusRows, configRows] = await Promise.all([
+      const [statusRows, configRows, wildClearsRows] = await Promise.all([
         fetchSheetCsv('Raid_Status', bust).catch(() => null),
-        fetchSheetCsv('Config', bust).catch(() => null)
+        fetchSheetCsv('Config', bust).catch(() => null),
+        fetchSheetCsv('Wild_Clears', bust).catch(() => null)
       ]);
 
+      // 완료 처리 직후엔 Raid_Status는 바뀌어도 Wild_Clears(V/W 체크)는 아직 안 바뀐 순간이
+      // 있을 수 있어서(서버가 완료 기록을 남기는 게 별도 단계), 둘 다 이 폴링에서 같이 받아
+      // 캐릭터 현황이 "편성 잠금은 풀렸는데 완료 체크는 안 된" 것처럼 잠깐 보이는 걸 막는다.
+      let statusChanged = false;
       if (statusRows) {
         lastSheetFetchAt['Raid_Status'] = Date.now(); // 다른 곳(탭 전환 등)의 중복 재조회 방지용으로도 갱신
         const raw = JSON.stringify(statusRows);
         if (raw !== lastRaidStatusRaw) {
           lastRaidStatusRaw = raw;
           parseRaidStatus(statusRows);
-          renderRaidStatusDependents();
-          maybeAutoPopupCurrentRaid();
+          statusChanged = true;
         }
+      }
+
+      let wildClearsChanged = false;
+      if (wildClearsRows) {
+        lastSheetFetchAt['Wild_Clears'] = Date.now();
+        const raw = JSON.stringify(wildClearsRows);
+        if (raw !== lastWildClearsRaw) {
+          lastWildClearsRaw = raw;
+          parseWildClears(wildClearsRows);
+          wildClearsChanged = true;
+        }
+      }
+
+      if (statusChanged || wildClearsChanged) {
+        renderRaidStatusDependents();
+      }
+      if (statusChanged) {
+        maybeAutoPopupCurrentRaid();
       }
 
       if (configRows) {
@@ -1945,6 +1968,33 @@
       });
       calculateGoldEligibilities(all);
       window.allRaidInstancesStore = all;
+      buildFamilyScheduleIndex();
+    }
+
+    // isScheduledInFamily/isFamilyRaidCompletedForChar가 캐릭터 현황 카드마다(캐릭터 수 x
+    // 레이드 계열 수) allRaidInstancesStore/raidStatusData를 매번 선형 탐색하던 걸 없애기 위한
+    // 캐시. allRaidInstancesStore가 다시 만들어질 때(recalcGoldFromStore)만 한 번 다시 계산하고,
+    // 캐릭터 현황을 그릴 때는 이 Map을 그냥 조회만 한다.
+    function buildFamilyScheduleIndex() {
+      const statusIndex = new Map(); // "sheetId|blockIndex|rawRaidTitle" -> status
+      raidStatusData.forEach(s => {
+        statusIndex.set(`${s.sheetId}|${s.blockIndex}|${s.rawRaidTitle}`, s.status);
+      });
+
+      const scheduledMap = new Map(); // "캐릭명|famKey" -> true
+      const completedMap = new Map(); // "캐릭명|famKey" -> true (편성된 블록 중 하나라도 완료)
+
+      (window.allRaidInstancesStore || []).forEach(i => {
+        const famKey = getRaidFamilyKey(i.raidTitle);
+        if (!famKey) return;
+        const key = `${i.charName}|${famKey}`;
+        scheduledMap.set(key, true);
+        if (statusIndex.get(`${i.sheetId}|${i.blockIndex}|${i.rawRaidTitle}`) === '완료') {
+          completedMap.set(key, true);
+        }
+      });
+
+      window.__famScheduleIndex = { scheduledMap, completedMap };
     }
 
     // 화면에서 슬롯을 편집한 뒤, 그 시트의 편성 인스턴스를 다시 만들고 골드 판정을 재계산한다.
@@ -2225,6 +2275,14 @@
     // 문자열을 onclick="...('${str}')" 같은 인라인 핸들러 안에 안전하게 끼워 넣기 위한 홑따옴표 이스케이프.
     function escQ(str) {
       return (str || '').replace(/'/g, "\\'");
+    }
+
+    // 사용자가 직접 입력한 텍스트(참여상태 메모 등)를 HTML 텍스트/속성값에 그대로 넣기 전에
+    // 이스케이프한다 - escQ와 달리 홑따옴표뿐 아니라 태그/속성 삽입(XSS)까지 막아야 하는 곳에 쓴다.
+    function escapeHtml(str) {
+      return (str || '').replace(/[&<>"']/g, ch => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+      })[ch]);
     }
 
     // 포지션이 직업만으로 자동 판정되지 않고 대시보드에서 직접 정할 수 있는 직업 목록
@@ -2767,6 +2825,34 @@
     }
 
     // ─── 레이드 진행/완료 관리 ─────────────────────────────────
+
+    // 임시 레이드를 새로 만들기 전에 미리 검사한다 - startRaidBlock과 같은 규칙(본인 계정 선택,
+    // 주차 시작 여부, 인원 겹침)이지만, 블록을 실제로 시트에 만들기 전에 먼저 확인해야 검사에
+    // 걸렸을 때 시트에 아무도 못 들어가는 고아 블록이 남지 않는다(startRaidBlock은 addBlock으로
+    // 블록이 이미 만들어진 뒤에 불리므로, 여기서 막히면 그 블록은 탭도 없이 방치된다).
+    function findTempRaidBlockConflict(chars) {
+      if (!selectedUser) {
+        return "상단 헤더의 [내 캐릭터 강조]에서 본인 계정을 먼저 선택해 주세요!";
+      }
+      if (siteConfig.raidWeekAnchor && fmtDate(new Date()) < siteConfig.raidWeekAnchor) {
+        return `아직 시작되지 않은 주차입니다. (${siteConfig.raidWeekAnchor} 주차 시작 예정)`;
+      }
+      const myUsers = new Set(chars.map(c => (c.user || '').split('(')[0].trim()).filter(Boolean));
+      const conflict = raidStatusData.find(s => {
+        if (s.status !== '진행중') return false;
+        const otherUsers = new Set(
+          ((sheetsDataStore[s.sheetId] && sheetsDataStore[s.sheetId].blocks[s.blockIndex] && sheetsDataStore[s.sheetId].blocks[s.blockIndex].slots) || [])
+            .map(sl => (sl.user || '').split('(')[0].trim())
+            .filter(Boolean)
+        );
+        return Array.from(otherUsers).some(u => myUsers.has(u));
+      });
+      if (conflict) {
+        return `이 레이드는 [${sanitizeTitle(conflict.rawRaidTitle)}]과(와) 인원이 겹쳐서 진행할 수 없습니다. 완료 처리 후 다시 시도해 주세요.`;
+      }
+      return null;
+    }
+
     // '진행' 버튼 - 진행중으로 표시하고 곧바로 관리 모달을 연다(누른 사람 입장에서는 즉시 확인).
     async function startRaidBlock(sheetId, blockIndex, rawRaidTitle, displayTitle) {
       if (!selectedUser) {
@@ -3042,6 +3128,10 @@
     // raidProgressModal(#feastStatusBox)과 현재 레이드 목록 모달(#feastStatusBoxList) 양쪽에
     // 같은 내용을 그린다 - 두 모달이 동시에 열릴 일은 없지만,
     // 어느 쪽이 열려있어도 항상 최신 상태가 보이게 둘 다 갱신해둔다(없는 쪽은 조용히 건너뜀).
+    // 15초 폴링마다 매번 불리므로(만찬 남은 시간이 시간 경과만으로 줄어들어야 해서), 실제로
+    // 보여줄 내용이 그대로면 innerHTML/drawIcons를 건너뛴다 - 안 그러면 캐릭터 현황처럼
+    // 아이콘이 많은 화면에서 15초마다 문서 전체 아이콘을 다시 그리게 된다(2026-09-25 회귀 수정).
+    let lastFeastStatusHtml = null;
     function renderFeastStatus() {
       const boxes = ['feastStatusBox', 'feastStatusBoxList']
         .map(id => document.getElementById(id))
@@ -3064,9 +3154,11 @@
         ? `<button onclick="openFeastPickerModal()" class="shrink-0 px-2 py-1 rounded-md text-[11px] font-semibold text-gray-300 hover:text-white bg-gray-800 hover:bg-gray-700 border border-gray-700 transition">만찬 관리</button>`
         : `<button onclick="openFeastPickerModal()" class="shrink-0 px-2 py-1 rounded-md text-[11px] font-bold text-black bg-amber-400 hover:bg-amber-300 transition">만찬 깔았어요</button>`);
 
-      boxes.forEach(box => {
-        box.innerHTML = `<div class="flex items-center gap-1.5 min-w-0">${label}</div>${actionBtn}`;
-      });
+      const html = `<div class="flex items-center gap-1.5 min-w-0">${label}</div>${actionBtn}`;
+      if (html === lastFeastStatusHtml) return;
+      lastFeastStatusHtml = html;
+
+      boxes.forEach(box => { box.innerHTML = html; });
       drawIcons();
     }
 
@@ -3249,7 +3341,9 @@
 
       await postAction('completeRaidProgress', { sheetId, blockIndex, rawRaidTitle, user: selectedUser }, '레이드 완료 처리');
 
-      setTimeout(() => refreshSheets(['Raid_Status', 'Config'], true), 1500);
+      // Wild_Clears도 같이 받아야 한다 - 서버가 완료 처리 때 V/W 기록을 같이 남기는데, 이걸
+      // 빼먹으면 편성 잠금은 풀렸지만 완료 체크는 아직 안 된 것처럼(빈 "미완료") 잠깐 보인다.
+      setTimeout(() => refreshSheets(['Raid_Status', 'Config', 'Wild_Clears'], true), 1500);
     }
 
     // '완료 처리' 버튼 - 로컬 캐시(최대 15초 전 폴링 결과)만 믿지 않고, 누른 시점에 서버 최신
@@ -3311,6 +3405,10 @@
       renderCurrentRaidsBadge();
 
       await postAction('cancelRaidProgress', { sheetId, blockIndex, rawRaidTitle }, '레이드 진행 취소');
+
+      // 완료된 블록을 되돌린 경우 서버가 그 블록의 Wild_Clears 일정완료 기록도 같이 지우므로,
+      // 캐릭터 현황이 계속 완료로 보이지 않게 이것도 받아온다.
+      setTimeout(() => refreshSheets(['Wild_Clears'], true), 1500);
     }
 
     // 헤더의 '현재 레이드' 배지. 항상 보이게 바뀌었다 - 진행중 레이드가 하나도 없어도
@@ -3545,7 +3643,7 @@
               : (att.status === '지각'
                 ? 'bg-amber-500/20 text-amber-300 border-amber-500/60'
                 : 'bg-gray-700/40 text-gray-300 border-gray-600');
-            const tip = att.memo ? ` title="${att.memo}"` : '';
+            const tip = att.memo ? ` title="${escapeHtml(att.memo)}"` : '';
             attTag = `<span class="shrink-0 whitespace-nowrap px-1.5 py-0.5 rounded border text-[10px] font-bold ${tone}${att.memo ? ' cursor-help' : ''}"${tip}>${att.status}</span>`;
             if (att.status === '불참') attDim = ' opacity-50';
           }
@@ -3591,9 +3689,8 @@
     // goldTier: 'EARN' | 'MAYBE' | 'NONE' | undefined
     // 지금 이 캐릭터가 일정표에 이 레이드 계열(famKey)로 편성되어 있는지 (완료 여부 무관).
     function isScheduledInFamily(charName, famKey) {
-      return (window.allRaidInstancesStore || []).some(i =>
-        i.charName === charName && getRaidFamilyKey(i.raidTitle) === famKey
-      );
+      const idx = window.__famScheduleIndex;
+      return !!(idx && idx.scheduledMap.get(`${charName}|${famKey}`));
     }
 
     // 조기 리셋(전체 그룹 완료)으로 앵커가 다음 주차로 넘어갔지만, 실제 날짜는 아직
@@ -3607,11 +3704,8 @@
     // 예전 서버측 syncRaidCompletions()가 Character_Pool에 저장하던 로직을 프론트로 그대로 이식한 것 -
     // "이 캐릭터가 이 계열로 편성된 블록 중, 그 블록이 완료 처리된 게 하나라도 있는가"를 그때그때 계산한다.
     function isFamilyRaidCompletedForChar(charName, famKey) {
-      return (window.allRaidInstancesStore || []).some(i => {
-        if (i.charName !== charName || getRaidFamilyKey(i.raidTitle) !== famKey) return false;
-        const statusInfo = getRaidStatusFor(i.sheetId, i.blockIndex, i.rawRaidTitle);
-        return !!statusInfo && statusInfo.status === '완료';
-      });
+      const idx = window.__famScheduleIndex;
+      return !!(idx && idx.completedMap.get(`${charName}|${famKey}`));
     }
 
     // "편성돼 있어서 개별 체크가 잠긴" 상태인지 - 편성돼 있어도 그 블록이 이미 완료됐다면
@@ -4679,13 +4773,16 @@
     // 아무것도 숨기지 않고 본인 캐릭터를 전부 보여주되, 상황별로 배지만 다르게 붙인다.
     // - 입장 레벨 미달: '레벨업 필요' 배지 (선택해서 확정하면 예정 레벨 자동 상향 - executeAddSlot/executeInstantSwap 참고)
     // - 이번 주 같은 레이드 계열에 이미 참여 중: 막지 않고 어디 있는지만 알려준다 (원한다면 그대로 중복 편성 가능)
-    function buildSwapCandidates(raidTitle, currentCharName, exceptSlotUid) {
+    function buildSwapCandidates(raidTitle, currentCharName, exceptSlotUid, ownerUser) {
       const famKey = getRaidFamilyKey(raidTitle);
       const row = getBlockRaidRow(raidTitle);
       const minLevel = row ? parseGoldNum(row.level) : 0;
+      // 관리자모드로 남의 슬롯을 열었을 때도 후보는 항상 "그 슬롯 주인"의 원정대 캐릭터여야
+      // 한다 - selectedUser로 거르면 관리자 본인 캐릭터가 남의 자리 후보로 뜬다.
+      const targetUser = (ownerUser || selectedUser || '').split('(')[0].trim();
 
       return characterPoolData
-        .filter(c => c.user.startsWith(selectedUser) && (!hiddenCharNames.has(c.name) || c.name === currentCharName))
+        .filter(c => c.user.split('(')[0].trim() === targetUser && (!hiddenCharNames.has(c.name) || c.name === currentCharName))
         .map(c => {
           const isCurrent = c.name === currentCharName;
 
@@ -4881,10 +4978,11 @@
       document.getElementById('swapModalDesc').textContent = '본인 원정대 캐릭터로만 교체할 수 있습니다. 캐릭터를 먼저 선택한 뒤 하단의 확정 버튼을 눌러야 반영됩니다.';
       document.getElementById('swapTargetRaidTitle').textContent = `[${slot.raidTitle}]`;
       document.getElementById('swapOldCharName').textContent = `${slot.user} ➔ ${slot.name} (${slot.job} / ${slot.level})`;
-      document.getElementById('swapModalUserLabel').textContent = `교체할 본인(${selectedUser}) 원정대 캐릭터 선택`;
+      const swapTargetLabel = isMySlot ? `본인(${selectedUser})` : slot.user;
+      document.getElementById('swapModalUserLabel').textContent = `교체할 ${swapTargetLabel} 원정대 캐릭터 선택`;
       document.getElementById('swapRemoveBtn').classList.remove('hidden');
 
-      renderSwapCandidateList(buildSwapCandidates(slot.raidTitle, slot.name, slot.slotUid), slot.name);
+      renderSwapCandidateList(buildSwapCandidates(slot.raidTitle, slot.name, slot.slotUid, slot.user), slot.name);
       updateSwapConfirmButtonState();
       document.body.style.overflow = 'hidden';
       document.getElementById('quickSwapModal').classList.remove('hidden');
@@ -5431,6 +5529,18 @@
       const raid = addBlockCurrentRaid;
       const { abbrName, abbrDiff } = getAbbrRaidTitleParts(raid.name, raid.diff);
 
+      // 임시 레이드는 추가 즉시 startRaidBlock으로 진행중 처리까지 이어지므로, 그 검사에
+      // 걸릴 상황이면 블록을 아예 만들지 않는다 - 만든 뒤에 막히면 탭도 없는 임시 레이드
+      // 시트에 아무도 못 들어가는 블록만 남는다.
+      if (sheetId === TEMP_RAID_SHEET_ID_JS) {
+        const conflictMsg = findTempRaidBlockConflict(chars);
+        if (conflictMsg) {
+          customAlert(conflictMsg);
+          updateAddBlockConfirmState();
+          return;
+        }
+      }
+
       closeAddBlockModal();
 
       await postAction('addBlock', {
@@ -5527,7 +5637,7 @@
           <div class="text-xs text-gray-300">
             <span class="font-mono">${fmtDateLabel(new Date(k + 'T00:00:00'))}</span>
             <span class="${tone} font-bold ml-1.5">${a.status}</span>
-            ${a.memo ? `<span class="text-gray-500 ml-1.5">${a.memo}</span>` : ''}
+            ${a.memo ? `<span class="text-gray-500 ml-1.5">${escapeHtml(a.memo)}</span>` : ''}
           </div>
           <button onclick="cancelAttendance('${k}')" class="text-[11px] text-gray-500 hover:text-red-400 transition">삭제</button>
         </div>`;
@@ -5671,7 +5781,7 @@
                 : ''}
             </div>
           </div>
-          <div class="text-xs text-gray-300 leading-relaxed whitespace-pre-wrap">${x.content}</div>
+          <div class="text-xs text-gray-300 leading-relaxed whitespace-pre-wrap">${escapeHtml(x.content)}</div>
         </div>
       `).join('');
     }
