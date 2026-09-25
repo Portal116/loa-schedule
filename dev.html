@@ -200,7 +200,7 @@
           <span class="font-bold text-lg text-white tracking-wide whitespace-nowrap"><span class="mark-narrow">공대</span><span class="mark-wide">로아 공대</span></span>
           <!-- 마크(로고 텍스트)는 A가 "미니"로 접힐 때만 같이 줄어든다(축약형 단계에서는 로고는 풀네임 유지) -->
           <button onclick="openInfoModal('changelog')" class="text-[10px] font-mono font-bold px-1.5 sm:px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/30 hover:bg-purple-500/20 transition cursor-pointer" title="클릭하여 업데이트 이력 확인">
-            v2.11.6
+            v2.12.0
           </button>
         </div>
 
@@ -997,7 +997,25 @@
           <div class="bg-[#0d1117] p-3.5 rounded-xl border border-gray-800">
             <h4 class="font-bold text-xs mb-1.5 text-yellow-400">Q. [진행] / [완료 처리] 버튼은 무엇인가요?</h4>
             <p class="text-xs text-gray-300 leading-relaxed">
-              레이드를 시작하면 <strong>[진행]</strong> 버튼을 눌러 진행중으로 표시하고, 끝나면 <strong>[완료 처리]</strong>를 눌러주세요. 완료 처리해야 캐릭터 현황에 체크로 반영됩니다. 완료 처리를 누르면 확인창이 뜨고, 같은 조에 다음 레이드가 남아있으면 <strong>[다음 레이드 진행]</strong>을 선택해 바로 이어서 시작할 수 있습니다. 진행중인 레이드의 명단 아래에는 다음 레이드에서 내 캐릭터가 무엇인지도 미리 보여줍니다. 헤더의 <strong>[현재 레이드]</strong> 배지에서 지금 진행중인 레이드를 한눈에 볼 수 있습니다. 진행 중인 레이드는 완료되기 전까지 캐릭터를 자유롭게 바꿀 수 있습니다 (완료된 레이드는 계속 잠깁니다).
+              레이드를 시작하면 <strong>[진행]</strong> 버튼을 눌러 진행중으로 표시하고, 끝나면 <strong>[완료 처리]</strong>를 눌러주세요. 완료 처리해야 캐릭터 현황에 체크로 반영됩니다. 완료 처리를 누르면 확인창이 뜨고, 같은 조에 다음 레이드가 남아있으면 <strong>[다음 레이드 진행]</strong>을 선택해 바로 이어서 시작할 수 있습니다. 진행중인 레이드의 명단 아래에는 다음 레이드에서 내 캐릭터가 무엇인지도 미리 보여줍니다. 헤더의 <strong>[진행중]</strong> 배지에서 지금 진행중인 레이드를 한눈에 볼 수 있고, 진행중인 레이드가 없어도 항상 떠 있어 만찬 확인/등록에도 쓸 수 있습니다. 진행 중인 레이드는 완료되기 전까지 캐릭터를 자유롭게 바꿀 수 있습니다 (완료된 레이드는 계속 잠깁니다).
+            </p>
+          </div>
+          <div class="bg-[#0d1117] p-3.5 rounded-xl border border-gray-800">
+            <h4 class="font-bold text-xs mb-1.5 text-yellow-400">Q. 참여 상태를 등록하면 그 레이드는 어떻게 되나요?</h4>
+            <p class="text-xs text-gray-300 leading-relaxed">
+              완료 처리돼도 자동 체크되지 않습니다. 따로 다녀오셨다면 캐릭터 현황에서 바로 숙제 체크할 수 있습니다.
+            </p>
+          </div>
+          <div class="bg-[#0d1117] p-3.5 rounded-xl border border-gray-800">
+            <h4 class="font-bold text-xs mb-1.5 text-yellow-400">Q. 진행 관리 창 명단의 [참여]/[불참 처리] 버튼은요?</h4>
+            <p class="text-xs text-gray-300 leading-relaxed">
+              명단에서 참여 상태를 바로 등록·해제합니다. 불참 등록된 사람은 [참여]로 취소, 등록 없는 사람은 [불참 처리]로 바로 등록할 수 있습니다.
+            </p>
+          </div>
+          <div class="bg-[#0d1117] p-3.5 rounded-xl border border-gray-800">
+            <h4 class="font-bold text-xs mb-1.5 text-yellow-400">Q. [임시 레이드]는 뭔가요?</h4>
+            <p class="text-xs text-gray-300 leading-relaxed">
+              일정표에 없는 레이드를 즉흥적으로 추가해 바로 진행하는 기능입니다. "🎲 임시 레이드"로 인원을 골라 바로 시작되고, 만든 후엔 인원을 바꿀 수 없습니다.
             </p>
           </div>
           <div class="bg-[#0d1117] p-3.5 rounded-xl border border-gray-800">
@@ -1043,7 +1061,21 @@
         <div id="infoContentChangelog" class="space-y-3 hidden">
           <div class="border-l-2 border-yellow-500 pl-3 py-1 mb-3">
             <div class="flex items-center justify-between">
-              <span class="font-bold text-white text-xs">v2.11 - 레이드 진행 기능 확장 + 참여 상태 달력 개선</span>
+              <span class="font-bold text-white text-xs">v2.12 - 참여 상태 반영 개선 + 임시 레이드</span>
+              <span class="text-[11px] text-gray-500">2026.09.25</span>
+            </div>
+            <ul class="text-xs text-gray-400 mt-1 space-y-0.5 list-disc pl-3">
+              <li>불참/지각/미정 캐릭터도 따로 다녀오면 숙제 체크 가능</li>
+              <li>즉흥 레이드는 "임시 레이드"로 바로 추가해 진행</li>
+              <li>진행 중 명단에서 참여/불참 직접 등록·취소</li>
+              <li>[진행중] 배지 상시 표시 (만찬 확인용)</li>
+              <li>캐릭터 현황 속도 개선</li>
+            </ul>
+          </div>
+
+          <div class="border-l-2 border-gray-700 pl-3 py-1 mb-3">
+            <div class="flex items-center justify-between">
+              <span class="font-bold text-gray-300 text-xs">v2.11 - 레이드 진행 기능 확장 + 참여 상태 달력 개선</span>
               <span class="text-[11px] text-gray-500">2026.09.20</span>
             </div>
             <ul class="text-xs text-gray-400 mt-1 space-y-0.5 list-disc pl-3">
