@@ -20,8 +20,15 @@
       const names = ['Main_8Man', 'Sub_Group1', 'Sub_Group2', 'Sub_Group3', 'Sub_Group4',
                      'Character_Pool', 'Attendance', 'Raid_Info', 'Config', 'Raid_Status'];
       const map = {};
+      // 레이드 조 시트(Main_8Man/Sub_GroupN/Temp_Raid)는 고정 헤더 없이 블록(제목행+로스터행)
+      // 구조라 headers=1을 붙이면 안 된다 - 그 외 시트는 전부 1행 고정 헤더라 붙여야 한다.
+      // (gviz가 헤더 행 수를 자동 추측하는데, 반복되는 짧은 문자열 열이 많으면 - 예:
+      // Wild_Clears의 '구분' 열처럼 값이 두 종류뿐인 경우 - 데이터 행 수십 개를 통째로
+      // 헤더로 오인식해서 그 행들이 빠진 것처럼 보이는 gviz 버그가 있다. headers=1로 명시하면 방지된다.)
+      const isScheduleSheetName = n => n === 'Main_8Man' || n.indexOf('Sub_Group') === 0;
       names.forEach(n => {
-        const url = `https://docs.google.com/spreadsheets/d/${ID}/gviz/tq?tqx=out:csv&sheet=${encodeURI(n)}&t=${bust}`;
+        const headersParam = isScheduleSheetName(n) ? '' : '&headers=1';
+        const url = `https://docs.google.com/spreadsheets/d/${ID}/gviz/tq?tqx=out:csv&sheet=${encodeURI(n)}${headersParam}&t=${bust}`;
         map[n] = fetch(url).then(r => r.text()).catch(() => null);
       });
       return { bust: bust, map: map };
@@ -200,7 +207,7 @@
           <span class="font-bold text-lg text-white tracking-wide whitespace-nowrap"><span class="mark-narrow">공대</span><span class="mark-wide">로아 공대</span></span>
           <!-- 마크(로고 텍스트)는 A가 "미니"로 접힐 때만 같이 줄어든다(축약형 단계에서는 로고는 풀네임 유지) -->
           <button onclick="openInfoModal('changelog')" class="text-[10px] font-mono font-bold px-1.5 sm:px-2 py-0.5 rounded bg-yellow-500/10 text-yellow-400 border border-yellow-500/30 hover:bg-yellow-500/20 transition cursor-pointer" title="클릭하여 업데이트 이력 확인">
-            v2.12
+            v2.13
           </button>
         </div>
 
@@ -1061,7 +1068,17 @@
         <div id="infoContentChangelog" class="space-y-3 hidden">
           <div class="border-l-2 border-yellow-500 pl-3 py-1 mb-3">
             <div class="flex items-center justify-between">
-              <span class="font-bold text-white text-xs">v2.12 - 참여 상태 반영 개선 + 임시 레이드</span>
+              <span class="font-bold text-white text-xs">v2.13 - 캐릭터 현황 완료 표시 오류 수정</span>
+              <span class="text-[11px] text-gray-500">2026.09.26</span>
+            </div>
+            <ul class="text-xs text-gray-400 mt-1 space-y-0.5 list-disc pl-3">
+              <li>완료한 레이드가 캐릭터 현황에 체크로 안 뜨던 문제 수정</li>
+            </ul>
+          </div>
+
+          <div class="border-l-2 border-gray-700 pl-3 py-1 mb-3">
+            <div class="flex items-center justify-between">
+              <span class="font-bold text-gray-300 text-xs">v2.12 - 참여 상태 반영 개선 + 임시 레이드</span>
               <span class="text-[11px] text-gray-500">2026.09.25</span>
             </div>
             <ul class="text-xs text-gray-400 mt-1 space-y-0.5 list-disc pl-3">
@@ -1495,7 +1512,7 @@
     const RAID_STATUS_POLL_MS = 15000;
     // 운영(index.html)에 배포된 실제 버전. Config 시트 '앱버전' 값과 달라지면 새로고침을 유도한다.
     // dev.html은 빌드 번호가 세션마다 바뀌므로 이 체크 자체를 IS_DEV로 건너뛴다.
-    const APP_VERSION = '2.12';
+    const APP_VERSION = '2.13';
     let pendingAttendance = { date: '', status: '', memo: '' };
     // 만찬은 은지/안녕 둘만 깔고, 한 번 깔면 1시간 지속되는 전역 상태 하나뿐이다(레이드별/주별
     // 구분 없음) - 그래서 siteConfig.feastStatus({person, account, startedAt}) 하나로 관리하고
@@ -1897,7 +1914,11 @@
         delete boot.map[sheetName];
       }
       if (text === undefined || text === null) {
-        const url = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURI(sheetName)}&t=${bust}`;
+        // 레이드 조 시트(SHEET_CONFIG에 등록된 Main_8Man/Sub_GroupN/Temp_Raid)는 고정 헤더가
+        // 없는 블록 구조라 headers=1을 붙이지 않는다 - 그 외 시트는 전부 1행 고정 헤더다.
+        const isScheduleSheet = SHEET_CONFIG.some(cfg => cfg.id === sheetName);
+        const headersParam = isScheduleSheet ? '' : '&headers=1';
+        const url = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURI(sheetName)}${headersParam}&t=${bust}`;
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
         try {
