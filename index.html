@@ -3411,7 +3411,7 @@
       }
 
       const startedMs = parseServerTimestamp(freshInfo.startedAt);
-      if (startedMs && (Date.now() - startedMs) < MIN_RAID_DURATION_MS) {
+      if (!isAdminModeActive() && startedMs && (Date.now() - startedMs) < MIN_RAID_DURATION_MS) {
         const waitSec = Math.ceil((MIN_RAID_DURATION_MS - (Date.now() - startedMs)) / 1000);
         customAlert(`레이드를 시작한 지 얼마 안 됐습니다. 약 ${waitSec}초 후에 다시 시도해 주세요.`);
         return;
