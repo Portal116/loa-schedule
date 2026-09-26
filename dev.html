@@ -207,7 +207,7 @@
           <span class="font-bold text-lg text-white tracking-wide whitespace-nowrap"><span class="mark-narrow">공대</span><span class="mark-wide">로아 공대</span></span>
           <!-- 마크(로고 텍스트)는 A가 "미니"로 접힐 때만 같이 줄어든다(축약형 단계에서는 로고는 풀네임 유지) -->
           <button onclick="openInfoModal('changelog')" class="text-[10px] font-mono font-bold px-1.5 sm:px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/30 hover:bg-purple-500/20 transition cursor-pointer" title="클릭하여 업데이트 이력 확인">
-            v2.13.0
+            v2.13.8
           </button>
         </div>
 
@@ -845,6 +845,16 @@
     </div>
   </div>
 
+  <!-- 저장 중 로딩 오버레이 - 시트를 실제로 바꾸는 요청(saveAction)이 진행되는 동안 화면 전체를
+       덮어서 클릭을 막는다. 다른 모달(z-[60])보다도 위(z-[70])에 있어야, 모달 안에서 저장할 때도
+       그 모달 전체가 같이 막힌다. 클릭 통과를 막을 뿐 안내는 최소한으로 - 스피너 + 짧은 문구만. -->
+  <div id="savingOverlay" class="fixed inset-0 z-[70] bg-black/60 backdrop-blur-[1px] hidden flex items-center justify-center pointer-events-auto">
+    <div class="card-bg rounded-2xl px-6 py-5 border border-gray-700 shadow-2xl flex items-center gap-3">
+      <i data-lucide="loader-2" class="w-5 h-5 text-amber-400 animate-spin"></i>
+      <span class="text-sm font-semibold text-white" id="savingOverlayText">저장 중...</span>
+    </div>
+  </div>
+
   <!-- 참여 상태(불참/지각) 모달 -->
   <div id="attendanceModal" onclick="if (event.target === this) closeAttendanceModal()" class="js-modal fixed inset-0 z-50 bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-4">
     <div class="card-bg w-full max-w-lg max-h-[85vh] rounded-2xl p-6 border border-gray-700 shadow-2xl relative flex flex-col">
@@ -1319,27 +1329,13 @@
     // 테스트 배포(dev) 전용 엔드포인트. 정식(index.html)은 별도 배포 URL을 쓴다.
     const APPS_SCRIPT_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbyMFY1uL2u_rxVtrOqgDLVkQOCBQBO_58MlXWJI8lZgnqMXa95EDJXnxnoISFnsi8GG/exec';
 
-    // 서버에 no-cors POST로 액션을 보낸다 - 응답을 읽을 수 없는 fire-and-forget 방식이라, 호출부는
-    // 항상 먼저 화면 상태를 낙관적으로 갱신해둔 뒤 이 함수를 호출한다(실패해도 별도 알림 없이 콘솔에만 기록).
-    async function postAction(action, payload, errorLabel) {
-      try {
-        await fetch(APPS_SCRIPT_WEB_APP_URL, {
-          method: 'POST',
-          mode: 'no-cors',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(Object.assign({ action }, payload))
-        });
-      } catch (err) {
-        console.error(`${errorLabel || action} 오류:`, err);
-      }
-    }
-
-    // postAction과 달리 응답을 실제로 읽어야 하는 몇 안 되는 액션(예: 새 서브그룹 시트를
-    // 만들고 그 id를 돌려받는 것)에 쓴다. Content-Type을 text/plain으로 보내야
+    // 서버 응답을 실제로 읽어야 하는 액션에 쓴다. Content-Type을 text/plain으로 보내야
     // "simple request"로 취급되어 프리플라이트(OPTIONS)가 안 붙는다 - Apps Script 웹앱은
     // OPTIONS 요청을 처리하지 않으므로 application/json으로 보내면 이 요청 자체가 브라우저
     // 단에서 막힌다. 서버(doPost_)는 Content-Type과 무관하게 본문을 그냥 JSON.parse 하므로
-    // 이렇게 보내도 동작에는 문제없다.
+    // 이렇게 보내도 동작에는 문제없다. 시트를 실제로 바꾸는 액션은 이 함수 대신 로딩
+    // 오버레이까지 같이 처리하는 saveAction을 쓴다 - 이건 그 외(관리자 비밀번호 확인처럼
+    // 시트를 안 바꾸는) 몇 안 되는 경우에만 남아 있다.
     async function postActionRead(action, payload, errorLabel) {
       try {
         const res = await fetch(APPS_SCRIPT_WEB_APP_URL, {
@@ -1352,6 +1348,89 @@
         console.error(`${errorLabel || action} 오류:`, err);
         return { status: 'error', message: '서버와 통신하지 못했습니다.' };
       }
+    }
+
+    // 시트를 실제로 바꾸는 요청 전용 - 응답이 올 때까지 savingOverlay로 화면 전체 조작을 막고,
+    // 성공/실패를 실제로 읽는다(더 이상 낙관적 업데이트 + no-cors 아님). 호출부는 성공했을 때만
+    // 화면 반영을 진행하면 되고, 실패 처리(알림 + 필요하면 관련 시트 재조회)는 여기서 공통으로 한다.
+    // depth 카운터로 여러 saveAction이 연달아 이어지는 작업(예: 완료 처리 -> 다음 레이드 시작)도
+    // 오버레이 깜빡임 없이 하나로 묶는다.
+    let savingOverlayDepth = 0;
+    function showSavingOverlay(text) {
+      savingOverlayDepth++;
+      const el = document.getElementById('savingOverlay');
+      const textEl = document.getElementById('savingOverlayText');
+      if (textEl) textEl.textContent = text || '저장 중...';
+      if (el) el.classList.remove('hidden');
+    }
+    function hideSavingOverlay() {
+      savingOverlayDepth = Math.max(0, savingOverlayDepth - 1);
+      if (savingOverlayDepth > 0) return;
+      const el = document.getElementById('savingOverlay');
+      if (el) el.classList.add('hidden');
+    }
+
+    // 서버 락 대기(최대 20초) + 실제 처리(무거운 축인 새 그룹 생성/주간 리셋 동반 완료 처리도
+    // 대략 10초 안팎)를 더한 것보다 넉넉히 잡는다. 이보다 짧으면, 서버는 계속 실행 중인데
+    // 클라이언트만 먼저 포기하고 실패로 표시하는 경우(그 뒤 재시도하면 중복 처리 위험)가
+    // 생길 수 있다 - abort()는 클라이언트 쪽 연결만 끊을 뿐 서버 실행 자체를 멈추지 않는다.
+    const SAVE_ACTION_TIMEOUT_MS = 60000;
+
+    // 요청 한 번(재시도 없이) - 응답을 기다리는 동안 오버레이를 띄우고, 성공/실패를 실제로 읽는다.
+    async function fetchActionOnce(action, payload, loadingText, errorLabel) {
+      showSavingOverlay(loadingText);
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), SAVE_ACTION_TIMEOUT_MS);
+      try {
+        const res = await fetch(APPS_SCRIPT_WEB_APP_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify(Object.assign({ action }, payload)),
+          signal: controller.signal
+        });
+        return await res.json();
+      } catch (err) {
+        console.error(`${errorLabel || action} 오류:`, err);
+        return {
+          status: 'error',
+          message: err.name === 'AbortError'
+            ? '서버 응답이 없습니다. 네트워크 상태를 확인하고 다시 시도해 주세요.'
+            : '서버와 통신하지 못했습니다.'
+        };
+      } finally {
+        clearTimeout(timeoutId);
+        hideSavingOverlay();
+      }
+    }
+
+    // 시트를 실제로 바꾸는 요청 전용. 호출부는 성공했을 때만 화면 반영을 진행하면 되고,
+    // 실패 처리는 여기서 공통으로 한다:
+    //  - 락 대기 초과(code: 'LOCK_BUSY')는 서버가 처리를 시작하기도 전에 거절한 거라
+    //    재시도해도 중복 위험이 없다 - 문구를 바꿔서 자동으로 한 번 더 시도한다.
+    //  - 그래도 실패하면: opts.keepInputOnFail이 true인 액션(참여상태 등록/건의사항 등록/
+    //    레이드 블록 추가 - 다시 입력하기 번거로운 것들)은 알림만 띄우고 입력을 그대로 둬서
+    //    사용자가 다시 누르게 한다. 그 외에는 "최신 상태로 새로고침" 안내 후 강제 새로고침해서,
+    //    응답 유실로 서버와 어긋난 화면을 절대 남기지 않는다.
+    async function saveAction(action, payload, opts) {
+      opts = opts || {};
+      let result = await fetchActionOnce(action, payload, opts.loadingText, opts.errorLabel);
+
+      if (result.status !== 'success' && result.code === 'LOCK_BUSY') {
+        result = await fetchActionOnce(action, payload, '다른 작업이 끝나길 기다리는 중...', opts.errorLabel);
+      }
+
+      if (result.status !== 'success') {
+        if (opts.keepInputOnFail) {
+          if (result.message) customAlert(result.message);
+        } else {
+          await customAlert(
+            (result.message ? result.message + '\n\n' : '') + '확인을 누르면 최신 상태로 새로고침합니다.',
+            '저장 실패'
+          );
+          location.reload();
+        }
+      }
+      return result;
     }
 
     // 임시 진행 레이드 전용 고정 시트. Sub_GroupN과 달리 매번 새로 안 만들고 이 이름 하나만
@@ -2021,35 +2100,49 @@
       });
       calculateGoldEligibilities(all);
       window.allRaidInstancesStore = all;
-      buildFamilyScheduleIndex();
+      buildRaidCheckStates();
     }
 
-    // isScheduledInFamily/isExcludedByAttendanceForFamily가 캐릭터 현황 카드마다(캐릭터 수 x
-    // 레이드 계열 수) allRaidInstancesStore/attendanceData를 매번 선형 탐색하던 걸 없애기 위한
-    // 캐시. allRaidInstancesStore가 다시 만들어질 때(recalcGoldFromStore)만 한 번 다시 계산하고,
-    // 캐릭터 현황을 그릴 때는 이 Map을 그냥 조회만 한다. attendanceData만 바뀌었을 때도(참여상태
-    // 등록/해제) 최신 상태를 반영해야 하므로, 그 경로들도 이 함수를 다시 부른다.
-    function buildFamilyScheduleIndex() {
-      const scheduledMap = new Map(); // "캐릭명|famKey" -> true
-      // "캐릭명|famKey" -> true (편성된 인스턴스가 전부 참여상태(불참/지각/미정)로 제외됨).
-      // 정상 참여 예정인 인스턴스가 하나라도 있으면 이 키는 안 남는다(아래 notExcludedSeen이
-      // 처리 순서와 무관하게 그 경우를 걸러낸다) - 참여상태는 미리 등록해두는 것이라, 블록이
-      // 완료되기 전이라도 이 캐릭터가 정식 편성으로는 크레딧을 못 받는다는 게 이미 확정된
-      // 상태다. Wild_Clears에 이미 기록(V/W)이 있는 캐릭터는 renderRaidTag에서 그 기록을
-      // 먼저 보고 여기까지 오지 않으므로, 완료 여부를 따로 볼 필요가 없다 - 정상 참여 예정으로
-      // 완료된 블록은 이미 Wild_Clears에 일정완료로 기록돼 있기 때문이다.
-      const excludedMap = new Map();
+    // 캐릭터 현황의 "개별 체크가 잠겨있는지"를 캐릭터 x 레이드 계열 전체에 대해 한 번에
+    // 계산해두는 캐시. allRaidInstancesStore가 다시 만들어질 때(recalcGoldFromStore)만
+    // 한 번 다시 계산하고, 카드를 그리거나 클릭할 때는 이 결과만 조회한다.
+    // attendanceData만 바뀌었을 때도(참여상태 등록/해제) 최신 상태를 반영해야 하므로, 그
+    // 경로들도 이 함수를 다시 부른다.
+    //
+    // 판정 규칙(캐릭터 1명 x 레이드 계열 1개, Wild_Clears에 이미 기록(V/W)이 있으면 여기까지
+    // 오지 않고 그 기록이 우선이다 - renderRaidTag가 status를 먼저 본다):
+    //   1) 편성 안 됨 -> 잠금 아님(자유 토글)
+    //   2) 편성된 블록이 완료됐거나, 조기 리셋 유예 기간(=편성된 모든 레이드가 완료된 상태로
+    //      취급)이면 -> 잠금 아님
+    //   3) 그 외 - 편성된 인스턴스 전부가 참여상태(불참/지각/미정)로 제외돼 있으면 -> 잠금 아님
+    //   4) 그 외(편성돼 있고, 아직 완료 전이고, 정상 참여 예정) -> 잠금
+    // 이 순서는 Api.gs의 evaluateRaidCheckStateGS와 반드시 같게 유지한다(저장 시 서버가
+    // 같은 캐릭터 1명 x 레이드 1개 기준으로 다시 한 번 확인한다).
+    function buildRaidCheckStates() {
+      const scheduledSet = new Set(); // "캐릭명|famKey"
+      const completedMap = new Map(); // "캐릭명|famKey" -> true (편성된 블록 중 완료된 게 하나라도 있음)
+      const excludedMap = new Map(); // "캐릭명|famKey" -> true (편성된 인스턴스 전부가 참여상태로 제외됨)
       const notExcludedSeen = new Set();
+
+      const anchorFuture = isRaidWeekAnchorFuture();
+      const statusByBlock = new Map();
+      raidStatusData.forEach(s => statusByBlock.set(`${s.sheetId}|${s.blockIndex}|${s.rawRaidTitle}`, s.status));
+      const attByUserDate = new Map(); // 같은 키가 여러 개면 getAttendanceFor처럼 마지막 것이 이긴다
+      attendanceData.forEach(a => attByUserDate.set(`${a.user.split('(')[0].trim()}|${a.target}`, a.status));
+      const dateKeyBySheet = new Map();
 
       (window.allRaidInstancesStore || []).forEach(i => {
         const famKey = getRaidFamilyKey(i.raidTitle);
         if (!famKey) return;
         const key = `${i.charName}|${famKey}`;
-        scheduledMap.set(key, true);
+        scheduledSet.add(key);
 
-        const dateKey = getCurrentCycleDateKeyForSheet(i.sheetId);
-        const att = dateKey ? getAttendanceFor(i.user, dateKey) : null;
-        const isExcluded = !!att && (att.status === '불참' || att.status === '지각' || att.status === '미정');
+        if (statusByBlock.get(`${i.sheetId}|${i.blockIndex}|${i.rawRaidTitle}`) === '완료') completedMap.set(key, true);
+
+        if (!dateKeyBySheet.has(i.sheetId)) dateKeyBySheet.set(i.sheetId, getCurrentCycleDateKeyForSheet(i.sheetId));
+        const dateKey = dateKeyBySheet.get(i.sheetId);
+        const attStatus = (dateKey && i.user) ? attByUserDate.get(`${i.user.split('(')[0].trim()}|${dateKey}`) : null;
+        const isExcluded = attStatus === '불참' || attStatus === '지각' || attStatus === '미정';
         if (isExcluded) {
           if (!notExcludedSeen.has(key)) excludedMap.set(key, true);
         } else {
@@ -2058,7 +2151,14 @@
         }
       });
 
-      window.__famScheduleIndex = { scheduledMap, excludedMap };
+      const lockedSet = new Set();
+      scheduledSet.forEach(key => {
+        const completedOrGrace = anchorFuture || completedMap.get(key) === true;
+        const allExcluded = !!excludedMap.get(key);
+        if (!completedOrGrace && !allExcluded) lockedSet.add(key);
+      });
+
+      window.__raidCheckStates = { scheduledSet, lockedSet };
     }
 
     // 화면에서 슬롯을 편집한 뒤, 그 시트의 편성 인스턴스를 다시 만들고 골드 판정을 재계산한다.
@@ -2366,10 +2466,14 @@
 
       const curIdx = POSITION_CYCLE.indexOf(charObj.pos);
       const nextPos = POSITION_CYCLE[(curIdx + 1) % POSITION_CYCLE.length];
+
+      const result = await saveAction('setPositionOverride', { charName, position: nextPos }, {
+        errorLabel: '포지션 저장'
+      });
+      if (result.status !== 'success') return;
+
       charObj.pos = nextPos;
       renderPoolView();
-
-      await postAction('setPositionOverride', { charName, position: nextPos }, '포지션 저장');
     }
 
     // 포지션(딜러/서포터/스왑가능) 뱃지 - 일정표 슬롯 카드와 캐릭터 현황 카드에서 공용으로 쓴다.
@@ -2653,12 +2757,14 @@
 
       closeSubGroupDayModal();
 
-      // 낙관적 반영: 탭 날짜 표시를 바로 갱신한다.
+      const result = await saveAction('updateSubGroupDay', { sheetId, dayName }, {
+        errorLabel: '서브그룹 요일 저장'
+      });
+      if (result.status !== 'success') return;
+
       siteConfig.subGroupDays = siteConfig.subGroupDays || {};
       siteConfig.subGroupDays[sheetId] = dayName;
       renderTabs();
-
-      await postAction('updateSubGroupDay', { sheetId, dayName }, '서브그룹 요일 저장');
     }
 
     // 8인 레이드 슬롯 정렬: 서포터 → 스왑가능 → 딜러, 같은 등급이면 레벨 내림차순.
@@ -2951,14 +3057,18 @@
         return;
       }
 
+      const result = await saveAction('startRaidProgress', { sheetId, blockIndex, rawRaidTitle, user: selectedUser }, {
+        errorLabel: '레이드 진행 시작',
+        loadingText: '레이드 진행 시작 중...'
+      });
+      if (result.status !== 'success') return;
+
       raidStatusData = raidStatusData.filter(s =>
         !(s.sheetId === sheetId && s.blockIndex === blockIndex && s.rawRaidTitle === rawRaidTitle)
       );
       raidStatusData.push({ sheetId, blockIndex, rawRaidTitle, status: '진행중', startedBy: selectedUser, startedAt: '', completedAt: '' });
       renderActiveTabContent();
       renderCurrentRaidsBadge();
-
-      await postAction('startRaidProgress', { sheetId, blockIndex, rawRaidTitle, user: selectedUser }, '레이드 진행 시작');
 
       openRaidProgressModal(sheetId, blockIndex, rawRaidTitle, displayTitle);
     }
@@ -3029,6 +3139,15 @@
       const isMe = selectedUser && user.startsWith(selectedUser);
       if (!isMe) markAdminAction();
 
+      const result = markAbsent
+        ? await saveAction('submitAttendance', { user, target: dateKey, status: '불참', memo: '' }, {
+            errorLabel: '참여 상태 등록(진행중 명단)'
+          })
+        : await saveAction('cancelAttendance', { user, target: dateKey }, {
+            errorLabel: '참여 상태 해제(진행중 명단)'
+          });
+      if (result.status !== 'success') return;
+
       const base = user.split('(')[0].trim();
       attendanceData = attendanceData.filter(a =>
         !(a.target === dateKey && a.user.split('(')[0].trim() === base)
@@ -3036,17 +3155,11 @@
       if (markAbsent) {
         attendanceData.push({ at: '', user, target: dateKey, status: '불참', memo: '' });
       }
-      buildFamilyScheduleIndex();
+      buildRaidCheckStates();
 
       refreshOpenRaidProgressModal();
       renderActiveTabContent();
       if (currentMainView === 'pool') renderPoolView();
-
-      if (markAbsent) {
-        await postAction('submitAttendance', { user, target: dateKey, status: '불참', memo: '' }, '참여 상태 등록(진행중 명단)');
-      } else {
-        await postAction('cancelAttendance', { user, target: dateKey }, '참여 상태 해제(진행중 명단)');
-      }
     }
 
     // 진행중 모달이 지금 열려있으면 같은 대상으로 다시 그려서(재조회 없이) 최신 상태를 반영한다.
@@ -3280,19 +3393,18 @@
       const keepStartedAt = document.getElementById('feastPickerKeepTime').checked;
       closeFeastPickerModal();
 
-      // no-cors 라 응답을 못 읽으므로, 다른 액션들과 동일하게 먼저 화면 상태를 낙관적으로
-      // 갱신해서 바로 반영한다(postAction 주석 참고).
+      const result = await saveAction('setFeastStatus', {
+        person, account,
+        keepStartedAt: !!keepStartedAt
+      }, { errorLabel: '만찬 상태 저장' });
+      if (result.status !== 'success') return;
+
       const keep = keepStartedAt && siteConfig.feastStatus && siteConfig.feastStatus.startedAt;
       siteConfig.feastStatus = {
         person, account,
         startedAt: keep ? siteConfig.feastStatus.startedAt : Date.now()
       };
       renderFeastStatus();
-
-      await postAction('setFeastStatus', {
-        person, account,
-        keepStartedAt: !!keepStartedAt
-      }, '만찬 상태 저장');
     }
 
     // ─── 경매 계산기 (레이드 진행 관리 모달의 "경매 계산기" 버튼에서만 연다) ─────
@@ -3396,6 +3508,12 @@
     // 블록이 이걸로 완료됐다면 서버가 그 자리에서 바로 다음 주기로 조기 리셋하므로, 잠시 후
     // Raid_Status/Config 를 다시 받는다.
     async function doCompleteRaidBlock(sheetId, blockIndex, rawRaidTitle) {
+      const result = await saveAction('completeRaidProgress', { sheetId, blockIndex, rawRaidTitle, user: selectedUser }, {
+        errorLabel: '레이드 완료 처리',
+        loadingText: '레이드 완료 처리 중...'
+      });
+      if (result.status !== 'success') return;
+
       const idx = raidStatusData.findIndex(s => s.sheetId === sheetId && s.blockIndex === blockIndex && s.rawRaidTitle === rawRaidTitle);
       if (idx === -1) {
         raidStatusData.push({ sheetId, blockIndex, rawRaidTitle, status: '완료', startedBy: selectedUser, startedAt: '', completedAt: '' });
@@ -3405,11 +3523,9 @@
       renderActiveTabContent();
       renderCurrentRaidsBadge();
 
-      await postAction('completeRaidProgress', { sheetId, blockIndex, rawRaidTitle, user: selectedUser }, '레이드 완료 처리');
-
       // Wild_Clears도 같이 받아야 한다 - 서버가 완료 처리 때 V/W 기록을 같이 남기는데, 이걸
       // 빼먹으면 편성 잠금은 풀렸지만 완료 체크는 아직 안 된 것처럼(빈 "미완료") 잠깐 보인다.
-      setTimeout(() => refreshSheets(['Raid_Status', 'Config', 'Wild_Clears'], true), 1500);
+      await refreshSheets(['Raid_Status', 'Config', 'Wild_Clears'], true);
     }
 
     // '완료 처리' 버튼 - 로컬 캐시(최대 15초 전 폴링 결과)만 믿지 않고, 누른 시점에 서버 최신
@@ -3450,10 +3566,17 @@
       if (choice === false) return;
 
       closeRaidProgressModal();
-      await doCompleteRaidBlock(sheetId, blockIndex, rawRaidTitle);
 
-      if (choice === 'extra') {
-        await startRaidBlock(sheetId, blockIndex + 1, nextBlock.rawTitle, nextBlock.title);
+      // 완료 처리 -> (선택 시) 다음 레이드 진행이 이어지는 동안, 오버레이가 한 번 껐다 켜지며
+      // 깜빡이지 않도록 바깥에서 한 번 더 감싼다(각 saveAction 자체도 depth 카운터로 중첩 가능).
+      showSavingOverlay('레이드 완료 처리 중...');
+      try {
+        await doCompleteRaidBlock(sheetId, blockIndex, rawRaidTitle);
+        if (choice === 'extra') {
+          await startRaidBlock(sheetId, blockIndex + 1, nextBlock.rawTitle, nextBlock.title);
+        }
+      } finally {
+        hideSavingOverlay();
       }
     }
 
@@ -3464,17 +3587,21 @@
       if (!(await customConfirm('이 레이드의 진행 상태를 취소할까요?'))) return;
       closeRaidProgressModal();
 
+      const result = await saveAction('cancelRaidProgress', { sheetId, blockIndex, rawRaidTitle }, {
+        errorLabel: '레이드 진행 취소',
+        loadingText: '되돌리는 중...'
+      });
+      if (result.status !== 'success') return;
+
       raidStatusData = raidStatusData.filter(s =>
         !(s.sheetId === sheetId && s.blockIndex === blockIndex && s.rawRaidTitle === rawRaidTitle)
       );
       renderActiveTabContent();
       renderCurrentRaidsBadge();
 
-      await postAction('cancelRaidProgress', { sheetId, blockIndex, rawRaidTitle }, '레이드 진행 취소');
-
       // 완료된 블록을 되돌린 경우 서버가 그 블록의 Wild_Clears 일정완료 기록도 같이 지우므로,
       // 캐릭터 현황이 계속 완료로 보이지 않게 이것도 받아온다.
-      setTimeout(() => refreshSheets(['Wild_Clears'], true), 1500);
+      await refreshSheets(['Wild_Clears'], true);
     }
 
     // 헤더의 '현재 레이드' 배지. 항상 보이게 바뀌었다 - 진행중 레이드가 하나도 없어도
@@ -3753,11 +3880,6 @@
     //
     // status: 'V' = 일정표 자동 등록, 'W' = 개별 수동 완료, '' = 미완료
     // goldTier: 'EARN' | 'MAYBE' | 'NONE' | undefined
-    // 지금 이 캐릭터가 일정표에 이 레이드 계열(famKey)로 편성되어 있는지 (완료 여부 무관).
-    function isScheduledInFamily(charName, famKey) {
-      const idx = window.__famScheduleIndex;
-      return !!(idx && idx.scheduledMap.get(`${charName}|${famKey}`));
-    }
 
     // 조기 리셋(전체 그룹 완료)으로 앵커가 다음 주차로 넘어갔지만, 실제 날짜는 아직
     // 그 주차에 도달하지 않은 유예 기간인지. 개별 수동(W) 체크는 이 로직과 무관 -
@@ -3766,26 +3888,13 @@
       return !!(siteConfig.raidWeekAnchor && fmtDate(new Date()) < siteConfig.raidWeekAnchor);
     }
 
-    // 편성된 모든 인스턴스가 참여상태(불참/지각/미정)로 이미 제외돼 있는지 - 참여상태는
-    // 미리 등록해두는 것이라, 블록이 완료되기 전이라도 "이 캐릭터는 정식 편성으로는 크레딧을
-    // 못 받는다"는 게 이미 확정된 상태다. 그래서 완료를 기다릴 필요 없이 바로 개별 체크를
-    // 열어준다(예: 토요일 레이드에 불참 등록해두고 그 전에 미리 다녀오는 경우).
-    function isExcludedByAttendanceForFamily(charName, famKey) {
-      const idx = window.__famScheduleIndex;
-      return !!(idx && idx.excludedMap.get(`${charName}|${famKey}`));
-    }
-
-    // "편성돼 있어서 개별 체크가 잠긴" 상태인지 - 판단 순서는 renderRaidTag가 이미 Wild_Clears
-    // 기록(V/W)을 먼저 보고 있으면 여기까지 오지 않으므로, 여기 도달했다는 건 이 캐릭터가
-    // Wild_Clears에 아직 아무 기록도 없다는 뜻이다. 그 상태에서 (1) 아예 편성 안 됐거나
-    // (2) 참여상태로 미리 제외돼 있으면(완료 여부 무관 - 정상 참여 예정으로 완료됐다면 이미
-    // Wild_Clears에 일정완료가 있었을 것이므로) "편성 안 된 것"(자유 토글 가능)처럼 취급한다.
-    // 완료 후 되살리기는 진행중 명단에서 참여상태 자체를 지우는 걸로 처리한다
-    // (renderRaidProgressRosterRows 참고).
-    function isEffectivelyScheduledInFamily(charName, famKey) {
-      return isScheduledInFamily(charName, famKey) &&
-        !isRaidWeekAnchorFuture() &&
-        !isExcludedByAttendanceForFamily(charName, famKey);
+    // "편성돼 있어서 개별 체크가 잠긴" 상태인지 - buildRaidCheckStates가 미리 계산해둔
+    // 결과를 조회만 한다(판정 규칙 자체는 buildRaidCheckStates 주석 참고). 판단 순서는
+    // renderRaidTag가 이미 Wild_Clears 기록(V/W)을 먼저 보고 있으면 여기까지 오지 않으므로,
+    // 여기 도달했다는 건 이 캐릭터가 Wild_Clears에 아직 아무 기록도 없다는 뜻이다.
+    function isRaidCheckLocked(charName, famKey) {
+      const idx = window.__raidCheckStates;
+      return !!(idx && idx.lockedSet.has(`${charName}|${famKey}`));
     }
 
     // 캐릭터x레이드계열의 체크 상태 ('V' 일정완료 / 'W' 개별수동 / '' 미완료).
@@ -3798,7 +3907,7 @@
       return '';
     }
 
-    function renderRaidTag(label, status, charLevel, raidKey, charName, goldTier, maybeDesc, isScheduled) {
+    function renderRaidTag(label, status, charLevel, raidKey, charName, goldTier, maybeDesc, isLocked) {
       const labelHtml = label;
       const minCut = getRaidMinLevel(raidKey);
       const canEnter = charLevel >= minCut;
@@ -3835,7 +3944,7 @@
 
       // 4) 편성됨(완료 전) — 일정표에 이 레이드로 편성되어 있어 개별 체크를 못 쓰는 상태.
       // 실선 테두리로 'V처럼 잠겨있음'을 나타내고, 🔗로 "이 레이드에 묶여있음"을 표시한다.
-      if (isScheduled) {
+      if (isLocked) {
         return `<span class="${base} bg-transparent border ${tone.border} ${tone.hollow} cursor-not-allowed opacity-90" title="일정표에 편성되어 있어 개별 체크를 쓸 수 없습니다 - 해당 블록을 완료 처리하면 자동으로 체크됩니다">${labelHtml} 🔗</span>`;
       }
 
@@ -3851,10 +3960,10 @@
       const curStatus = getCharRaidStatus(charName, raidKey);
       if (curStatus === 'V') return; // 일정완료는 웹에서 해제 불가
 
-      // 편성돼 있는데 그 블록이 아직 완료 전이면(=isEffectivelyScheduledInFamily) 개별 체크를 못 쓴다 -
-      // 완료 처리를 기다려야 한다. 편성돼 있어도 이미 완료된 블록이면(참여상태로 제외된 경우)
+      // 편성돼 있는데 아직 잠긴 상태(=isRaidCheckLocked)면 개별 체크를 못 쓴다 -
+      // 완료 처리를 기다려야 한다. 편성돼 있어도 잠금이 풀린 상태(완료됨/참여상태로 제외됨)면
       // 그냥 편성 안 된 것처럼 자유 토글을 허용한다.
-      if (curStatus !== 'W' && isEffectivelyScheduledInFamily(charName, raidKey)) {
+      if (curStatus !== 'W' && isRaidCheckLocked(charName, raidKey)) {
         customAlert('이 캐릭터는 지금 일정표에 편성되어 있어요. 이 레이드는 해당 블록의 완료 처리로만 체크됩니다.');
         return;
       }
@@ -3862,11 +3971,17 @@
       const minCut = getRaidMinLevel(raidKey);
       if (curStatus !== 'W' && charObj.level < minCut) return; // 입장 불가 레벨이면 클릭 무시
 
+      // 화면이 갱신 주기(최대 2분) 사이에 오래됐을 수 있어서, 저장 API가 같은 규칙으로 한 번 더
+      // 확인한다(evaluateRaidCheckStateGS) - 응답이 올 때까지 로딩 오버레이로 막고, 성공했을
+      // 때만 화면에 반영한다(실패 시 알림은 saveAction이 공통으로 띄운다).
+      const result = await saveAction('toggleWildClear', { charName, raidKey }, {
+        errorLabel: '숙제 상태 저장'
+      });
+      if (result.status !== 'success') return;
+
       const wcKey = `${charName}|${raidKey}`;
       if (curStatus === 'W') wildClearsData.delete(wcKey); else wildClearsData.set(wcKey, '개별수동');
       renderPoolView();
-
-      await postAction('toggleWildClear', { charName, raidKey }, '숙제 상태 저장');
     }
 
     // 본인 캐릭터의 예정 레벨(Character_Pool G열)을 직접 수정한다.
@@ -3894,15 +4009,15 @@
         }
       }
 
-      // 낙관적 반영
+      const result = await saveAction('setPlannedLevel', {
+        charName,
+        plannedLevel: newPlanned > 0 ? newPlanned.toFixed(2) : ''
+      }, { errorLabel: '예정 레벨 저장' });
+      if (result.status !== 'success') return;
+
       charObj.plannedLevel = newPlanned;
       charObj.level = newPlanned > 0 ? newPlanned : charObj.currentLevel;
       renderPoolView();
-
-      await postAction('setPlannedLevel', {
-        charName,
-        plannedLevel: newPlanned > 0 ? newPlanned.toFixed(2) : ''
-      }, '예정 레벨 저장');
     }
 
     // ─── 유용한 링크 탭 ─────────────────────────────────
@@ -4054,15 +4169,18 @@
     }
 
     // ─── 캐릭터 숨기기 (Character_Pool은 안 건드리고 Hidden_Characters 시트만 사용) ─────
-    // no-cors라 서버 응답을 못 읽으므로, 다른 슬롯 편집 기능들과 같은 패턴으로
-    // 화면부터 낙관적으로 갱신하고 서버에는 그대로 던진다.
     async function hideCharacter(name) {
       const ok = await customConfirm(`'${name}' 캐릭터를 캐릭터 현황 목록에서 숨길까요?\n골드/숙제 체크 기록은 그대로 남고, "숨긴 캐릭터" 목록에서 언제든 다시 보이게 할 수 있어요.`, '캐릭터 숨기기');
       if (!ok) return;
+
+      const result = await saveAction('toggleHiddenCharacter', { charName: name }, {
+        errorLabel: '캐릭터 숨기기'
+      });
+      if (result.status !== 'success') return;
+
       hiddenCharNames.add(name);
       renderPoolView();
       drawIcons();
-      await postAction('toggleHiddenCharacter', { charName: name }, '캐릭터 숨기기');
     }
 
     async function unhideCharacter(name) {
@@ -4070,11 +4188,15 @@
       const isMe = !c || !!(selectedUser && c.user.startsWith(selectedUser));
       if (!isMe) markAdminAction();
 
+      const result = await saveAction('toggleHiddenCharacter', { charName: name }, {
+        errorLabel: '캐릭터 숨김 해제'
+      });
+      if (result.status !== 'success') return;
+
       hiddenCharNames.delete(name);
       renderHiddenCharsModalList();
       renderPoolView();
       drawIcons();
-      await postAction('toggleHiddenCharacter', { charName: name }, '캐릭터 숨김 해제');
     }
 
     function openHiddenCharsModal() {
@@ -4260,7 +4382,7 @@
               <div class="flex items-center flex-wrap justify-end gap-1">
                 ${RAID_DEFINITIONS.filter(def => visibleRaidKeys.has(def.key)).map(def => renderRaidTag(
                   def.label, getCharRaidStatus(c.name, def.key), c.level, def.key, c.name,
-                  tierMap[def.key], maybeDesc, isEffectivelyScheduledInFamily(c.name, def.key)
+                  tierMap[def.key], maybeDesc, isRaidCheckLocked(c.name, def.key)
                 )).join('')}
               </div>
             </div>
@@ -4592,7 +4714,8 @@
       }
 
       // gviz는 스프레드시트의 시트 목록 자체를 조회할 방법이 없어서, 어떤 Sub_GroupN을
-      // fetch해야 할지는 이 Config 값에 의존한다(reserveSubGroupSlot이 새 시트를 만들 때 갱신).
+      // fetch해야 할지는 이 Config 값에 의존한다("새 그룹에 추가"로 addBlock이 새 시트를
+      // 만들 때 서버가 갱신 - Api.gs resolveNewGroupSheetId_ 참고).
       if (map['서브그룹_목록']) {
         siteConfig.subGroupList = map['서브그룹_목록'].split(',').map(s => s.trim()).filter(Boolean);
       }
@@ -4991,15 +5114,7 @@
 
       closeQuickSwapModal();
 
-      // 낙관적 반영: 화면에서 먼저 제거한다
-      const cur = sheetsDataStore[t.sheetId];
-      if (cur) {
-        cur.blocks.forEach(b => { b.slots = b.slots.filter(s => s.slotUid !== t.slotUid); });
-        rebuildInstancesForSheet(t.sheetId);
-        renderActiveTabContent();
-      }
-
-      await postAction('clearSlot', {
+      const result = await saveAction('clearSlot', {
         sheetId: t.sheetId,
         sheetRow: t.sheetRow,
         colIndex: t.colIndex,
@@ -5009,7 +5124,15 @@
         user: t.user,
         oldCharName: t.name,
         oldChar: `${t.name} (${t.job} / ${t.level} / ${t.pos})`
-      }, '슬롯 비우기');
+      }, { errorLabel: '슬롯 비우기' });
+      if (result.status !== 'success') return;
+
+      const cur = sheetsDataStore[t.sheetId];
+      if (cur) {
+        cur.blocks.forEach(b => { b.slots = b.slots.filter(s => s.slotUid !== t.slotUid); });
+        rebuildInstancesForSheet(t.sheetId);
+        renderActiveTabContent();
+      }
     }
 
     function openQuickSwapModal(slotJsonEncoded) {
@@ -5119,58 +5242,65 @@
     // 자동으로 올려준다. 서버가 기존 예정 레벨과 비교해 더 높은 쪽만 반영하므로 낮출 일은 없다.
     async function maybeUpdatePlannedLevel(charName, needsLevelUp, requiredLevel) {
       if (!needsLevelUp || !requiredLevel) return;
-      await postAction('updatePlannedLevel', {
+      // 메인 동작(슬롯 추가/교체)이 이미 성공한 뒤에 붙는 부가 기능이라, 이게 실패해도
+      // 메인 동작을 되돌리지는 않는다 - saveAction이 알림만 띄운다.
+      await saveAction('updatePlannedLevel', {
         charName,
         plannedLevel: requiredLevel.toFixed(2)
-      }, '예정 레벨 자동 갱신');
+      }, { errorLabel: '예정 레벨 자동 갱신' });
     }
 
-    // 빈 자리에 본인 캐릭 추가. 기록할 행은 서버가 블록에서 찾는다.
+    // 빈 자리에 본인 캐릭 추가. 기록할 행/열은 서버 응답(result.row/colIndex)으로 받는다.
     async function executeAddSlot(newCharJsonEncoded, needsLevelUp, requiredLevel) {
       const newChar = JSON.parse(decodeURIComponent(newCharJsonEncoded));
       if (!activeAddTarget) return;
       const info = activeAddTarget;
       closeQuickSwapModal();
 
-      // 낙관적 반영: 화면에 먼저 추가한다. 행 번호는 서버가 정하므로 갱신 시 정확한 값으로 덮인다.
-      const cur = sheetsDataStore[info.sheetId];
-      if (cur) {
-        const blk = cur.blocks.find(b => b.rawTitle === info.rawRaidTitle &&
-          (b.slots.length === 0 || b.slots[0].blockIndex === info.blockIndex));
-        if (blk) {
-          blk.slots.push({
-            slotUid: `${info.sheetId}_pending_${newChar.name}`,
-            sheetId: info.sheetId,
-            sheetRow: 0,
-            colIndex: blk.slots.length + 1, // 실제 열은 서버가 정하므로 대략값. 갱신 시 정확한 값으로 덮임
-            blockIndex: info.blockIndex,
-            user: newChar.user,
-            name: newChar.name,
-            job: newChar.job,
-            level: newChar.level,
-            foundInPool: true,
-            pos: newChar.pos,
-            raidTitle: info.raidTitle,
-            rawRaidTitle: info.rawRaidTitle
-          });
-          rebuildInstancesForSheet(info.sheetId);
-          renderActiveTabContent();
+      showSavingOverlay('슬롯 추가 중...');
+      try {
+        const result = await saveAction('addSlot', {
+          sheetId: info.sheetId,
+          blockIndex: info.blockIndex,
+          rawRaidTitle: info.rawRaidTitle,
+          targetRaid: `[${info.sheetId}] ${info.raidTitle}`,
+          user: newChar.user,
+          newCharName: newChar.name,
+          newJob: newChar.job,
+          newLevel: newChar.level.toFixed(2),
+          newPos: newChar.pos
+        }, { errorLabel: '슬롯 추가' });
+        if (result.status !== 'success') return;
+
+        const cur = sheetsDataStore[info.sheetId];
+        if (cur) {
+          const blk = cur.blocks.find(b => b.rawTitle === info.rawRaidTitle &&
+            (b.slots.length === 0 || b.slots[0].blockIndex === info.blockIndex));
+          if (blk) {
+            blk.slots.push({
+              slotUid: `${info.sheetId}_${result.row}_${result.colIndex}`,
+              sheetId: info.sheetId,
+              sheetRow: result.row,
+              colIndex: result.colIndex,
+              blockIndex: info.blockIndex,
+              user: newChar.user,
+              name: newChar.name,
+              job: newChar.job,
+              level: newChar.level,
+              foundInPool: true,
+              pos: newChar.pos,
+              raidTitle: info.raidTitle,
+              rawRaidTitle: info.rawRaidTitle
+            });
+            rebuildInstancesForSheet(info.sheetId);
+            renderActiveTabContent();
+          }
         }
+
+        await maybeUpdatePlannedLevel(newChar.name, needsLevelUp, requiredLevel);
+      } finally {
+        hideSavingOverlay();
       }
-
-      await postAction('addSlot', {
-        sheetId: info.sheetId,
-        blockIndex: info.blockIndex,
-        rawRaidTitle: info.rawRaidTitle,
-        targetRaid: `[${info.sheetId}] ${info.raidTitle}`,
-        user: newChar.user,
-        newCharName: newChar.name,
-        newJob: newChar.job,
-        newLevel: newChar.level.toFixed(2),
-        newPos: newChar.pos
-      }, '슬롯 추가');
-
-      maybeUpdatePlannedLevel(newChar.name, needsLevelUp, requiredLevel);
     }
 
     function closeQuickSwapModal() {
@@ -5192,40 +5322,46 @@
       const target = activeSwapTarget;
       closeQuickSwapModal();
 
-      const curSheet = sheetsDataStore[target.sheetId];
-      if (curSheet) {
-        curSheet.blocks.forEach(b => {
-          b.slots.forEach(s => {
-            if (s.slotUid === target.slotUid) {
-              s.name = newChar.name;
-              s.job = newChar.job;
-              s.level = newChar.level.toFixed(2);
-              s.pos = newChar.pos;
-            }
+      showSavingOverlay('교체하는 중...');
+      try {
+        const result = await saveAction('swap', {
+          sheetId: target.sheetId,
+          sheetRow: target.sheetRow,
+          blockIndex: target.blockIndex,
+          colIndex: target.colIndex,
+          user: target.user,
+          targetRaid: `[${target.sheetId}] ${target.raidTitle}`,
+          rawRaidTitle: target.rawRaidTitle || target.raidTitle,
+          oldCharName: target.name,
+          oldChar: `${target.name} (${target.job} / ${target.level} / ${target.pos})`,
+          newCharName: newChar.name,
+          newJob: newChar.job,
+          newLevel: newChar.level.toFixed(2),
+          newPos: newChar.pos,
+          reason: '대시보드 원클릭 즉시 변경'
+        }, { errorLabel: '시트 저장' });
+        if (result.status !== 'success') return;
+
+        const curSheet = sheetsDataStore[target.sheetId];
+        if (curSheet) {
+          curSheet.blocks.forEach(b => {
+            b.slots.forEach(s => {
+              if (s.slotUid === target.slotUid) {
+                s.name = newChar.name;
+                s.job = newChar.job;
+                s.level = newChar.level.toFixed(2);
+                s.pos = newChar.pos;
+              }
+            });
           });
-        });
-        rebuildInstancesForSheet(target.sheetId);
-        renderActiveTabContent();
+          rebuildInstancesForSheet(target.sheetId);
+          renderActiveTabContent();
+        }
+
+        await maybeUpdatePlannedLevel(newChar.name, needsLevelUp, requiredLevel);
+      } finally {
+        hideSavingOverlay();
       }
-
-      await postAction('swap', {
-        sheetId: target.sheetId,
-        sheetRow: target.sheetRow,
-        blockIndex: target.blockIndex,
-        colIndex: target.colIndex,
-        user: target.user,
-        targetRaid: `[${target.sheetId}] ${target.raidTitle}`,
-        rawRaidTitle: target.rawRaidTitle || target.raidTitle,
-        oldCharName: target.name,
-        oldChar: `${target.name} (${target.job} / ${target.level} / ${target.pos})`,
-        newCharName: newChar.name,
-        newJob: newChar.job,
-        newLevel: newChar.level.toFixed(2),
-        newPos: newChar.pos,
-        reason: '대시보드 원클릭 즉시 변경'
-      }, '시트 저장');
-
-      maybeUpdatePlannedLevel(newChar.name, needsLevelUp, requiredLevel);
     }
 
 // ─── 레이드 블록 추가 모달 ─────────────────────────────────
@@ -5558,28 +5694,6 @@
 
     async function confirmAddBlock() {
       if (!addBlockCurrentRaid || addBlockSelectedChars.size === 0) return;
-      let sheetId = addBlockTargetSheet;
-
-      // "새 그룹에 추가"는 선택 시점엔 아무 시트도 정해두지 않았다 - 여기, 실제로 확정하는
-      // 순간에만 서버에 빈 서브그룹 시트를 요청한다(있으면 재사용, 없으면 새로 생성).
-      if (sheetId === ADD_BLOCK_NEW_GROUP_VALUE) {
-        const btn = document.getElementById('addBlockConfirmBtn');
-        if (btn) { btn.disabled = true; btn.textContent = '새 그룹 준비 중...'; }
-
-        const result = await postActionRead('reserveSubGroupSlot', {}, '새 그룹 만들기');
-        if (!result || result.status !== 'success' || !result.sheetId) {
-          customAlert('새 그룹을 만들지 못했습니다. 잠시 후 다시 시도해 주세요.');
-          updateAddBlockConfirmState();
-          return;
-        }
-        sheetId = result.sheetId;
-        if (!SHEET_CONFIG.some(cfg => cfg.id === sheetId)) {
-          SHEET_CONFIG.push({ id: sheetId, is8Man: false });
-        }
-        if (!sheetsDataStore[sheetId]) {
-          sheetsDataStore[sheetId] = { config: SHEET_CONFIG.find(c => c.id === sheetId), blocks: [], users: [], title: sheetId };
-        }
-      }
 
       const chars = Array.from(addBlockSelectedChars).map(name => {
         const c = characterPoolData.find(x => x.name === name);
@@ -5588,7 +5702,9 @@
       if (addBlockFixedRoster) {
         // 서브그룹은 시트에 이미 정해진 유저-컬럼 순서(A블록에서부터 써온 순서)가 있으므로,
         // 클릭한 순서가 아니라 그 순서에 맞춰 써야 다른 블록들과 컬럼이 어긋나지 않는다.
-        const order = (sheetsDataStore[sheetId] && sheetsDataStore[sheetId].users) || [];
+        // (addBlockFixedRoster는 기존 인원이 있는 시트를 골랐을 때만 true라 "새 그룹에
+        // 추가"에서는 여기 오지 않는다 - 그때는 order 계산에 필요한 시트가 아직 없다.)
+        const order = (sheetsDataStore[addBlockTargetSheet] && sheetsDataStore[addBlockTargetSheet].users) || [];
         chars.sort((a, b) => {
           const ua = (a.user || '').split('(')[0].trim();
           const ub = (b.user || '').split('(')[0].trim();
@@ -5601,24 +5717,45 @@
       // 임시 레이드는 추가 즉시 startRaidBlock으로 진행중 처리까지 이어지므로, 그 검사에
       // 걸릴 상황이면 블록을 아예 만들지 않는다 - 만든 뒤에 막히면 탭도 없는 임시 레이드
       // 시트에 아무도 못 들어가는 블록만 남는다.
-      if (sheetId === TEMP_RAID_SHEET_ID_JS) {
+      if (addBlockTargetSheet === TEMP_RAID_SHEET_ID_JS) {
         const conflictMsg = findTempRaidBlockConflict(chars);
         if (conflictMsg) {
           customAlert(conflictMsg);
-          updateAddBlockConfirmState();
           return;
         }
       }
 
-      closeAddBlockModal();
+      // 실패해도 고른 레이드/캐릭터를 그대로 두고 다시 누를 수 있게, 모달은 요청이 끝날
+      // 때까지 열어두고 확정 버튼만 잠근다(keepInputOnFail - 성공했을 때만 닫는다).
+      // "새 그룹에 추가"(sheetId가 ADD_BLOCK_NEW_GROUP_VALUE)와 중복 방지(완전히 같은
+      // 레이드+캐릭터 구성의 블록이 이미 있으면 새로 안 만들고 그 블록을 그대로 성공 처리)는
+      // 서버(addBlockWithDedup)가 한 번에 처리한다 - 재시도로 응답이 유실돼도 빈 그룹 시트나
+      // 중복 블록이 남지 않는다.
+      const btn = document.getElementById('addBlockConfirmBtn');
+      if (btn) btn.disabled = true;
 
-      await postAction('addBlock', {
-        sheetId,
+      const result = await saveAction('addBlock', {
+        sheetId: addBlockTargetSheet,
         raidName: abbrName,
         diff: abbrDiff,
         requestedBy: selectedUser,
         characters: chars
-      }, '블록 추가');
+      }, { errorLabel: '블록 추가', loadingText: '레이드 블록 추가 중...', keepInputOnFail: true });
+
+      if (result.status !== 'success') {
+        updateAddBlockConfirmState();
+        return;
+      }
+
+      const sheetId = result.sheetId; // 새 그룹이면 서버가 실제로 정한 시트, 중복이면 기존 블록이 있던 시트
+      closeAddBlockModal();
+
+      if (!SHEET_CONFIG.some(cfg => cfg.id === sheetId)) {
+        SHEET_CONFIG.push({ id: sheetId, is8Man: false });
+      }
+      if (!sheetsDataStore[sheetId]) {
+        sheetsDataStore[sheetId] = { config: SHEET_CONFIG.find(c => c.id === sheetId), blocks: [], users: [], title: sheetId };
+      }
 
       // 새 블록은 낙관적 반영 없이(구조가 복잡해 재구성보다 재조회가 안전) 바로 새로고침한다.
       await refreshSheets([sheetId], true);
@@ -5640,7 +5777,6 @@
       }
 
       // 다른 조(또는 방금 만든 새 그룹)에 추가했다면, 그 조로 바로 이동해서 결과를 보여준다.
-      // refreshSheets가 이미 이전 currentActiveTab 기준으로 한 번 그렸으므로, 여기서 다시 그려야 한다.
       if (sheetId !== currentActiveTab) {
         currentActiveTab = sheetId;
         renderTabs();
@@ -5749,11 +5885,18 @@
         memo: memo
       };
 
-      // 낙관적 반영: 응답을 읽을 수 없는 no-cors 요청이라 화면을 먼저 갱신한다
+      const result = await saveAction('submitAttendance', {
+        user: record.user,
+        target: record.target,
+        status: record.status,
+        memo: record.memo
+      }, { errorLabel: '참여 상태 등록', keepInputOnFail: true });
+      if (result.status !== 'success') return;
+
       attendanceData.push(record);
-      // 참여상태가 캐릭터 현황의 개별 체크 잠금 여부(isExcludedByAttendanceForFamily)에도
+      // 참여상태가 캐릭터 현황의 개별 체크 잠금 여부(buildRaidCheckStates)에도
       // 영향을 주므로, 그 캐시도 같이 다시 만든다.
-      buildFamilyScheduleIndex();
+      buildRaidCheckStates();
       renderAttendanceMyList();
       renderActiveTabContent();
       if (currentMainView === 'pool') renderPoolView();
@@ -5763,29 +5906,25 @@
       if (dateEl) dateEl.value = '';
       renderAttendanceStatusList();
       updateAttendanceSubmitState();
-
-      await postAction('submitAttendance', {
-        user: record.user,
-        target: record.target,
-        status: record.status,
-        memo: record.memo
-      }, '참여 상태 등록');
     }
 
     async function cancelAttendance(dateKey) {
       const label = fmtDateLabel(new Date(dateKey + 'T00:00:00'));
       if (!(await customConfirm(`${label} 참여 상태 등록을 삭제할까요?`))) return;
 
+      const result = await saveAction('cancelAttendance', { user: selectedUser, target: dateKey }, {
+        errorLabel: '참여 상태 취소'
+      });
+      if (result.status !== 'success') return;
+
       const base = selectedUser.split('(')[0].trim();
       attendanceData = attendanceData.filter(a =>
         !(a.target === dateKey && a.user.split('(')[0].trim() === base)
       );
-      buildFamilyScheduleIndex();
+      buildRaidCheckStates();
       renderAttendanceMyList();
       renderActiveTabContent();
       if (currentMainView === 'pool') renderPoolView();
-
-      await postAction('cancelAttendance', { user: selectedUser, target: dateKey }, '참여 상태 취소');
     }
 
     function openInfoModal(defaultTab = 'guide') {
@@ -5868,6 +6007,11 @@
       const content = decodeURIComponent(contentEncoded);
       if (!(await customConfirm('이 건의를 삭제할까요?'))) return;
 
+      const result = await saveAction('deleteSuggestion', { user: selectedUser, content }, {
+        errorLabel: '건의 삭제'
+      });
+      if (result.status !== 'success') return;
+
       const base = selectedUser.split('(')[0].trim();
       let removedOne = false;
       suggestionsData = suggestionsData.filter(x => {
@@ -5880,8 +6024,6 @@
         return true;
       });
       renderSuggestMyList();
-
-      await postAction('deleteSuggestion', { user: selectedUser, content }, '건의 삭제');
     }
 
     function selectSuggestCategory(cat) {
@@ -5900,11 +6042,17 @@
 
     async function submitSuggestion() {
       const ta = document.getElementById('suggestContent');
-      const result = document.getElementById('suggestResult');
+      const resultEl = document.getElementById('suggestResult');
       const content = ta ? ta.value.trim() : '';
       if (content.length < 5 || !selectedUser) return;
 
-      // 응답을 읽을 수 없는 no-cors 요청이므로 화면을 먼저 정리한다
+      const result = await saveAction('submitSuggestion', {
+        user: selectedUser,
+        category: pendingSuggestCategory,
+        content: content
+      }, { errorLabel: '건의사항 전송', keepInputOnFail: true });
+      if (result.status !== 'success') return;
+
       if (ta) ta.value = '';
       updateSuggestState();
       const p = n => String(n).padStart(2, '0');
@@ -5917,25 +6065,8 @@
         state: '접수'
       });
       renderSuggestMyList();
-      if (result) result.textContent = '접수되었습니다. 감사합니다!';
-      setTimeout(() => { if (result) result.textContent = ''; }, 4000);
-
-      try {
-        await fetch(APPS_SCRIPT_WEB_APP_URL, {
-          method: 'POST',
-          mode: 'no-cors',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            action: 'submitSuggestion',
-            user: selectedUser,
-            category: pendingSuggestCategory,
-            content: content
-          })
-        });
-      } catch (err) {
-        console.error('건의사항 전송 오류:', err);
-        if (result) result.textContent = '';
-      }
+      if (resultEl) resultEl.textContent = '접수되었습니다. 감사합니다!';
+      setTimeout(() => { if (resultEl) resultEl.textContent = ''; }, 4000);
     }
 
     // FAQ 검색창 - 질문/답변 텍스트 통틀어 부분일치(대소문자 무시)하는 항목만 남긴다.
