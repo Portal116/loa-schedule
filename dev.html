@@ -200,7 +200,7 @@
           <span class="font-bold text-lg text-white tracking-wide whitespace-nowrap"><span class="mark-narrow">공대</span><span class="mark-wide">로아 공대</span></span>
           <!-- 마크(로고 텍스트)는 A가 "미니"로 접힐 때만 같이 줄어든다(축약형 단계에서는 로고는 풀네임 유지) -->
           <button onclick="openInfoModal('changelog')" class="text-[10px] font-mono font-bold px-1.5 sm:px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/30 hover:bg-purple-500/20 transition cursor-pointer" title="클릭하여 업데이트 이력 확인">
-            v2.12.0
+            v2.12.2
           </button>
         </div>
 
@@ -3411,7 +3411,7 @@
       }
 
       const startedMs = parseServerTimestamp(freshInfo.startedAt);
-      if (startedMs && (Date.now() - startedMs) < MIN_RAID_DURATION_MS) {
+      if (!isAdminModeActive() && startedMs && (Date.now() - startedMs) < MIN_RAID_DURATION_MS) {
         const waitSec = Math.ceil((MIN_RAID_DURATION_MS - (Date.now() - startedMs)) / 1000);
         customAlert(`레이드를 시작한 지 얼마 안 됐습니다. 약 ${waitSec}초 후에 다시 시도해 주세요.`);
         return;
