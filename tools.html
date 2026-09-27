@@ -68,8 +68,8 @@
           </div>
         </div>
         <p class="mt-3 text-[11px] text-gray-500 leading-relaxed">
-          코인당 골드 = 1회 구매로 받는 재료의 시세 가치 ÷ 필요 코인. 교환 선택지가 여러 개면 가장 이득인 선택지 기준이며,
-          선택 상자는 가장 비싼 재료 하나, 랜덤 상자는 나올 확률을 반영한 평균으로 계산합니다. 줄을 누르면 선택지별 가치가 보입니다.
+          코인당 골드 = 1회 구매로 받는 재료의 시세 가치 ÷ 필요 코인. 누적 코인은 1위부터 그 품목까지 주간 제한만큼 전부 살 때 드는 코인입니다. 교환 선택지가 여러 개면 가장 이득인 선택지 기준이며,
+          선택 상자는 가장 비싼 재료 하나, 랜덤 상자는 나올 확률을 반영한 평균으로 계산합니다. 선택지가 여러 개인 품목은 줄을 누르면 선택지별 가치가 보입니다.
         </p>
       </div>
 
@@ -246,7 +246,8 @@
         memo.set(name, v);
         return v;
       }
-      return { valueOf, missing };
+      const convertOf = name => (upperMode && d.lowerToUpper[name]) || null;
+      return { valueOf, convertOf, missing };
     }
 
     function scEvalChoice(ch, d, pricer) {
@@ -257,7 +258,7 @@
       }
       const valued = comps.map(c => {
         const unit = pricer.valueOf(c.name);
-        return { ...c, unit, total: unit * c.qty };
+        return { ...c, unit, total: unit * c.qty, conv: pricer.convertOf(c.name) };
       });
       const pool = ch.type === '선택' && !sc.includeOutliers ? valued.filter(c => !c.outlier) : valued;
       if (!pool.length) return null;
@@ -301,9 +302,22 @@
     };
     const typeBadge = t => `<span class="shrink-0 text-[10px] px-1.5 py-0.5 rounded border ${TYPE_STYLE[t] || TYPE_STYLE['그대로']}">${esc(t)}</span>`;
 
+    // 받침 없거나 ㄹ 받침이면 '로', 그 외 받침이면 '으로'
+    function withRo(word) {
+      const code = word.charCodeAt(word.length - 1) - 0xAC00;
+      if (code < 0 || code > 11171) return word + '로';
+      const jong = code % 28;
+      return word + (jong === 0 || jong === 8 ? '로' : '으로');
+    }
+
     function scChoiceLabel(best) {
       if (!best) return '<span class="text-gray-500">교환 가능한 선택지 없음</span>';
-      if (best.name === '그대로 사용') return '<span class="text-gray-400">그대로 사용</span>';
+      if (best.name === '그대로 사용') {
+        const conv = best.comps[0] && best.comps[0].conv;
+        return conv
+          ? `<span class="text-gray-300">${esc(withRo(conv.upper))} 교환</span> <span class="text-gray-500">(${Math.round(1 / conv.ratio)}:1)</span>`
+          : '<span class="text-gray-400">그대로 사용</span>';
+      }
       const pick = best.pick ? ` <span class="text-gray-500">→ ${esc(best.pick.name)} ×${best.pick.qty}</span>` : '';
       return `<span class="text-gray-300">${esc(best.name)}</span>${pick}`;
     }
@@ -322,13 +336,18 @@
         ? `<div class="text-[11px] text-amber-400 flex items-start gap-1.5 mb-2"><i data-lucide="alert-triangle" class="w-3.5 h-3.5 shrink-0 mt-px"></i><span>시세를 못 찾은 재료(0골드로 계산): ${missing.map(esc).join(', ')}</span></div>`
         : '';
 
+      let cumCoin = 0;
       list.innerHTML = warn + items.map((it, idx) => {
-        const open = sc.open.has(it.name);
+        const choices = sc.data.choices.filter(c => c.shop === it.name);
+        // 선택지 하나 + 구성품 하나(그대로 사용 등)는 펼쳐도 같은 내용이라 펼치기를 두지 않는다
+        const expandable = choices.length > 1 || (choices[0] && choices[0].comps.length > 1);
+        const open = expandable && sc.open.has(it.name);
+        cumCoin += (it.limit || 1) * it.coin;
         const barPct = Math.max(0, it.eff / maxEff * 100);
         const weekly = it.limit ? `주간 ${it.limit}회 · 최대 ${fmtGold(it.limit * it.coin)}코인` : '';
         return `
         <div class="card-bg rounded-xl overflow-hidden">
-          <button data-sc-item="${esc(it.name)}" class="w-full text-left px-3 sm:px-4 py-3 hover:bg-white/[0.02] transition">
+          <${expandable ? 'button' : 'div'} ${expandable ? `data-sc-item="${esc(it.name)}"` : ''} class="block w-full text-left px-3 sm:px-4 py-3 ${expandable ? 'hover:bg-white/[0.02] transition' : ''}">
             <div class="flex items-center gap-3">
               <span class="w-6 shrink-0 text-center text-sm font-bold tnum ${idx < 3 ? 'text-yellow-400' : 'text-gray-500'}">${idx + 1}</span>
               <div class="min-w-0 flex-1">
@@ -343,11 +362,12 @@
                 <div class="text-base sm:text-lg font-bold text-yellow-400 tnum leading-tight">${fmtEff(it.eff)}</div>
                 <div class="text-[10px] text-gray-500">골드/코인</div>
                 <div class="text-[11px] text-gray-400 tnum mt-0.5">1회 ${fmtGold(it.perPurchase)}G</div>
+                <div class="text-[11px] text-sky-300/80 tnum" title="1위부터 이 품목까지 주간 제한만큼 전부 살 때 드는 코인">누적 ${cumCoin.toLocaleString('ko-KR')}코인</div>
               </div>
-              <i data-lucide="chevron-down" class="w-4 h-4 text-gray-500 shrink-0 transition ${open ? 'rotate-180' : ''}"></i>
+              ${expandable ? `<i data-lucide="chevron-down" class="w-4 h-4 text-gray-500 shrink-0 transition ${open ? 'rotate-180' : ''}"></i>` : '<span class="w-4 shrink-0"></span>'}
             </div>
             <div class="mt-2 ml-9 h-1 rounded-full bg-gray-800 overflow-hidden"><div class="h-full bg-yellow-500/70" style="width:${barPct.toFixed(1)}%"></div></div>
-          </button>
+          </${expandable ? 'button' : 'div'}>
           ${open ? scRenderDetail(it) : ''}
         </div>`;
       }).join('');
@@ -369,7 +389,8 @@
           const dim = (e.type === '선택' && c.outlier && !sc.includeOutliers);
           const picked = e.pick && e.pick === c;
           const prob = e.type === '랜덤' && c.prob != null ? ` ${c.prob}%` : '';
-          return `<span class="${dim ? 'text-gray-600 line-through' : picked ? 'text-yellow-300' : 'text-gray-400'}">${esc(c.name)} ×${c.qty.toLocaleString('ko-KR')}${prob} <span class="text-gray-600">(${fmtGold(c.total)}G)</span></span>`;
+          const conv = c.conv ? ` → ${esc(c.conv.upper)} ×${(c.qty * c.conv.ratio).toLocaleString('ko-KR', { maximumFractionDigits: 2 })}` : '';
+          return `<span class="${dim ? 'text-gray-600 line-through' : picked ? 'text-yellow-300' : 'text-gray-400'}">${esc(c.name)} ×${c.qty.toLocaleString('ko-KR')}${conv}${prob} <span class="text-gray-600">(${fmtGold(c.total)}G)</span></span>`;
         }).join('<span class="text-gray-700"> · </span>');
         const extra = [
           e.cost !== 1 ? `${e.cost}개 소모` : '',
