@@ -375,39 +375,80 @@
       if (window.lucide) lucide.createIcons();
     }
 
+    const BEST_TAG = '<span class="shrink-0 text-[10px] px-1.5 py-0.5 rounded bg-yellow-500/15 text-yellow-400 border border-yellow-600/40">최선</span>';
+
+    function scCompText(c, withProb) {
+      const conv = c.conv ? ` → ${esc(c.conv.upper)} ×${(c.qty * c.conv.ratio).toLocaleString('ko-KR', { maximumFractionDigits: 2 })}` : '';
+      const prob = withProb && c.prob != null ? ` ${c.prob}%` : '';
+      return `${esc(c.name)} ×${c.qty.toLocaleString('ko-KR')}${conv}${prob}`;
+    }
+
     function scRenderDetail(it) {
       const d = sc.data;
+      const all = d.choices.filter(c => c.shop === it.name);
       const available = new Set(it.evals.map(e => e.name));
-      const locked = d.choices.filter(c => c.shop === it.name && !available.has(c.name));
+      const locked = all.filter(c => !available.has(c.name));
+      const effOf = perUnit => it.coin ? perUnit * it.qty / it.coin : 0;
+
       const rows = [...it.evals, ...locked].map(c => {
         const e = available.has(c.name) ? c : null;
         if (!e) {
           return `<div class="py-2 border-t border-gray-800 text-xs text-gray-600 flex items-center gap-2">${typeBadge(c.type)}<span class="line-through">${esc(c.name)}</span><span>${c.comps.some(x => d.upperSet.has(x.name)) && sc.level < UPPER_TIER_LEVEL ? UPPER_TIER_LEVEL + ' 이상 전용' : '이 레벨에선 필요 없음'}</span></div>`;
         }
-        const eff = it.coin ? e.perUnit * it.qty / it.coin : 0;
         const isBest = e === it.best;
-        const comps = e.comps.map(c => {
-          const dim = e.type === '선택' && scUnneeded(c);
-          const picked = e.pick && e.pick === c;
-          const prob = e.type === '랜덤' && c.prob != null ? ` ${c.prob}%` : '';
-          const conv = c.conv ? ` → ${esc(c.conv.upper)} ×${(c.qty * c.conv.ratio).toLocaleString('ko-KR', { maximumFractionDigits: 2 })}` : '';
-          return `<span class="${dim ? 'text-gray-600 line-through' : picked ? 'text-yellow-300' : 'text-gray-400'}">${esc(c.name)} ×${c.qty.toLocaleString('ko-KR')}${conv}${prob} <span class="text-gray-600">(${fmtGold(c.total)}G)</span></span>`;
-        }).join('<span class="text-gray-700"> · </span>');
         const extra = [
           e.cost !== 1 ? `${e.cost}개 소모` : '',
           e.gold ? `+${e.gold.toLocaleString('ko-KR')}골드` : '',
           e.limit, e.note
         ].filter(Boolean).map(esc).join(' · ');
+        const extraHtml = extra ? `<div class="mt-0.5 text-[11px] text-gray-500">${extra}</div>` : '';
+
+        if (e.type === '선택') {
+          // 하나를 골라 받는 상자라 재료마다 한 줄씩, 각자의 효율로 비교해서 보여준다
+          const needed = e.comps.filter(x => !scUnneeded(x)).sort((x, y) => y.total - x.total);
+          const unneeded = e.comps.filter(scUnneeded);
+          const compRows = [
+            ...needed.map(x => {
+              const picked = x === e.pick;
+              return `
+              <div class="flex items-center gap-2 py-1 text-xs">
+                <span class="min-w-0 truncate ${picked ? 'text-yellow-300' : 'text-gray-300'}">${scCompText(x)}</span>
+                <span class="shrink-0 text-gray-600 tnum">${fmtGold(x.total)}G</span>
+                ${picked && isBest ? BEST_TAG : ''}
+                <span class="ml-auto shrink-0 tnum ${picked && isBest ? 'text-yellow-400 font-bold' : 'text-gray-400'}">${fmtEff(effOf((x.total - e.gold) / e.cost))}</span>
+              </div>`;
+            }),
+            ...unneeded.map(x => `
+              <div class="flex items-center gap-2 py-1 text-xs text-gray-600">
+                <span class="min-w-0 truncate line-through">${scCompText(x)}</span>
+                <span class="ml-auto shrink-0">${x.maxLv} 이상 불필요</span>
+              </div>`)
+          ].join('');
+          // 상점 품목 자체가 이 선택 상자 하나뿐이면(T4 선택 상자) 같은 이름의 머리줄은 생략한다
+          const header = all.length > 1
+            ? `<div class="flex items-center gap-2">${typeBadge(e.type)}<span class="text-sm ${isBest ? 'text-white font-semibold' : 'text-gray-300'} min-w-0 truncate">${esc(e.name)}</span></div>`
+            : '';
+          return `
+          <div class="py-2 border-t border-gray-800">
+            ${header}
+            <div class="${header ? 'mt-1 pl-3 border-l border-gray-800' : ''}">${compRows}</div>
+            ${extraHtml}
+          </div>`;
+        }
+
+        const comps = e.comps.map(x =>
+          `<span class="text-gray-400">${scCompText(x, e.type === '랜덤')} <span class="text-gray-600">(${fmtGold(x.total)}G)</span></span>`
+        ).join('<span class="text-gray-700"> · </span>');
         return `
           <div class="py-2 border-t border-gray-800">
             <div class="flex items-center gap-2">
               ${typeBadge(e.type)}
               <span class="text-sm ${isBest ? 'text-white font-semibold' : 'text-gray-300'} min-w-0 truncate">${esc(e.name)}</span>
-              ${isBest ? '<span class="shrink-0 text-[10px] px-1.5 py-0.5 rounded bg-yellow-500/15 text-yellow-400 border border-yellow-600/40">최선</span>' : ''}
-              <span class="ml-auto shrink-0 text-sm tnum ${isBest ? 'text-yellow-400 font-bold' : 'text-gray-400'}">${fmtEff(eff)}</span>
+              ${isBest ? BEST_TAG : ''}
+              <span class="ml-auto shrink-0 text-sm tnum ${isBest ? 'text-yellow-400 font-bold' : 'text-gray-400'}">${fmtEff(effOf(e.perUnit))}</span>
             </div>
             <div class="mt-1 text-[11px] leading-relaxed">${comps}</div>
-            ${extra ? `<div class="mt-0.5 text-[11px] text-gray-500">${extra}</div>` : ''}
+            ${extraHtml}
           </div>`;
       }).join('');
       return `<div class="px-3 sm:px-4 pb-2 ml-0 sm:ml-9 bg-black/10">${rows || '<div class="py-2 text-xs text-gray-500 border-t border-gray-800">등록된 교환 선택지가 없습니다.</div>'}</div>`;
