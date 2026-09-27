@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>로아 공대 도구</title>
+  <link rel="icon" href="favicon-normal.webp" />
+  <link rel="preconnect" href="https://docs.google.com" crossorigin />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+  <script defer src="https://unpkg.com/lucide@0.552.0/dist/umd/lucide.min.js"></script>
+  <style>
+    html { color-scheme: dark; scrollbar-gutter: stable; }
+    body {
+      background-color: #0d1117;
+      color: #c9d1d9;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    }
+    .card-bg { background-color: #161b22; border: 1px solid #30363d; }
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { scrollbar-width: none; }
+    .tnum { font-variant-numeric: tabular-nums; }
+    input[type=number]::-webkit-inner-spin-button { opacity: .4; }
+  </style>
+</head>
+<body class="min-h-screen pb-16">
+  <header class="border-b border-gray-800 bg-[#161b22]/90 sticky top-0 z-50 backdrop-blur">
+    <div class="max-w-5xl mx-auto px-3 sm:px-4 py-3 flex flex-wrap items-center justify-between gap-2">
+      <div class="flex items-center gap-3 min-w-0">
+        <div class="flex items-center gap-2 shrink-0">
+          <i data-lucide="wrench" class="w-6 h-6 text-yellow-500"></i>
+          <span class="font-bold text-lg text-white tracking-wide whitespace-nowrap">로아 공대 도구</span>
+        </div>
+        <nav id="tabNav" class="flex bg-[#0d1117] p-1 rounded-lg border border-gray-800 text-xs gap-1 overflow-x-auto no-scrollbar"></nav>
+      </div>
+      <a href="index.html" class="flex items-center gap-1 h-8 bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white border border-gray-700 text-xs font-semibold px-2.5 rounded-lg transition">
+        <i data-lucide="calendar-days" class="w-3.5 h-3.5 text-yellow-400"></i>
+        <span>공대 일정표</span>
+      </a>
+    </div>
+  </header>
+
+  <main class="max-w-5xl mx-auto px-3 sm:px-4 mt-6">
+    <section id="tab-singlecoin" data-tab-section class="hidden">
+      <div class="card-bg p-3 sm:p-4 rounded-xl mb-4">
+        <div class="flex flex-wrap items-center gap-x-4 gap-y-3">
+          <label class="flex items-center gap-2 text-xs text-gray-400">
+            <span>캐릭터 레벨</span>
+            <input id="scLevel" type="number" step="0.01" min="0" inputmode="decimal"
+              class="w-24 bg-[#0d1117] border border-gray-700 rounded-md px-2 py-1.5 text-sm text-yellow-400 font-semibold tnum focus:outline-none focus:border-yellow-600" />
+          </label>
+          <div class="flex items-center gap-2 text-xs text-gray-400">
+            <span>시세 기준</span>
+            <div id="scBasis" class="flex bg-[#0d1117] p-0.5 rounded-md border border-gray-700">
+              <button data-basis="min" class="px-2.5 py-1 rounded font-semibold">최저가</button>
+              <button data-basis="yday" class="px-2.5 py-1 rounded font-semibold">전일 평균가</button>
+            </div>
+          </div>
+          <label class="flex items-center gap-1.5 text-xs text-gray-400 cursor-pointer select-none" title="선택 상자에서 기본 제외하는 재료(업화 [11-14], 장인 1단계)도 후보에 넣습니다">
+            <input id="scOutliers" type="checkbox" class="accent-yellow-500" />
+            <span>제외 재료 포함</span>
+          </label>
+          <div class="flex items-center gap-2 ml-auto">
+            <span id="scUpdated" class="text-[11px] text-gray-500"></span>
+            <button id="scRefresh" title="시트 다시 받기" class="flex items-center justify-center bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white border border-gray-700 w-8 h-8 rounded-lg transition">
+              <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
+            </button>
+          </div>
+        </div>
+        <p class="mt-3 text-[11px] text-gray-500 leading-relaxed">
+          코인당 골드 = 1회 구매로 받는 재료의 시세 가치 ÷ 필요 코인. 교환 선택지가 여러 개면 가장 이득인 선택지 기준이며,
+          선택 상자는 가장 비싼 재료 하나, 랜덤 상자는 나올 확률을 반영한 평균으로 계산합니다. 줄을 누르면 선택지별 가치가 보입니다.
+        </p>
+      </div>
+
+      <div id="scStatus" class="text-sm text-gray-400 py-10 text-center">불러오는 중…</div>
+      <div id="scList" class="space-y-2"></div>
+
+      <details class="card-bg rounded-xl mt-6 group">
+        <summary class="cursor-pointer select-none px-4 py-3 text-sm font-semibold text-gray-300 flex items-center gap-2">
+          <i data-lucide="chevron-right" class="w-4 h-4 transition group-open:rotate-90"></i>
+          레이드별 주간 싱글코인
+        </summary>
+        <div id="scRaids" class="px-4 pb-4 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-x-6 gap-y-1 text-xs"></div>
+      </details>
+    </section>
+  </main>
+
+  <script>
+    const SHEET_ID = '1ckhKkvx9dPR5XdGsDZhKUILwku-ubO1CijUjBSI94p0';
+    const TABS = [{ id: 'singlecoin', label: '싱글코인 계산기' }];
+    // 이 레벨부터 상위 재료(위대한/결정/상급)만 쓰고, 하위 재료는 5:1로 바꿔서만 쓴다
+    const UPPER_TIER_LEVEL = 1730;
+
+    const store = {
+      get(k) { try { return localStorage.getItem('loaTools.' + k); } catch (e) { return null; } },
+      set(k, v) { try { localStorage.setItem('loaTools.' + k, v); } catch (e) { /* 저장 불가 환경 무시 */ } }
+    };
+
+    function sheetUrl(name) {
+      return `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&headers=1&sheet=${encodeURIComponent(name)}&t=${Date.now()}`;
+    }
+    async function loadSheet(name) {
+      const res = await fetch(sheetUrl(name), { cache: 'no-store' });
+      if (!res.ok) throw new Error(`${name} 시트를 불러오지 못했습니다 (${res.status})`);
+      return Papa.parse(await res.text(), { header: true, skipEmptyLines: true }).data;
+    }
+    const num = v => {
+      const s = String(v ?? '').replace(/,/g, '').trim();
+      return s === '' ? null : Number(s);
+    };
+    const str = v => String(v ?? '').trim();
+    const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    const fmtGold = v => Math.round(v).toLocaleString('ko-KR');
+    const fmtEff = v => v.toLocaleString('ko-KR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+    /* ---------------- 탭 ---------------- */
+    function renderTabNav(active) {
+      document.getElementById('tabNav').innerHTML = TABS.map(t =>
+        `<button data-tab="${t.id}" class="whitespace-nowrap px-2.5 py-1.5 rounded-md transition ${t.id === active ? 'font-semibold bg-gray-800 text-white' : 'font-medium text-gray-400 hover:text-white'}">${esc(t.label)}</button>`
+      ).join('');
+    }
+    function switchTab(id) {
+      if (!TABS.some(t => t.id === id)) id = TABS[0].id;
+      renderTabNav(id);
+      document.querySelectorAll('[data-tab-section]').forEach(el => el.classList.toggle('hidden', el.id !== 'tab-' + id));
+      const url = new URL(location.href);
+      url.searchParams.set('tab', id);
+      history.replaceState(null, '', url);
+    }
+    document.getElementById('tabNav').addEventListener('click', e => {
+      const b = e.target.closest('[data-tab]');
+      if (b) switchTab(b.dataset.tab);
+    });
+
+    /* ---------------- 싱글코인 ---------------- */
+    const sc = {
+      data: null,
+      level: num(store.get('sc.level')) ?? UPPER_TIER_LEVEL,
+      basis: store.get('sc.basis') === 'yday' ? 'yday' : 'min',
+      includeOutliers: store.get('sc.outliers') === '1',
+      open: new Set()
+    };
+
+    async function scLoad() {
+      const status = document.getElementById('scStatus');
+      status.textContent = '불러오는 중…';
+      status.classList.remove('hidden');
+      document.getElementById('scList').innerHTML = '';
+      try {
+        const [shop, choices, convert, prices, raids, config] = await Promise.all(
+          ['SingleCoin_Shop', 'SingleCoin_Choices', 'SingleCoin_Convert', 'Market_Prices', 'SingleCoin_Raids', 'Config'].map(loadSheet));
+        sc.data = scParse({ shop, choices, convert, prices, raids, config });
+        status.classList.add('hidden');
+        scRender();
+        scRenderRaids();
+      } catch (e) {
+        status.textContent = '데이터를 불러오지 못했습니다. 잠시 후 새로고침해 주세요. (' + e.message + ')';
+      }
+    }
+
+    function scParse(raw) {
+      const shop = raw.shop.filter(r => str(r['품목명'])).map(r => ({
+        name: str(r['품목명']), qty: num(r['1회 수량']) || 1, coin: num(r['필요 코인']) || 0,
+        limit: num(r['구매 제한']), minLv: num(r['최소 레벨']), maxLv: num(r['최대 레벨']), note: str(r['비고'])
+      }));
+
+      const choiceMap = new Map();
+      raw.choices.forEach(r => {
+        const shopName = str(r['상점 품목']);
+        const choiceName = str(r['선택지']);
+        if (!shopName || !choiceName) return;
+        const key = shopName + '\u0000' + choiceName;
+        if (!choiceMap.has(key)) {
+          choiceMap.set(key, {
+            shop: shopName, name: choiceName, type: str(r['방식']),
+            cost: num(r['필요 수량']) || 1, gold: num(r['추가 골드']) || 0,
+            limit: '', note: '', comps: []
+          });
+        }
+        const ch = choiceMap.get(key);
+        if (str(r['교환 제한'])) ch.limit = str(r['교환 제한']);
+        if (str(r['비고'])) ch.note = str(r['비고']);
+        ch.comps.push({ name: str(r['구성품']), qty: num(r['구성 수량']) || 0, prob: num(r['확률']), outlier: str(r['기본 후보 제외']).toUpperCase() === 'Y' });
+      });
+
+      const shardPouches = [], lowerToUpper = {}, gems = {};
+      raw.convert.forEach(r => {
+        const kind = str(r['구분']), name = str(r['이름']), target = str(r['환산 대상']), ratio = num(r['비율']);
+        if (!kind || ratio == null) return;
+        if (kind === '파편 단가') shardPouches.push({ pouch: name, count: ratio });
+        else if (kind.startsWith('상위 재료')) lowerToUpper[name] = { upper: target, ratio };
+        else if (kind === '젬') (gems[name] = gems[name] || []).push({ item: target, grade: str(r['대상 등급']), weight: ratio });
+      });
+
+      const prices = raw.prices.filter(r => str(r['품목명'])).map(r => ({
+        name: str(r['품목명']), grade: str(r['등급']), bundle: num(r['묶음 수량']) || 1,
+        min: num(r['최저가']), yday: num(r['전일 평균가'])
+      }));
+
+      const updatedRow = raw.config.find(r => str(r['키']) === '시세_최종갱신');
+      return {
+        shop, choices: [...choiceMap.values()], shardPouches, lowerToUpper, gems, prices,
+        upperSet: new Set(Object.values(lowerToUpper).map(v => v.upper)),
+        raids: raw.raids.filter(r => str(r['레이드'])).map(r => ({ name: str(r['레이드']), coin: num(r['싱글코인']) || 0 })),
+        updated: updatedRow ? str(updatedRow['값']) : ''
+      };
+    }
+
+    function scMakePricer(d) {
+      const plain = new Map(), byGrade = new Map();
+      d.prices.forEach(p => {
+        // 거래가 없던 품목은 전일 평균가가 0으로 오므로 최저가로 대신한다
+        const raw = sc.basis === 'yday' && p.yday > 0 ? p.yday : p.min;
+        if (raw == null) return;
+        const unit = raw / p.bundle;
+        if (!plain.has(p.name)) plain.set(p.name, unit);
+        byGrade.set(p.name + '|' + p.grade, unit);
+      });
+      const missing = new Set();
+      const upperMode = sc.level >= UPPER_TIER_LEVEL;
+      const memo = new Map();
+
+      function valueOf(name) {
+        if (memo.has(name)) return memo.get(name);
+        let v;
+        if (d.gems[name]) {
+          v = d.gems[name].reduce((sum, g) => {
+            const u = byGrade.get(g.item + '|' + g.grade);
+            if (u == null) missing.add(`${g.item} (${g.grade})`);
+            return sum + g.weight * (u || 0);
+          }, 0);
+        } else if (upperMode && d.lowerToUpper[name]) {
+          const c = d.lowerToUpper[name];
+          v = c.ratio * valueOf(c.upper);
+        } else if (plain.has(name)) {
+          v = plain.get(name);
+        } else if (name === '운명의 파편') {
+          const units = d.shardPouches.map(s => plain.has(s.pouch) ? plain.get(s.pouch) / s.count : null).filter(x => x != null);
+          if (!units.length) missing.add(name);
+          v = units.length ? Math.min(...units) : 0;
+        } else {
+          missing.add(name);
+          v = 0;
+        }
+        memo.set(name, v);
+        return v;
+      }
+      return { valueOf, missing };
+    }
+
+    function scEvalChoice(ch, d, pricer) {
+      let comps = ch.comps;
+      if (sc.level < UPPER_TIER_LEVEL) {
+        if (ch.type === '선택') comps = comps.filter(c => !d.upperSet.has(c.name));
+        else if (comps.some(c => d.upperSet.has(c.name))) return null;
+      }
+      const valued = comps.map(c => {
+        const unit = pricer.valueOf(c.name);
+        return { ...c, unit, total: unit * c.qty };
+      });
+      const pool = ch.type === '선택' && !sc.includeOutliers ? valued.filter(c => !c.outlier) : valued;
+      if (!pool.length) return null;
+      let gross, pick = null;
+      if (ch.type === '선택') {
+        pick = pool.reduce((a, b) => (b.total > a.total ? b : a));
+        gross = pick.total;
+      } else if (ch.type === '랜덤') {
+        // 확률(%)이 적힌 선택지는 그 비율로, 없으면 구성품이 같은 확률로 나온다고 본다
+        gross = pool.some(c => c.prob != null)
+          ? pool.reduce((s, c) => s + c.total * (c.prob || 0) / 100, 0)
+          : pool.reduce((s, c) => s + c.total, 0) / pool.length;
+      } else {
+        gross = pool.reduce((s, c) => s + c.total, 0);
+      }
+      return { ...ch, comps: valued, pick, gross, perUnit: (gross - ch.gold) / ch.cost };
+    }
+
+    function scCompute() {
+      const d = sc.data;
+      const pricer = scMakePricer(d);
+      const lv = sc.level;
+      const items = d.shop
+        .filter(s => (s.minLv == null || lv >= s.minLv) && (s.maxLv == null || lv < s.maxLv))
+        .map(s => {
+          const evals = d.choices.filter(c => c.shop === s.name).map(c => scEvalChoice(c, d, pricer)).filter(Boolean)
+            .sort((a, b) => b.perUnit - a.perUnit);
+          const best = evals[0] || null;
+          const perPurchase = best ? best.perUnit * s.qty : 0;
+          return { ...s, evals, best, perPurchase, eff: s.coin ? perPurchase / s.coin : 0 };
+        })
+        .sort((a, b) => b.eff - a.eff);
+      return { items, missing: [...pricer.missing] };
+    }
+
+    const TYPE_STYLE = {
+      '선택': 'text-sky-300 border-sky-700/60 bg-sky-500/10',
+      '랜덤': 'text-fuchsia-300 border-fuchsia-700/60 bg-fuchsia-500/10',
+      '전부': 'text-emerald-300 border-emerald-700/60 bg-emerald-500/10',
+      '그대로': 'text-gray-300 border-gray-600 bg-gray-500/10'
+    };
+    const typeBadge = t => `<span class="shrink-0 text-[10px] px-1.5 py-0.5 rounded border ${TYPE_STYLE[t] || TYPE_STYLE['그대로']}">${esc(t)}</span>`;
+
+    function scChoiceLabel(best) {
+      if (!best) return '<span class="text-gray-500">교환 가능한 선택지 없음</span>';
+      if (best.name === '그대로 사용') return '<span class="text-gray-400">그대로 사용</span>';
+      const pick = best.pick ? ` <span class="text-gray-500">→ ${esc(best.pick.name)} ×${best.pick.qty}</span>` : '';
+      return `<span class="text-gray-300">${esc(best.name)}</span>${pick}`;
+    }
+
+    function scRender() {
+      if (!sc.data) return;
+      const { items, missing } = scCompute();
+      const list = document.getElementById('scList');
+      document.getElementById('scUpdated').textContent = sc.data.updated ? `시세 ${sc.data.updated}` : '';
+      if (!items.length) {
+        list.innerHTML = '<div class="text-sm text-gray-500 py-10 text-center">이 레벨에서 살 수 있는 품목이 없습니다.</div>';
+        return;
+      }
+      const maxEff = Math.max(...items.map(i => i.eff), 0.0001);
+      const warn = missing.length
+        ? `<div class="text-[11px] text-amber-400 flex items-start gap-1.5 mb-2"><i data-lucide="alert-triangle" class="w-3.5 h-3.5 shrink-0 mt-px"></i><span>시세를 못 찾은 재료(0골드로 계산): ${missing.map(esc).join(', ')}</span></div>`
+        : '';
+
+      list.innerHTML = warn + items.map((it, idx) => {
+        const open = sc.open.has(it.name);
+        const barPct = Math.max(0, it.eff / maxEff * 100);
+        const weekly = it.limit ? `주간 ${it.limit}회 · 최대 ${fmtGold(it.limit * it.coin)}코인` : '';
+        return `
+        <div class="card-bg rounded-xl overflow-hidden">
+          <button data-sc-item="${esc(it.name)}" class="w-full text-left px-3 sm:px-4 py-3 hover:bg-white/[0.02] transition">
+            <div class="flex items-center gap-3">
+              <span class="w-6 shrink-0 text-center text-sm font-bold tnum ${idx < 3 ? 'text-yellow-400' : 'text-gray-500'}">${idx + 1}</span>
+              <div class="min-w-0 flex-1">
+                <div class="flex items-center gap-2 flex-wrap">
+                  <span class="font-semibold text-white">${esc(it.name)}</span>
+                  ${it.note ? `<span class="text-[10px] px-1.5 py-0.5 rounded bg-gray-800 text-gray-400">${esc(it.note)}</span>` : ''}
+                </div>
+                <div class="mt-0.5 text-xs truncate">${scChoiceLabel(it.best)}</div>
+                <div class="mt-0.5 text-[11px] text-gray-500 tnum">${it.qty.toLocaleString('ko-KR')}개 · ${it.coin.toLocaleString('ko-KR')}코인${weekly ? ' · ' + weekly : ''}</div>
+              </div>
+              <div class="text-right shrink-0">
+                <div class="text-base sm:text-lg font-bold text-yellow-400 tnum leading-tight">${fmtEff(it.eff)}</div>
+                <div class="text-[10px] text-gray-500">골드/코인</div>
+                <div class="text-[11px] text-gray-400 tnum mt-0.5">1회 ${fmtGold(it.perPurchase)}G</div>
+              </div>
+              <i data-lucide="chevron-down" class="w-4 h-4 text-gray-500 shrink-0 transition ${open ? 'rotate-180' : ''}"></i>
+            </div>
+            <div class="mt-2 ml-9 h-1 rounded-full bg-gray-800 overflow-hidden"><div class="h-full bg-yellow-500/70" style="width:${barPct.toFixed(1)}%"></div></div>
+          </button>
+          ${open ? scRenderDetail(it) : ''}
+        </div>`;
+      }).join('');
+      if (window.lucide) lucide.createIcons();
+    }
+
+    function scRenderDetail(it) {
+      const d = sc.data;
+      const available = new Set(it.evals.map(e => e.name));
+      const locked = d.choices.filter(c => c.shop === it.name && !available.has(c.name));
+      const rows = [...it.evals, ...locked].map(c => {
+        const e = available.has(c.name) ? c : null;
+        if (!e) {
+          return `<div class="py-2 border-t border-gray-800 text-xs text-gray-600 flex items-center gap-2">${typeBadge(c.type)}<span class="line-through">${esc(c.name)}</span><span>${UPPER_TIER_LEVEL} 이상 전용</span></div>`;
+        }
+        const eff = it.coin ? e.perUnit * it.qty / it.coin : 0;
+        const isBest = e === it.best;
+        const comps = e.comps.map(c => {
+          const dim = (e.type === '선택' && c.outlier && !sc.includeOutliers);
+          const picked = e.pick && e.pick === c;
+          const prob = e.type === '랜덤' && c.prob != null ? ` ${c.prob}%` : '';
+          return `<span class="${dim ? 'text-gray-600 line-through' : picked ? 'text-yellow-300' : 'text-gray-400'}">${esc(c.name)} ×${c.qty.toLocaleString('ko-KR')}${prob} <span class="text-gray-600">(${fmtGold(c.total)}G)</span></span>`;
+        }).join('<span class="text-gray-700"> · </span>');
+        const extra = [
+          e.cost !== 1 ? `${e.cost}개 소모` : '',
+          e.gold ? `+${e.gold.toLocaleString('ko-KR')}골드` : '',
+          e.limit, e.note
+        ].filter(Boolean).map(esc).join(' · ');
+        return `
+          <div class="py-2 border-t border-gray-800">
+            <div class="flex items-center gap-2">
+              ${typeBadge(e.type)}
+              <span class="text-sm ${isBest ? 'text-white font-semibold' : 'text-gray-300'} min-w-0 truncate">${esc(e.name)}</span>
+              ${isBest ? '<span class="shrink-0 text-[10px] px-1.5 py-0.5 rounded bg-yellow-500/15 text-yellow-400 border border-yellow-600/40">최선</span>' : ''}
+              <span class="ml-auto shrink-0 text-sm tnum ${isBest ? 'text-yellow-400 font-bold' : 'text-gray-400'}">${fmtEff(eff)}</span>
+            </div>
+            <div class="mt-1 text-[11px] leading-relaxed">${comps}</div>
+            ${extra ? `<div class="mt-0.5 text-[11px] text-gray-500">${extra}</div>` : ''}
+          </div>`;
+      }).join('');
+      return `<div class="px-3 sm:px-4 pb-2 ml-0 sm:ml-9 bg-black/10">${rows || '<div class="py-2 text-xs text-gray-500 border-t border-gray-800">등록된 교환 선택지가 없습니다.</div>'}</div>`;
+    }
+
+    function scRenderRaids() {
+      const raids = sc.data.raids;
+      document.getElementById('scRaids').innerHTML = raids.map(r =>
+        `<div class="flex justify-between py-0.5 border-b border-gray-800/60"><span class="text-gray-400">${esc(r.name)}</span><span class="text-gray-300 tnum">${r.coin.toLocaleString('ko-KR')}</span></div>`
+      ).join('');
+    }
+
+    function scSyncControls() {
+      document.getElementById('scLevel').value = sc.level;
+      document.getElementById('scOutliers').checked = sc.includeOutliers;
+      document.querySelectorAll('#scBasis [data-basis]').forEach(b => {
+        const on = b.dataset.basis === sc.basis;
+        b.className = `px-2.5 py-1 rounded font-semibold transition ${on ? 'bg-gray-800 text-white' : 'text-gray-500 hover:text-gray-300'}`;
+      });
+    }
+
+    document.getElementById('scLevel').addEventListener('input', e => {
+      const v = num(e.target.value);
+      if (v == null || isNaN(v)) return;
+      sc.level = v;
+      store.set('sc.level', String(v));
+      scRender();
+    });
+    document.getElementById('scBasis').addEventListener('click', e => {
+      const b = e.target.closest('[data-basis]');
+      if (!b) return;
+      sc.basis = b.dataset.basis;
+      store.set('sc.basis', sc.basis);
+      scSyncControls();
+      scRender();
+    });
+    document.getElementById('scOutliers').addEventListener('change', e => {
+      sc.includeOutliers = e.target.checked;
+      store.set('sc.outliers', sc.includeOutliers ? '1' : '0');
+      scRender();
+    });
+    document.getElementById('scRefresh').addEventListener('click', scLoad);
+    document.getElementById('scList').addEventListener('click', e => {
+      const b = e.target.closest('[data-sc-item]');
+      if (!b) return;
+      const name = b.dataset.scItem;
+      sc.open.has(name) ? sc.open.delete(name) : sc.open.add(name);
+      scRender();
+    });
+
+    switchTab(new URLSearchParams(location.search).get('tab'));
+    scSyncControls();
+    scLoad();
+    window.addEventListener('load', () => { if (window.lucide) lucide.createIcons(); });
+  </script>
+</body>
+</html>
