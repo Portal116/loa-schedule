@@ -207,7 +207,7 @@
           <span class="font-bold text-lg text-white tracking-wide whitespace-nowrap"><span class="mark-narrow">공대</span><span class="mark-wide">로아 공대</span></span>
           <!-- 마크(로고 텍스트)는 A가 "미니"로 접힐 때만 같이 줄어든다(축약형 단계에서는 로고는 풀네임 유지) -->
           <button onclick="openInfoModal('changelog')" class="text-[10px] font-mono font-bold px-1.5 sm:px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/30 hover:bg-purple-500/20 transition cursor-pointer" title="클릭하여 업데이트 이력 확인">
-            v2.14.4
+            v2.15.0
           </button>
         </div>
 
@@ -1084,7 +1084,18 @@
         <div id="infoContentChangelog" class="space-y-3 hidden">
           <div class="border-l-2 border-yellow-500 pl-3 py-1 mb-3">
             <div class="flex items-center justify-between">
-              <span class="font-bold text-white text-xs">v2.14 - 저장 안정성 개선</span>
+              <span class="font-bold text-white text-xs">v2.15 - 임시 레이드 / 캐릭터 현황 오류 수정</span>
+              <span class="text-[11px] text-gray-500">2026.10.04</span>
+            </div>
+            <ul class="text-xs text-gray-400 mt-1 space-y-0.5 list-disc pl-3">
+              <li>고정 레이드를 모두 끝낸 뒤 수요일 전까지 임시 레이드를 진행할 수 없던 문제 수정</li>
+              <li>캐릭터 현황에서 고른 유저 조건이 자동 새로고침 때 바뀌던 문제 수정</li>
+            </ul>
+          </div>
+
+          <div class="border-l-2 border-gray-700 pl-3 py-1 mb-3">
+            <div class="flex items-center justify-between">
+              <span class="font-bold text-gray-300 text-xs">v2.14 - 저장 안정성 개선</span>
               <span class="text-[11px] text-gray-500">2026.09.27</span>
             </div>
             <ul class="text-xs text-gray-400 mt-1 space-y-0.5 list-disc pl-3">
