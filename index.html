@@ -207,7 +207,7 @@
           <span class="font-bold text-lg text-white tracking-wide whitespace-nowrap"><span class="mark-narrow">공대</span><span class="mark-wide">로아 공대</span></span>
           <!-- 마크(로고 텍스트)는 A가 "미니"로 접힐 때만 같이 줄어든다(축약형 단계에서는 로고는 풀네임 유지) -->
           <button onclick="openInfoModal('changelog')" class="text-[10px] font-mono font-bold px-1.5 sm:px-2 py-0.5 rounded bg-yellow-500/10 text-yellow-400 border border-yellow-500/30 hover:bg-yellow-500/20 transition cursor-pointer" title="클릭하여 업데이트 이력 확인">
-            v2.15
+            v2.16
           </button>
         </div>
 
@@ -1084,7 +1084,17 @@
         <div id="infoContentChangelog" class="space-y-3 hidden">
           <div class="border-l-2 border-yellow-500 pl-3 py-1 mb-3">
             <div class="flex items-center justify-between">
-              <span class="font-bold text-white text-xs">v2.15 - 임시 레이드 / 캐릭터 현황 오류 수정</span>
+              <span class="font-bold text-white text-xs">v2.16 - 공대원 목록 개선</span>
+              <span class="text-[11px] text-gray-500">2026.10.11</span>
+            </div>
+            <ul class="text-xs text-gray-400 mt-1 space-y-0.5 list-disc pl-3">
+              <li>[내 캐릭터 강조]와 캐릭터 현황 유저 목록에 아직 레이드에 배치되지 않은 공대원도 표시</li>
+            </ul>
+          </div>
+
+          <div class="border-l-2 border-gray-700 pl-3 py-1 mb-3">
+            <div class="flex items-center justify-between">
+              <span class="font-bold text-gray-300 text-xs">v2.15 - 임시 레이드 / 캐릭터 현황 오류 수정</span>
               <span class="text-[11px] text-gray-500">2026.10.04</span>
             </div>
             <ul class="text-xs text-gray-400 mt-1 space-y-0.5 list-disc pl-3">
@@ -1574,6 +1584,7 @@
     let slotGoldStatusMap = {};
     let characterPoolData = [];
     let mainCharByUser = {}; // Members 시트: 유저명(본계정 기준) -> 대표캐릭터명. "유용한 링크" 탭의 대표캐릭터 조회 링크용
+    let membersAllUsers = new Set(); // Members 시트에 올라 있는 유저 전체(레이드에 배치 안 된 사람 포함) - 강조/유저 필터 목록용
     let hiddenCharNames = new Set(); // Hidden_Characters 시트: 캐릭터 현황에서 숨긴 캐릭터명 목록 (화면 표시 여부만 결정, Character_Pool 자체는 그대로)
     let wildClearsData = new Map(); // Wild_Clears 시트: "캐릭터명|레이드키" -> 구분(일정완료/개별수동). V도 이 시트 기록만 보고 판정한다.
     let raidInfoData = [];
@@ -1621,7 +1632,7 @@
     const RAID_STATUS_POLL_MS = 15000;
     // 운영(index.html)에 배포된 실제 버전. Config 시트 '앱버전' 값과 달라지면 새로고침을 유도한다.
     // dev.html은 빌드 번호가 세션마다 바뀌므로 이 체크 자체를 IS_DEV로 건너뛴다.
-    const APP_VERSION = '2.15';
+    const APP_VERSION = '2.16';
     let pendingAttendance = { date: '', status: '', memo: '' };
     // 만찬은 은지/안녕 둘만 깔고, 한 번 깔면 1시간 지속되는 전역 상태 하나뿐이다(레이드별/주별
     // 구분 없음) - 그래서 siteConfig.feastStatus({person, account, startedAt}) 하나로 관리하고
@@ -2328,7 +2339,7 @@
         }
 
         if (statusRows) parseRaidStatus(statusRows); else raidStatusData = [];
-        if (memberRows) parseMembers(memberRows); else mainCharByUser = {};
+        if (memberRows) parseMembers(memberRows); else { mainCharByUser = {}; membersAllUsers = new Set(); }
         if (hiddenRows) parseHiddenCharacters(hiddenRows); else hiddenCharNames = new Set();
         if (wildRows) parseWildClears(wildRows); else wildClearsData = new Map();
         document.getElementById('mainContent').classList.remove('hidden');
@@ -2358,12 +2369,14 @@
     // 계정이 여러 개인 유저는 "본" 행의 대표캐릭터명만 쓴다 - 부계정 행은 "본" 행이 없을 때만 대체로 사용.
     function parseMembers(rows) {
       mainCharByUser = {};
+      membersAllUsers = new Set();
       const fallback = {};
       for (let r = 1; r < rows.length; r++) {
         const row = rows[r] || [];
         const userName = (row[0] || '').toString().trim();
         const accType = (row[1] || '').toString().trim();
         const mainCharName = (row[2] || '').toString().trim();
+        if (userName) membersAllUsers.add(userName);
         if (!userName || !mainCharName) continue;
         if (accType === '본') {
           mainCharByUser[userName] = mainCharName;
@@ -2612,7 +2625,10 @@
       select.innerHTML = '<option value="" class="bg-[#161b22] text-gray-300">선택 안 함 (전체)</option>';
       poolUserSelect.innerHTML = '<option value="" class="bg-[#161b22]">전체 유저</option>';
 
-      Array.from(allMemberList).sort().forEach(u => {
+      // 레이드에 배치된 사람 + Members 시트 인원을 합친다 - Members에 추가만 해도 목록에 나오게.
+      const allUsers = new Set([...allMemberList, ...membersAllUsers]);
+
+      Array.from(allUsers).sort().forEach(u => {
         const opt = document.createElement('option');
         opt.value = u;
         opt.textContent = u;
@@ -2627,7 +2643,7 @@
         poolUserSelect.appendChild(poolOpt);
       });
 
-      poolUserSelect.value = allMemberList.has(prevPoolUser) ? prevPoolUser : '';
+      poolUserSelect.value = allUsers.has(prevPoolUser) ? prevPoolUser : '';
 
       syncCustomSelect('userSelector');
       syncCustomSelect('poolUserFilter');
