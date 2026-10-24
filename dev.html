@@ -207,7 +207,7 @@
           <span class="font-bold text-lg text-white tracking-wide whitespace-nowrap"><span class="mark-narrow">공대</span><span class="mark-wide">로아 공대</span></span>
           <!-- 마크(로고 텍스트)는 A가 "미니"로 접힐 때만 같이 줄어든다(축약형 단계에서는 로고는 풀네임 유지) -->
           <button onclick="openInfoModal('changelog')" class="text-[10px] font-mono font-bold px-1.5 sm:px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/30 hover:bg-purple-500/20 transition cursor-pointer" title="클릭하여 업데이트 이력 확인">
-            v2.17.0
+            v2.18.0
           </button>
         </div>
 
@@ -947,7 +947,7 @@
           <div class="bg-[#0d1117] p-3.5 rounded-xl border border-gray-800">
             <h4 class="font-bold text-xs mb-1.5 text-yellow-400">Q. 모든 레이드를 한 화면에서 보고 싶어요!</h4>
             <p class="text-xs text-gray-300 leading-relaxed">
-              일정표 상단의 <strong>[모아보기]</strong>를 켜면 탭을 하나씩 누를 필요 없이 이번 주 레이드가 요일 순으로 한 화면에 나옵니다. <strong>[내 서브 조만 보기]</strong>가 켜져 있으면 내가 참여하는 조만 모아서 보여주고, 다시 누르면 원래 탭 화면으로 돌아갑니다.
+              일정표 상단의 <strong>[모아보기]</strong>를 켜면 탭을 하나씩 누를 필요 없이 이번 주 레이드가 날짜 순으로 한 화면에 나옵니다. <strong>[내 서브 조만 보기]</strong>가 켜져 있으면 내가 참여하는 조만 모아서 보여주고, 다시 누르면 원래 탭 화면으로 돌아갑니다. 조 제목을 누르면 그 조만 접히고, <strong>[모두 접기]/[모두 펼치기]</strong>로 한 번에 접거나 펼칠 수도 있습니다.
             </p>
           </div>
           <div class="bg-[#0d1117] p-3.5 rounded-xl border border-gray-800">
@@ -1088,7 +1088,18 @@
         <div id="infoContentChangelog" class="space-y-3 hidden">
           <div class="border-l-2 border-yellow-500 pl-3 py-1 mb-3">
             <div class="flex items-center justify-between">
-              <span class="font-bold text-white text-xs">v2.17 - 일정표 모아보기</span>
+              <span class="font-bold text-white text-xs">v2.18 - 모아보기 편의 개선</span>
+              <span class="text-[11px] text-gray-500">2026.10.24</span>
+            </div>
+            <ul class="text-xs text-gray-400 mt-1 space-y-0.5 list-disc pl-3">
+              <li>모아보기에서 토요일 고정도 날짜 순서에 맞춰 표시 (같은 토요일이면 고정 조 먼저)</li>
+              <li>모아보기에 [모두 접기]/[모두 펼치기] 버튼 추가</li>
+              <li>캐릭터 정보 자동 갱신 중 일부 계정 조회가 실패해도 기존 캐릭터와 예정 레벨이 사라지지 않도록 개선</li>
+            </ul>
+          </div>
+          <div class="border-l-2 border-gray-700 pl-3 py-1 mb-3">
+            <div class="flex items-center justify-between">
+              <span class="font-bold text-gray-300 text-xs">v2.17 - 일정표 모아보기</span>
               <span class="text-[11px] text-gray-500">2026.10.24</span>
             </div>
             <ul class="text-xs text-gray-400 mt-1 space-y-0.5 list-disc pl-3">
@@ -2705,7 +2716,7 @@
     }
 
     // 탭 줄에 보일 조 목록(정렬 포함) - 탭 줄과 모아보기가 같은 목록/순서를 쓴다.
-    function getVisibleScheduleTabs() {
+    function getVisibleScheduleTabs({ chronological = false } = {}) {
       // 블록이 하나도 없는 서브그룹(방금 만들어졌거나, 조 통합으로 비게 된 시트)은 탭 자체를
       // 숨긴다 - "새 그룹에 추가"로 빈 시트를 재사용하는 구조라, 안 그러면 아무 내용 없는
       // 탭(raw 시트 id만 표시)이 계속 눈에 밟히게 된다.
@@ -2720,14 +2731,23 @@
 
       // 정렬: 메인(토요일 고정)은 항상 맨 앞, 서브그룹은 요일순(레이드 주차 기준 - 수요일이
       // 한 주의 시작) → 같은 요일이면 서브그룹번호순. SHEET_CONFIG 원본은 그대로 두고 복사해서 정렬한다.
+      // chronological(모아보기용)이면 메인도 토요일로 쳐서 날짜순으로 섞고, 같은 날짜일 때만 메인을
+      // 앞에 둔다 - 모아보기는 이번 주 일정을 위에서 아래로 읽는 화면이라 날짜가 거꾸로 가면 어색하다.
+      // 탭 줄은 메인이 첫 칸인 게 익숙해서 그대로 둔다(2026-10-24 사용자 결정).
+      const raidDayOf = cfg => {
+        const day = cfg.is8Man ? 6 : weekdayNameToIndex(siteConfig.subGroupDays && siteConfig.subGroupDays[cfg.id]);
+        return day === null ? 99 : (day - 3 + 7) % 7; // 수요일(3)을 0으로
+      };
       return [...availableTabs].sort((a, b) => {
+        if (!chronological) {
+          if (a.is8Man) return -1;
+          if (b.is8Man) return 1;
+        }
+        const raidDayA = raidDayOf(a);
+        const raidDayB = raidDayOf(b);
+        if (raidDayA !== raidDayB) return raidDayA - raidDayB;
         if (a.is8Man) return -1;
         if (b.is8Man) return 1;
-        const dayA = weekdayNameToIndex(siteConfig.subGroupDays && siteConfig.subGroupDays[a.id]);
-        const dayB = weekdayNameToIndex(siteConfig.subGroupDays && siteConfig.subGroupDays[b.id]);
-        const raidDayA = dayA === null ? 99 : (dayA - 3 + 7) % 7; // 수요일(3)을 0으로
-        const raidDayB = dayB === null ? 99 : (dayB - 3 + 7) % 7;
-        if (raidDayA !== raidDayB) return raidDayA - raidDayB;
         const numA = parseInt((a.id.match(/\d+$/) || ['0'])[0], 10);
         const numB = parseInt((b.id.match(/\d+$/) || ['0'])[0], 10);
         return numA - numB;
@@ -2799,7 +2819,16 @@
         btn.innerHTML = `<i data-lucide="layers" class="w-3.5 h-3.5 shrink-0"></i><span>이번 주 일정</span>`;
         btn.onclick = toggleViewAll;
         nav.appendChild(btn);
-        drawIcons();
+
+        // 원래 조 탭들이 있던 자리에 조 일괄 접기/펼치기 - 글자는 renderViewAllCollapseAllButton 이
+        // 상태에 맞춰 채운다.
+        const allBtn = document.createElement('button');
+        allBtn.id = 'viewAllCollapseAllBtn';
+        allBtn.type = 'button';
+        allBtn.className = 'px-3 py-2 rounded-lg text-xs font-semibold transition whitespace-nowrap flex items-center gap-1 bg-gray-800 hover:bg-gray-700 text-gray-300 border border-gray-700';
+        allBtn.onclick = toggleViewAllCollapseAll;
+        nav.appendChild(allBtn);
+        renderViewAllCollapseAllButton();
         return;
       }
 
@@ -2947,15 +2976,20 @@
     // 새로고침하면 초기화된다.
     const viewAllCollapsedGroups = new Set();
 
-    // 모아보기 - 보이는 조(탭 줄과 같은 목록/순서)를 조별 구분 제목과 함께 이어서 그린다.
+    // 모아보기 - 보이는 조(탭 줄과 같은 목록, 순서는 메인 포함 날짜순)를 조별 구분 제목과 함께 이어서 그린다.
     // 구분 제목은 그 조 영역 안에서 스크롤해도 상단 헤더 바로 밑에 붙어 있어서(sticky),
     // 길게 내려도 지금 무슨 요일 조를 보고 있는지 알 수 있다.
-    function renderAllTabsContent() {
-      const container = document.getElementById('raidContainer');
-      const tabs = getVisibleScheduleTabs().filter(cfg => {
+    function getViewAllGroups() {
+      return getVisibleScheduleTabs({ chronological: true }).filter(cfg => {
         const info = sheetsDataStore[cfg.id];
         return info && info.blocks.length > 0;
       });
+    }
+
+    function renderAllTabsContent() {
+      const container = document.getElementById('raidContainer');
+      const tabs = getViewAllGroups();
+      renderViewAllCollapseAllButton();
 
       if (tabs.length === 0) {
         container.innerHTML = `
@@ -2997,6 +3031,36 @@
     function toggleViewAllGroup(sheetId) {
       if (viewAllCollapsedGroups.has(sheetId)) viewAllCollapsedGroups.delete(sheetId);
       else viewAllCollapsedGroups.add(sheetId);
+      renderActiveTabContent();
+    }
+
+    // 모아보기 조 일괄 접기/펼치기 - 하나라도 펼쳐진 조가 있으면 [모두 접기], 전부 접혀 있으면
+    // [모두 펼치기]. 기본은 계속 전부 펼친 상태로 시작한다(2026-10-24 사용자 결정).
+    function renderViewAllCollapseAllButton() {
+      const btn = document.getElementById('viewAllCollapseAllBtn');
+      if (!btn) return;
+      const groups = getViewAllGroups();
+      btn.classList.toggle('hidden', groups.length === 0);
+      const anyExpanded = groups.some(cfg => !viewAllCollapsedGroups.has(cfg.id));
+      btn.innerHTML = anyExpanded
+        ? `<i data-lucide="chevrons-down-up" class="w-3.5 h-3.5 shrink-0"></i><span>모두 접기</span>`
+        : `<i data-lucide="chevrons-up-down" class="w-3.5 h-3.5 shrink-0"></i><span>모두 펼치기</span>`;
+      drawIcons();
+    }
+
+    // [모두 펼치기]는 조 안에서 따로 접어 둔 레이드 카드까지 펼친다 - 그 조의 카드별 접힘 기록을
+    // 지워서 기본값(모아보기에선 펼침)으로 돌린다. 탭 화면에선 그 기본값(완료 레이드 접힘)으로 돌아간다.
+    function toggleViewAllCollapseAll() {
+      const groups = getViewAllGroups();
+      if (groups.some(cfg => !viewAllCollapsedGroups.has(cfg.id))) {
+        groups.forEach(cfg => viewAllCollapsedGroups.add(cfg.id));
+      } else {
+        viewAllCollapsedGroups.clear();
+        const sheetIds = new Set(groups.map(cfg => cfg.id));
+        [...collapsedOverride.keys()].forEach(key => {
+          if (sheetIds.has(key.slice(0, key.lastIndexOf('_')))) collapsedOverride.delete(key);
+        });
+      }
       renderActiveTabContent();
     }
 
