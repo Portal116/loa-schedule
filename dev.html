@@ -207,7 +207,7 @@
           <span class="font-bold text-lg text-white tracking-wide whitespace-nowrap"><span class="mark-narrow">공대</span><span class="mark-wide">로아 공대</span></span>
           <!-- 마크(로고 텍스트)는 A가 "미니"로 접힐 때만 같이 줄어든다(축약형 단계에서는 로고는 풀네임 유지) -->
           <button onclick="openInfoModal('changelog')" class="text-[10px] font-mono font-bold px-1.5 sm:px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/30 hover:bg-purple-500/20 transition cursor-pointer" title="클릭하여 업데이트 이력 확인">
-            v2.18.0
+            v2.18.11
           </button>
         </div>
 
@@ -391,6 +391,19 @@
             <div id="poolUserFilterPanel" class="hidden absolute z-30 top-full left-0 right-0 mt-1 w-full max-h-60 overflow-y-auto rounded-lg border border-gray-700 bg-[#161b22] shadow-lg py-1"></div>
           </div>
 
+          <!-- 계정 필터 - 고른 유저의 계정이 2개 이상일 때만 보인다(syncAccountFilter) -->
+          <div id="poolAccountFilterWrap" class="custom-select relative hidden items-center gap-2 bg-[#0d1117] px-2 sm:px-3 py-1.5 rounded-lg border border-gray-700">
+            <span class="hidden sm:inline text-xs text-gray-400">계정:</span>
+            <select id="poolAccountFilter" onchange="renderPoolView()" class="hidden">
+              <option value="" class="bg-[#161b22]">전체 계정</option>
+            </select>
+            <button type="button" onclick="toggleCustomSelect('poolAccountFilter', event)" class="flex items-center gap-1 bg-transparent text-xs text-white focus:outline-none cursor-pointer">
+              <span id="poolAccountFilterLabel" class="inline-block w-14 text-left truncate">전체 계정</span>
+              <i data-lucide="chevron-down" class="w-3 h-3 text-gray-400 shrink-0"></i>
+            </button>
+            <div id="poolAccountFilterPanel" class="hidden absolute z-30 top-full left-0 right-0 mt-1 w-full max-h-60 overflow-y-auto rounded-lg border border-gray-700 bg-[#161b22] shadow-lg py-1"></div>
+          </div>
+
           <div class="custom-select relative flex items-center gap-2 bg-[#0d1117] px-2 sm:px-3 py-1.5 rounded-lg border border-gray-700">
             <span class="hidden sm:inline text-xs text-gray-400">포지션:</span>
             <select id="poolPosFilter" onchange="renderPoolView()" class="hidden">
@@ -562,13 +575,13 @@
 
       <div class="flex items-center space-x-2 text-yellow-400 mb-2">
         <i data-lucide="plus-circle" class="w-5 h-5"></i>
-        <h3 class="text-lg font-bold text-white">레이드 추가</h3>
+        <h3 class="text-lg font-bold text-white" id="addBlockModalTitle">레이드 추가</h3>
       </div>
-      <p class="text-xs text-gray-400 mb-3">
+      <p class="text-xs text-gray-400 mb-3" id="addBlockModalDesc">
         선택한 조에 새 레이드를 추가합니다. 이미 있는 레이드를 또 골라도 자동으로 회차가 붙어서 구분됩니다.
       </p>
 
-      <div class="custom-select relative mb-3">
+      <div class="custom-select relative mb-3" id="addBlockSheetSection">
         <label class="block text-xs font-semibold text-gray-400 mb-1.5">추가할 조</label>
         <select id="addBlockSheetSelect" onchange="onAddBlockSheetChange()" class="hidden"></select>
         <button type="button" onclick="toggleCustomSelect('addBlockSheetSelect', event)"
@@ -581,10 +594,10 @@
 
       <div id="addBlockScopeNote" class="hidden items-start gap-2 mb-4 p-2.5 rounded-lg border border-amber-500/30 bg-amber-500/10 text-xs text-amber-400 leading-relaxed">
         <i data-lucide="info" class="w-3.5 h-3.5 mt-0.5 shrink-0"></i>
-        <span>이 조는 인원이 고정돼 있어, 소속 조원(유저)의 캐릭터 중에서만 고를 수 있고 전원이 빠짐없이 들어가야 합니다.<br>부캐는 매번 직접 골라 주세요.</span>
+        <span>한 사람당 캐릭터 1명씩만 넣을 수 있습니다(본/부 계정 포함).<br>조원이 아닌 사람도, 일부만 골라도 괜찮습니다(기존 서브그룹은 조원 1명 이상 포함).</span>
       </div>
 
-      <div class="custom-select relative mb-3">
+      <div class="custom-select relative mb-3" id="addBlockRaidSection">
         <label class="block text-xs font-semibold text-gray-400 mb-1.5">레이드 선택</label>
         <select id="addBlockRaidSelect" onchange="onAddBlockRaidChange()" class="hidden">
           <option value="" class="bg-[#161b22]">레이드를 선택해 주세요</option>
@@ -603,10 +616,34 @@
             <span class="text-xs font-semibold text-gray-400"><span id="addBlockListLabel">캐릭터 선택</span> <span id="addBlockSelectedCount" class="text-yellow-400 font-mono"></span></span>
             <span class="text-[11px] text-gray-500" id="addBlockSearchCount"></span>
           </div>
-          <div class="relative" id="addBlockSearchWrap">
-            <i data-lucide="search" class="w-3.5 h-3.5 text-gray-500 absolute left-2.5 top-1/2 -translate-y-1/2"></i>
-            <input type="text" id="addBlockSearchInput" oninput="filterAddBlockCandidates()" placeholder="캐릭터명 검색"
-              class="w-full bg-[#0d1117] border border-gray-700 rounded-lg pl-8 pr-3 py-1.5 text-xs text-gray-200 placeholder-gray-600 focus:outline-none focus:border-yellow-500 transition" />
+          <!-- [유저] 다음 칸은 하나만 - 계정이 2개 이상인 유저를 고르면 계정 칸, 아니면 캐릭터명 검색창이
+               남은 폭을 채운다(계정까지 좁히면 캐릭터 수가 적어 검색이 필요 없으므로). -->
+          <div class="flex items-center gap-2">
+            <div class="custom-select relative shrink-0">
+              <select id="addBlockUserFilter" onchange="onAddBlockUserFilterChange()" class="hidden">
+                <option value="" class="bg-[#161b22]">전체 유저</option>
+              </select>
+              <button type="button" onclick="toggleCustomSelect('addBlockUserFilter', event)" class="flex items-center gap-1 bg-[#0d1117] border border-gray-700 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none cursor-pointer">
+                <span id="addBlockUserFilterLabel" class="inline-block w-14 text-left truncate">전체 유저</span>
+                <i data-lucide="chevron-down" class="w-3 h-3 text-gray-400 shrink-0"></i>
+              </button>
+              <div id="addBlockUserFilterPanel" data-float-panel class="hidden absolute z-30 top-full left-0 mt-1 w-32 max-h-48 overflow-y-auto rounded-lg border border-gray-700 bg-[#161b22] shadow-lg py-1"></div>
+            </div>
+            <div id="addBlockAccountFilterWrap" class="custom-select relative flex-1 min-w-0 hidden">
+              <select id="addBlockAccountFilter" onchange="filterAddBlockCandidates()" class="hidden">
+                <option value="" class="bg-[#161b22]">전체 계정</option>
+              </select>
+              <button type="button" onclick="toggleCustomSelect('addBlockAccountFilter', event)" class="w-full flex items-center justify-between gap-1 bg-[#0d1117] border border-gray-700 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none cursor-pointer">
+                <span id="addBlockAccountFilterLabel" class="text-left truncate">전체 계정</span>
+                <i data-lucide="chevron-down" class="w-3 h-3 text-gray-400 shrink-0"></i>
+              </button>
+              <div id="addBlockAccountFilterPanel" data-float-panel class="hidden absolute z-30 top-full left-0 right-0 mt-1 max-h-48 overflow-y-auto rounded-lg border border-gray-700 bg-[#161b22] shadow-lg py-1"></div>
+            </div>
+            <div class="relative flex-1 min-w-0" id="addBlockSearchWrap">
+              <i data-lucide="search" class="w-3.5 h-3.5 text-gray-500 absolute left-2.5 top-1/2 -translate-y-1/2"></i>
+              <input type="text" id="addBlockSearchInput" oninput="filterAddBlockCandidates()" placeholder="캐릭터명 검색"
+                class="w-full bg-[#0d1117] border border-gray-700 rounded-lg pl-8 pr-3 py-1.5 text-xs text-gray-200 placeholder-gray-600 focus:outline-none focus:border-yellow-500 transition" />
+            </div>
           </div>
           <div class="space-y-1.5 max-h-64 overflow-y-auto modal-scroll pr-1.5" id="addBlockCharListContainer"></div>
         </div>
@@ -646,6 +683,8 @@
              모달에서 상시 확인하는 용도로 여기 둔다. 담당자(은지/안녕)만 조작 버튼이 보인다. -->
         <div id="feastStatusBox" class="mb-3 p-2.5 rounded-lg border border-gray-800 bg-[#0d1117] flex items-center justify-between gap-2 text-xs"></div>
 
+        <!-- 실제 인원 변경 표시 + (관리자모드) [인원 변경]/[원래대로] - renderRaidProgressRosterTools -->
+        <div id="raidProgressRosterTools" class="hidden mb-2 items-center justify-between gap-2"></div>
         <div id="raidProgressRoster" class="mb-3 space-y-1"></div>
 
         <!-- 같은 조의 바로 다음 레이드 - 현재 레이드와 같은 명단 형식(등급 뱃지까지)으로 똑같이
@@ -1060,7 +1099,7 @@
           <div class="bg-[#0d1117] p-3.5 rounded-xl border border-gray-800">
             <h4 class="font-bold text-xs mb-1.5 text-yellow-400">Q. [레이드 추가]는 어떻게 쓰나요?</h4>
             <p class="text-xs text-gray-300 leading-relaxed">
-              원하는 조를 선택해서 새 레이드 회차를 통째로 등록할 수 있습니다. 목록에는 [토요일 고정]과 본인이 속한 서브그룹만 뜨고, "새 그룹에 추가"를 고르면 새 서브그룹이 만들어집니다. [토요일 고정]은 아무 캐릭터나 자유롭게 고를 수 있고, 기존 서브그룹은 소속 조원의 캐릭터 중에서만 골라야 하며 전원이 빠짐없이 들어가야 합니다.
+              원하는 조를 선택해서 새 레이드 회차를 통째로 등록할 수 있습니다. 목록에는 [토요일 고정]과 본인이 속한 서브그룹만 뜨고, "새 그룹에 추가"를 고르면 새 서브그룹이 만들어집니다. 조는 레이드를 어디에 넣을지만 정하는 것이고 고르는 방법은 모두 같습니다 - 아무 캐릭터나 고를 수 있지만 한 사람당 캐릭터 1명씩만(본/부 계정 포함) 넣을 수 있고, 최소 2명부터 추가할 수 있습니다. 기존 서브그룹에 넣을 때는 그 조의 조원이 1명 이상 포함돼야 합니다.
             </p>
           </div>
           <div class="bg-[#0d1117] p-3.5 rounded-xl border border-gray-800">
@@ -1653,10 +1692,10 @@
     let addBlockCurrentRaid = null;      // 블록 추가 모달에서 선택한 { name, diff }
     let addBlockCurrentCap = 0;          // 그 레이드의 정원
     let addBlockSelectedChars = new Set(); // 블록 추가 모달에서 선택한 캐릭터명들
-    let addBlockFixedRoster = false;     // 서브그룹 탭이라 소속 인원 전체가 강제 편성되는 모드인지
-    let addBlockRosterOverflow = false;  // 고정 인원이 이 레이드 정원보다 많아서 추가 불가능한 상태인지
     let addBlockTargetSheet = 'Main_8Man'; // 블록 추가 모달의 "추가할 조" 선택값 (기본값 = 열었을 때의 현재 탭)
+    let addBlockEditTarget = null;       // 진행중 레이드 [인원 변경]으로 열었을 때의 대상 블록(그 외에는 null = 레이드 추가)
     const ADD_BLOCK_NEW_GROUP_VALUE = '__new_group__'; // "새 그룹에 추가" 옵션 식별용 특수 값
+    const ADD_BLOCK_MIN_CHARS = 2;       // 레이드 추가 최소 인원(1명은 혼자 가는 거라 일정으로 만들 필요 없음)
     const ADD_BLOCK_UNSELECTED_VALUE = '__unselected__'; // "조를 선택해 주세요" 옵션 식별용 특수 값
     let goldEligibleCharNames = new Set();
     let attendanceData = [];          // Attendance 시트 원본
@@ -1899,7 +1938,7 @@
     // select 팝업(펼쳤을 때 뜨는 목록)은 브라우저가 직접 그려서 CSS로 모양을 못 바꾼다.
     // 그래서 실제 값 저장소는 화면에서만 숨긴 <select>를 그대로 쓰고(기존 onchange/.value 로직 재사용),
     // 그 위에 앱 스타일 그대로인 트리거 버튼 + 목록 패널을 얹어서 화면에는 이것만 보이게 한다.
-    const CUSTOM_SELECT_IDS = ['userSelector', 'poolUserFilter', 'poolPosFilter', 'poolLevelFilter', 'addBlockSheetSelect', 'addBlockRaidSelect', 'subGroupDaySelect', 'miscView'];
+    const CUSTOM_SELECT_IDS = ['userSelector', 'poolUserFilter', 'poolPosFilter', 'poolLevelFilter', 'addBlockSheetSelect', 'addBlockRaidSelect', 'addBlockUserFilter', 'addBlockAccountFilter', 'poolAccountFilter', 'subGroupDaySelect', 'miscView'];
     let openCustomSelectId = null;
 
     function initCustomSelect(selectId) {
@@ -1922,9 +1961,38 @@
       closeAllCustomSelects();
       if (willOpen) {
         panel.classList.remove('hidden');
+        if (panel.hasAttribute('data-float-panel')) floatCustomSelectPanel(panel);
         openCustomSelectId = selectId;
       }
     }
+
+    // 스크롤 영역(overflow) 안에 있는 드롭다운(data-float-panel)은 목록 높이가 낮으면 패널이 그 영역에
+    // 잘려 버린다 - 열 때 화면 기준(fixed)으로 띄우고, 아래 공간이 모자라면 트리거 위로 펼친다.
+    // 띄운 상태에서 스크롤하면 패널만 제자리에 남으므로 스크롤/리사이즈 때는 닫는다(아래 리스너).
+    function floatCustomSelectPanel(panel) {
+      const trigger = panel.parentElement.querySelector('button');
+      if (!trigger) return;
+      const r = trigger.getBoundingClientRect();
+      Object.assign(panel.style, { position: 'fixed', left: `${r.left}px`, right: 'auto', marginTop: '0', minWidth: `${r.width}px` });
+      const spaceBelow = window.innerHeight - r.bottom;
+      if (spaceBelow < panel.offsetHeight + 8 && r.top > spaceBelow) {
+        Object.assign(panel.style, { top: 'auto', bottom: `${window.innerHeight - r.top + 4}px` });
+      } else {
+        Object.assign(panel.style, { top: `${r.bottom + 4}px`, bottom: 'auto' });
+      }
+    }
+
+    function closeFloatingCustomSelect() {
+      if (!openCustomSelectId) return;
+      const panel = document.getElementById(openCustomSelectId + 'Panel');
+      if (panel && panel.hasAttribute('data-float-panel')) closeAllCustomSelects();
+    }
+    // 패널 자체 목록을 스크롤할 때는 닫지 않는다.
+    document.addEventListener('scroll', (e) => {
+      if (e.target instanceof Element && e.target.hasAttribute('data-float-panel')) return;
+      closeFloatingCustomSelect();
+    }, true);
+    window.addEventListener('resize', closeFloatingCustomSelect);
 
     // 패널에서 항목을 고르면 숨겨둔 진짜 select 의 값을 바꾸고 change 이벤트를 그대로 쏴준다 -
     // 이러면 기존 onchange="..." / addEventListener('change', ...) 로직을 하나도 안 건드려도 된다.
@@ -3291,17 +3359,18 @@
 
       // 인원이 한 명이라도 겹치는 다른 블록이 이미 진행중이면 막는다 - 시트(그룹)가 달라도
       // 같은 사람이 실제로 두 레이드를 동시에 뛸 수는 없다.
-      const getBlockUsers = (sid, bidx) => new Set(
-        ((sheetsDataStore[sid] && sheetsDataStore[sid].blocks[bidx] && sheetsDataStore[sid].blocks[bidx].slots) || [])
+      // 다른 진행중 레이드는 실제로 들어간 인원 기준('실제인원'이 바뀌어 있으면 그 인원).
+      const getBlockUsers = (sid, bidx, title) => new Set(
+        getEffectiveBlockSlots(sid, bidx, title).slots
           .map(sl => (sl.user || '').split('(')[0].trim())
           .filter(Boolean)
       );
-      const myUsers = getBlockUsers(sheetId, blockIndex);
+      const myUsers = getBlockUsers(sheetId, blockIndex, rawRaidTitle);
       const otherInProgress = raidStatusData.find(s => {
         if (s.status !== '진행중') return false;
         const isSameBlock = s.sheetId === sheetId && s.blockIndex === blockIndex && s.rawRaidTitle === rawRaidTitle;
         if (isSameBlock) return false;
-        const otherUsers = getBlockUsers(s.sheetId, s.blockIndex);
+        const otherUsers = getBlockUsers(s.sheetId, s.blockIndex, s.rawRaidTitle);
         return Array.from(otherUsers).some(u => myUsers.has(u));
       });
       if (otherInProgress) {
@@ -3318,7 +3387,7 @@
       raidStatusData = raidStatusData.filter(s =>
         !(s.sheetId === sheetId && s.blockIndex === blockIndex && s.rawRaidTitle === rawRaidTitle)
       );
-      raidStatusData.push({ sheetId, blockIndex, rawRaidTitle, status: '진행중', startedBy: selectedUser, startedAt: '', completedAt: '' });
+      raidStatusData.push({ sheetId, blockIndex, rawRaidTitle, status: '진행중', startedBy: selectedUser, startedAt: '', completedAt: '', actualRoster: [] });
       renderActiveTabContent();
       renderCurrentRaidsBadge();
 
@@ -3333,10 +3402,13 @@
     // 때는 이미 끝난 일이라 경고색을 보여줄 이유가 없음 - 이 함수는 완료 레이드 보기에도 쓰인다).
     // sheetId: 참여상태 조회 기준 날짜(그 조의 이번 주기 날짜)를 구하는 데 필요 - 완료된 레이드
     // 보기(isInProgress=false)에서는 참여상태를 굳이 다시 보여줄 필요가 없어 조회 자체를 건너뛴다.
-    function renderRaidProgressRosterRows(slots, isInProgress, sheetId) {
-      const attDateKey = isInProgress ? getCurrentCycleDateKeyForSheet(sheetId) : '';
+    // isOverride: 관리자가 [인원 변경]으로 실제 인원을 정해둔 경우 - 그 목록 자체가 "실제로 간 사람"이라
+    // 참여상태 흐림/버튼은 보여주지 않는다(불참자는 인원 변경 때 이미 빠져 있음).
+    function renderRaidProgressRosterRows(slots, isInProgress, sheetId, isOverride) {
+      const attDateKey = (isInProgress && !isOverride) ? getCurrentCycleDateKeyForSheet(sheetId) : '';
       return slots.map(s => {
-        const goldStatus = slotGoldStatusMap[s.slotUid] || 'NONE';
+        // 원래 편성에 없던(인원 변경으로 새로 들어온) 캐릭터는 골드 판정 자체가 없어 뱃지/경고색을 생략한다.
+        const goldStatus = s.goldUnknown ? null : (slotGoldStatusMap[s.slotUid] || 'NONE');
         const maybeDesc = goldStatus === 'MAYBE' ? getMaybePairDesc(s.foundInPool ? s.level : 0) : '';
         const isMe = selectedUser && (s.user || '').startsWith(selectedUser);
 
@@ -3383,7 +3455,7 @@
             <div class="flex items-center shrink-0 gap-2">
               ${attToggleBtn}
               <span class="slot-job text-gray-500">${s.job || ''} · ${s.pos || ''}</span>
-              ${renderGoldBadge(goldStatus, maybeDesc)}
+              ${goldStatus ? renderGoldBadge(goldStatus, maybeDesc) : ''}
             </div>
           </div>
         `;
@@ -3426,6 +3498,129 @@
       refreshOpenRaidProgressModal();
       renderActiveTabContent();
       if (currentMainView === 'pool') renderPoolView();
+    }
+
+    // 진행중 레이드 명단 위 한 줄 - 실제 인원이 바뀌어 있으면 누구에게나 그 사실을 보여주고,
+    // 관리자모드면 [인원 변경](+ 바뀐 상태면 [원래대로]) 버튼을 붙인다. 진행중일 때만.
+    function renderRaidProgressRosterTools(isInProgress, isOverride) {
+      const el = document.getElementById('raidProgressRosterTools');
+      if (!el) return;
+      const isAdmin = isAdminModeActive();
+      const show = isInProgress && (isOverride || isAdmin);
+      el.classList.toggle('hidden', !show);
+      el.classList.toggle('flex', show);
+      if (!show) { el.innerHTML = ''; return; }
+      const btnClass = 'shrink-0 whitespace-nowrap px-2 py-1 rounded-md border text-[11px] font-semibold transition';
+      el.innerHTML = `
+        <span class="text-[11px] ${isOverride ? 'text-cyan-300' : 'text-gray-500'}">${isOverride ? '실제 참여 인원으로 변경됨' : '명단'}</span>
+        ${isAdmin ? `
+          <div class="flex items-center gap-1.5">
+            ${isOverride ? `<button onclick="resetActualRoster()" class="${btnClass} text-gray-300 border-gray-700 bg-gray-800 hover:bg-gray-700">원래대로</button>` : ''}
+            <button onclick="openActualRosterEditor()" class="${btnClass} text-cyan-300 border-cyan-700/50 bg-cyan-950/20 hover:bg-cyan-900/40">인원 변경</button>
+          </div>` : ''}
+      `;
+    }
+
+    // [인원 변경] - 레이드 추가 창을 "실제 참여 인원 변경" 모드로 연다(고르는 방식은 레이드 추가와 똑같이
+    // 유저당 1명/정원/최소 2명). 지금 명단이 미리 선택돼 있고, 아직 한 번도 안 바꿨으면 참여상태
+    // (불참/지각/미정)가 등록된 사람은 빼고 시작한다. 일정표의 원래 편성은 바뀌지 않는다.
+    function openActualRosterEditor() {
+      if (!activeProgressTarget) return;
+      const target = { ...activeProgressTarget };
+      const { sheetId, blockIndex, rawRaidTitle } = target;
+      const block = (sheetsDataStore[sheetId] && sheetsDataStore[sheetId].blocks[blockIndex]) || null;
+      if (!block) return;
+
+      const effective = getEffectiveBlockSlots(sheetId, blockIndex, rawRaidTitle);
+      const attDateKey = effective.isOverride ? '' : getCurrentCycleDateKeyForSheet(sheetId);
+      const preselected = effective.slots
+        .filter(s => s.name && !(attDateKey && getAttendanceFor(s.user, attDateKey)))
+        .map(s => s.name);
+
+      closeRaidProgressModal();
+      addBlockEditTarget = target;
+      setAddBlockModalMode(true);
+      addBlockTargetSheet = sheetId;
+      addBlockCurrentRaid = { name: block.title, diff: '' }; // 확정 버튼 검사(레이드 선택 여부) 통과용
+      addBlockCurrentCap = getBlockCapacity(block);
+      addBlockSelectedChars = new Set(preselected);
+
+      // 지금 명단(미리 선택된 캐릭터)을 맨 위에 둔다.
+      const selectedFirst = c => (addBlockSelectedChars.has(c.name) ? 0 : 1);
+      const cands = characterPoolData
+        .filter(c => !hiddenCharNames.has(c.name) || addBlockSelectedChars.has(c.name))
+        .slice().sort((a, b) => selectedFirst(a) - selectedFirst(b))
+        .map(c => ({ c, needsLevelUp: false }));
+      window.__addBlockAllCands = cands;
+
+      document.getElementById('addBlockSearchInput').value = '';
+      resetAddBlockUserFilter(cands);
+      document.getElementById('addBlockListLabel').textContent = '캐릭터 선택 (유저당 1명)';
+      document.getElementById('addBlockCapacitySection').classList.remove('hidden');
+      renderAddBlockFilteredList(cands);
+      updateAddBlockConfirmState();
+
+      document.body.style.overflow = 'hidden';
+      document.getElementById('addBlockModal').classList.remove('hidden');
+      drawIcons();
+    }
+
+    async function confirmActualRosterEdit() {
+      const target = addBlockEditTarget;
+      if (!target || addBlockSelectedChars.size < ADD_BLOCK_MIN_CHARS) return;
+      const { sheetId, blockIndex, rawRaidTitle } = target;
+
+      const effective = getEffectiveBlockSlots(sheetId, blockIndex, rawRaidTitle);
+      const chars = Array.from(addBlockSelectedChars).map(name => {
+        const c = characterPoolData.find(x => x.name === name);
+        const slot = effective.slots.find(s => s.name === name);
+        return { user: c ? c.user : (slot ? slot.user : ''), name };
+      });
+
+      // 새로 들어온 사람이 지금 진행중인 다른 레이드에 있으면 막는다(진행 시작 때의 겹침 검사와 같은 규칙).
+      const base = u => (u || '').split('(')[0].trim();
+      const myUsers = new Set(chars.map(c => base(c.user)).filter(Boolean));
+      const overlapping = raidStatusData.find(s => {
+        if (s.status !== '진행중') return false;
+        if (s.sheetId === sheetId && s.blockIndex === blockIndex && s.rawRaidTitle === rawRaidTitle) return false;
+        return getEffectiveBlockSlots(s.sheetId, s.blockIndex, s.rawRaidTitle).slots.some(sl => myUsers.has(base(sl.user)));
+      });
+      if (overlapping) {
+        customAlert(`[${sanitizeTitle(overlapping.rawRaidTitle)}]에 진행중인 사람이 있어서 이 인원으로 바꿀 수 없습니다.`);
+        return;
+      }
+
+      markAdminAction();
+      const btn = document.getElementById('addBlockConfirmBtn');
+      if (btn) btn.disabled = true;
+      const result = await saveAction('setRaidActualRoster', { sheetId, blockIndex, rawRaidTitle, characters: chars }, {
+        errorLabel: '실제 참여 인원 변경', loadingText: '인원 변경 중...', keepInputOnFail: true
+      });
+      if (result.status !== 'success') {
+        updateAddBlockConfirmState();
+        return;
+      }
+
+      const info = getRaidStatusFor(sheetId, blockIndex, rawRaidTitle);
+      if (info) info.actualRoster = chars;
+      closeAddBlockModal(); // 편집 모드면 진행중 레이드 창으로 돌아가서 바뀐 명단을 보여준다
+      renderActiveTabContent();
+    }
+
+    // [원래대로] - 실제 인원 변경을 지워서 일정표 편성대로(참여상태 반영 포함) 되돌린다.
+    async function resetActualRoster() {
+      if (!activeProgressTarget) return;
+      const target = { ...activeProgressTarget };
+      if (!(await customConfirm('실제 참여 인원 변경을 취소하고 일정표 편성대로 되돌릴까요?'))) return;
+      markAdminAction();
+      const result = await saveAction('setRaidActualRoster', {
+        sheetId: target.sheetId, blockIndex: target.blockIndex, rawRaidTitle: target.rawRaidTitle, characters: []
+      }, { errorLabel: '실제 참여 인원 되돌리기', loadingText: '되돌리는 중...' });
+      if (result.status !== 'success') return;
+
+      const info = getRaidStatusFor(target.sheetId, target.blockIndex, target.rawRaidTitle);
+      if (info) info.actualRoster = [];
+      openRaidProgressModal(target.sheetId, target.blockIndex, target.rawRaidTitle, target.displayTitle);
     }
 
     // 진행중 모달이 지금 열려있으면 같은 대상으로 다시 그려서(재조회 없이) 최신 상태를 반영한다.
@@ -3481,10 +3676,13 @@
       // 어떤 레이드인지 뿐 아니라 누가/어떤 캐릭터로 가야 하는지도 바로 보이게 편성 명단을 보여준다.
       const rosterEl = document.getElementById('raidProgressRoster');
       const block = (sheetsDataStore[sheetId] && sheetsDataStore[sheetId].blocks[blockIndex]) || null;
+      // 명단은 실제로 들어간 인원 기준 - [인원 변경]으로 바꿔뒀으면 그 인원(getEffectiveBlockSlots).
       // 일정표 카드와 동일한 정렬(서포터/스왑 우선 → 레벨 내림차순 → 이름순)을 그대로 쓴다.
       // 다음 레이드 미리보기(내 캐릭터 계정 비교)에도 필요해서 이 스코프에서 미리 구해둔다.
-      const rosterSlots = block ? (getBlockCapacity(block) > 4 ? orderSlotsFor8Man(block.slots) : orderSlotsNarrow(block.slots)) : [];
+      const effective = getEffectiveBlockSlots(sheetId, blockIndex, rawRaidTitle);
+      const rosterSlots = block ? (getBlockCapacity(block) > 4 ? orderSlotsFor8Man(effective.slots) : orderSlotsNarrow(effective.slots)) : [];
       const isInProgress = !!(info && info.status === '진행중');
+      renderRaidProgressRosterTools(isInProgress, effective.isOverride);
 
       // 진행중이고 내 캐릭터가 골드를 못 받거나(X)/선택 구간이면 두 군데서 같이 알려준다 -
       // (1) 명단의 내 줄 자체가 경고색으로 표시됨(renderRaidProgressRosterRows) - 어떤
@@ -3495,8 +3693,8 @@
       const goldWarnEl = document.getElementById('raidProgressGoldWarning');
       if (goldWarnEl) {
         const mySlot = (isInProgress && selectedUser) ? rosterSlots.find(s => (s.user || '').startsWith(selectedUser)) : null;
-        const goldStatus = mySlot ? (slotGoldStatusMap[mySlot.slotUid] || 'NONE') : null;
-        if (!mySlot || goldStatus === 'EARN') {
+        const goldStatus = (mySlot && !mySlot.goldUnknown) ? (slotGoldStatusMap[mySlot.slotUid] || 'NONE') : null;
+        if (!goldStatus || goldStatus === 'EARN') {
           goldWarnEl.classList.add('hidden');
         } else {
           const isNone = goldStatus === 'NONE';
@@ -3508,7 +3706,7 @@
       }
 
       if (rosterEl) {
-        rosterEl.innerHTML = !block || rosterSlots.length === 0 ? '' : renderRaidProgressRosterRows(rosterSlots, isInProgress, sheetId);
+        rosterEl.innerHTML = !block || rosterSlots.length === 0 ? '' : renderRaidProgressRosterRows(rosterSlots, isInProgress, sheetId, effective.isOverride);
       }
 
       // 같은 조의 바로 다음 레이드(배열상 다음 블록)에서 "내 캐릭터"가 뭔지만 참고용으로 보여준다
@@ -3975,7 +4173,8 @@
       const mine = inProgress.find(s => {
         if (s.sheetId === 'Main_8Man') return true;
         const block = sheetsDataStore[s.sheetId] && sheetsDataStore[s.sheetId].blocks[s.blockIndex];
-        return block && userInBlock(block);
+        // 실제 인원이 바뀌어 있으면 그 인원 기준(대신 들어간 사람에게도 뜨고, 빠진 사람에게는 안 뜨게).
+        return block && userInBlock({ slots: getEffectiveBlockSlots(s.sheetId, s.blockIndex, s.rawRaidTitle).slots });
       });
 
       if (!mine) {
@@ -4482,7 +4681,7 @@
     function renderHiddenCharsModalList() {
       const el = document.getElementById('hiddenCharsModalItems');
       if (!el) return;
-      const uFilter = document.getElementById('poolUserFilter').value;
+      const uFilter = getUserFilterValue('poolUserFilter', 'poolAccountFilter');
       const pFilter = document.getElementById('poolPosFilter').value;
       const lFilter = parseFloat(document.getElementById('poolLevelFilter').value) || 0;
 
@@ -4515,10 +4714,54 @@
       return `${parseInt(m[2], 10)}/${parseInt(m[3], 10)} ${m[4]}:${m[5]}`;
     }
 
+    // 유저 필터(캐릭터 현황 / 레이드 추가 공통). 값이 "안녕"처럼 기본 유저명이면 그 사람의 모든 계정,
+    // "안녕(워)"처럼 계정 구분까지 붙어 있으면 그 계정 캐릭터만.
+    function matchesUserFilter(c, uFilter) {
+      if (!uFilter) return true;
+      const user = c.user || '';
+      return uFilter.includes('(') ? user === uFilter : user.split('(')[0].trim() === uFilter;
+    }
+
+    // 유저 하나의 계정 목록("안녕(본)", "안녕(워)" ...) - 계정 구분은 Character_Pool 유저명의 괄호 안 값.
+    // 계정이 1개뿐이면 계정 칸을 따로 보여줄 필요가 없으니 빈 배열.
+    function getUserAccounts(baseUser) {
+      const accounts = new Set();
+      characterPoolData.forEach(c => {
+        const user = c.user || '';
+        if (user.includes('(') && user.split('(')[0].trim() === baseUser) accounts.add(user);
+      });
+      return accounts.size >= 2 ? Array.from(accounts).sort() : [];
+    }
+
+    // 유저 칸 값이 바뀌었을 때 옆의 계정 칸 옵션을 그 유저 계정들로 다시 채우고, 계정이 2개 이상일
+    // 때만 보이게 한다. 이전에 고른 계정이 그대로 유효하면 유지한다(자동 갱신으로 다시 그릴 때 대비).
+    function syncAccountFilter(userSelectId, accountSelectId) {
+      const userSelect = document.getElementById(userSelectId);
+      const accountSelect = document.getElementById(accountSelectId);
+      if (!userSelect || !accountSelect) return;
+      const accounts = userSelect.value ? getUserAccounts(userSelect.value) : [];
+      const prev = accountSelect.value;
+      accountSelect.innerHTML = '<option value="" class="bg-[#161b22]">전체 계정</option>' +
+        accounts.map(a => `<option value="${a}" class="bg-[#161b22]">${a.slice(a.indexOf('(') + 1, -1)}</option>`).join('');
+      accountSelect.value = accounts.includes(prev) ? prev : '';
+      const wrap = document.getElementById(accountSelectId + 'Wrap');
+      if (wrap) {
+        wrap.classList.toggle('hidden', accounts.length === 0);
+        wrap.classList.toggle('flex', accounts.length > 0);
+      }
+      syncCustomSelect(accountSelectId);
+    }
+
+    // 실제로 적용할 유저 필터 값 - 계정을 골랐으면 그 계정("안녕(워)"), 아니면 유저("안녕", 모든 계정).
+    function getUserFilterValue(userSelectId, accountSelectId) {
+      const account = document.getElementById(accountSelectId).value;
+      return account || document.getElementById(userSelectId).value;
+    }
+
     // 캐릭터 현황 필터(유저/포지션/레벨) 조건 하나를 캐릭터 하나에 적용 - 목록 표시와 "숨긴 캐릭터"
     // 모달 양쪽에서 같이 써서, 숨긴 캐릭터 모달에도 항상 같은 검색 범위가 그대로 적용되게 한다.
     function matchesPoolFilters(c, uFilter, pFilter, lFilter) {
-      if (uFilter && !c.user.startsWith(uFilter)) return false;
+      if (!matchesUserFilter(c, uFilter)) return false;
       if (lFilter > 0 && c.level < lFilter) return false;
       if (pFilter === 'DEALER') {
         if (c.pos !== '딜러' && c.pos !== '스왑가능') return false;
@@ -4530,7 +4773,10 @@
 
     function renderPoolView() {
       const grid = document.getElementById('poolGrid');
-      const uFilter = document.getElementById('poolUserFilter').value;
+      // 유저 칸은 onchange 말고도 코드에서 값을 바로 바꾸는 곳(강조 유저 동기화 등)이 있어서,
+      // 그릴 때마다 계정 칸을 지금 유저에 맞춰 둔다.
+      syncAccountFilter('poolUserFilter', 'poolAccountFilter');
+      const uFilter = getUserFilterValue('poolUserFilter', 'poolAccountFilter');
       const pFilter = document.getElementById('poolPosFilter').value;
       const lFilter = parseFloat(document.getElementById('poolLevelFilter').value) || 0;
 
@@ -5091,9 +5337,39 @@
           sheetId, blockIndex, rawRaidTitle, status,
           startedBy: (row[4] || '').toString().trim(),
           startedAt: (row[5] || '').toString().trim(),
-          completedAt: (row[6] || '').toString().trim()
+          completedAt: (row[6] || '').toString().trim(),
+          actualRoster: parseActualRoster((row[7] || '').toString())
         });
       }
+    }
+
+    // Raid_Status H열 '실제인원'("유저|캐릭터명,유저|캐릭터명") - 진행 도중 관리자가 실제로 들어간
+    // 인원으로 바꾼 경우에만 있다(Api.gs setRaidActualRoster). 없으면 빈 배열 = 일정표 편성 그대로.
+    function parseActualRoster(raw) {
+      return raw.split(',').map(part => {
+        const idx = part.indexOf('|');
+        if (idx === -1) return null;
+        const user = part.slice(0, idx).trim();
+        const name = part.slice(idx + 1).trim();
+        return (user && name) ? { user, name } : null;
+      }).filter(Boolean);
+    }
+
+    // 이 블록에 실제로 들어간 인원의 슬롯 목록. '실제인원'이 있으면 그걸로 슬롯을 새로 만들고
+    // (원래 편성에 있던 캐릭터면 그 슬롯을 그대로 써서 골드 판정도 유지, 새로 들어온 캐릭터는
+    // 골드 판정이 없어 goldUnknown), 없으면 일정표 편성 슬롯 그대로.
+    function getEffectiveBlockSlots(sheetId, blockIndex, rawRaidTitle) {
+      const block = (sheetsDataStore[sheetId] && sheetsDataStore[sheetId].blocks[blockIndex]) || null;
+      const baseSlots = block ? block.slots : [];
+      const info = getRaidStatusFor(sheetId, blockIndex, rawRaidTitle);
+      const override = (info && info.actualRoster) || [];
+      if (override.length === 0) return { slots: baseSlots, isOverride: false };
+      const slots = override.map(o => {
+        const orig = baseSlots.find(s => s.name === o.name);
+        if (orig) return orig;
+        return enrichSlotFromPool({ slotUid: `actual_${sheetId}_${blockIndex}_${o.name}`, user: o.user, name: o.name, goldUnknown: true });
+      });
+      return { slots, isOverride: true };
     }
 
     // 특정 블록의 진행/완료 상태를 찾는다.
@@ -5638,11 +5914,10 @@
         customAlert("상단 헤더의 [내 캐릭터 강조]에서 본인 계정을 먼저 선택해 주세요!");
         return;
       }
+      setAddBlockModalMode(false);
       addBlockCurrentRaid = null;
       addBlockCurrentCap = 0;
       addBlockSelectedChars = new Set();
-      addBlockFixedRoster = false;
-      addBlockRosterOverflow = false;
       // 현재 보고 있던 탭이 본인 소속 그룹(또는 [토요일 고정])이면 그걸 자동으로 선택해주고,
       // 남의 서브그룹을 보고 있던 경우(예: "내 서브 조만 보기"를 꺼둔 상태)엔 미선택 상태로
       // 시작해서 사용자가 직접 고르게 한다.
@@ -5674,6 +5949,30 @@
     function closeAddBlockModal() {
       document.body.style.overflow = '';
       document.getElementById('addBlockModal').classList.add('hidden');
+      // [인원 변경]으로 열었던 거면 레이드 추가 모드로 되돌려놓고, 보던 진행중 레이드 창으로 돌아간다.
+      if (addBlockEditTarget) {
+        const t = addBlockEditTarget;
+        addBlockEditTarget = null;
+        setAddBlockModalMode(false);
+        openRaidProgressModal(t.sheetId, t.blockIndex, t.rawRaidTitle, t.displayTitle);
+      }
+    }
+
+    // 같은 모달을 레이드 추가 / 진행중 레이드 실제 인원 변경 두 용도로 쓴다 - 인원 변경 때는
+    // 조/레이드 선택과 안내 박스를 숨기고 캐릭터 선택만 남긴다.
+    const ADD_BLOCK_MODAL_DESC = '선택한 조에 새 레이드를 추가합니다. 이미 있는 레이드를 또 골라도 자동으로 회차가 붙어서 구분됩니다.';
+    function setAddBlockModalMode(isEdit) {
+      document.getElementById('addBlockModalTitle').textContent = isEdit ? '실제 참여 인원 변경' : '레이드 추가';
+      document.getElementById('addBlockModalDesc').textContent = isEdit
+        ? '이번 진행에 실제로 들어간 인원으로 바꿉니다. 일정표의 원래 편성은 그대로이고, 완료 처리 때 여기서 고른 캐릭터들이 완료됩니다.'
+        : ADD_BLOCK_MODAL_DESC;
+      document.getElementById('addBlockSheetSection').classList.toggle('hidden', isEdit);
+      document.getElementById('addBlockRaidSection').classList.toggle('hidden', isEdit);
+      if (isEdit) {
+        const note = document.getElementById('addBlockScopeNote');
+        note.classList.add('hidden');
+        note.classList.remove('flex');
+      }
     }
 
     // "추가할 조" 목록에는 맨 앞에 "조를 선택해 주세요"(미선택 상태) 하나, 그다음 [토요일 고정]
@@ -5715,11 +6014,8 @@
 
       const scopeNote = document.getElementById('addBlockScopeNote');
       if (scopeNote) {
-        // "새 그룹에 추가"(아직 어떤 시트인지도 안 정해짐)나, 기존 유저가 0명인 서브그룹은
-        // 자유 선택 모드라 "인원 고정" 안내를 보여줄 필요가 없다 - onAddBlockRaidChange의
-        // 판정 조건과 맞춰야 한다. getSheetMemberBaseUsers는 존재하지 않는 시트 id에도
-        // 안전하게 빈 Set을 돌려주므로 별도 분기 없이 그대로 재사용한다.
-        const showScopeNote = !isUnselected && addBlockTargetSheet !== 'Main_8Man' && addBlockTargetSheet !== TEMP_RAID_SHEET_ID_JS && getSheetMemberBaseUsers(addBlockTargetSheet).size > 0;
+        // "유저당 1명" 규칙은 어느 조든 똑같으니 조를 고르기만 하면 안내한다.
+        const showScopeNote = !isUnselected;
         scopeNote.classList.toggle('hidden', !showScopeNote);
         scopeNote.classList.toggle('flex', showScopeNote);
       }
@@ -5779,43 +6075,57 @@
       addBlockCurrentCap = cap;
 
       const minLevel = row ? parseGoldNum(row.level) : 0;
-      // 서브그룹은 소속 유저(계정)가 고정된 조라서, 새 블록에도 그 유저들만 넣을 수 있게 한다
-      // (아니면 같은 조인데 레이드마다 인원 구성이 달라져 버릴 수 있음). 단, 유저별로 어떤 부캐를
-      // 쓸지는 매 레이드마다 다를 수 있으므로 캐릭터명이 아니라 유저 단위로 제한하고,
-      // 실제 캐릭터 선택 자체는 자동이 아니라 수동으로 - 유저당 정확히 1명씩 골라야 확정할 수 있다.
-      // 단, 방금 만들었거나 조 통합으로 비어버린 서브그룹(기존 유저 0명)은 아직 고정할 로스터가
-      // 없으므로 Main_8Man처럼 자유 선택으로 둔다 - 여기서 처음 고른 유저들이 저장되는 순간부터
-      // getSheetMemberBaseUsers가 그 조의 로스터로 자동 인식한다(별도 "소속 설정" 단계 불필요).
-      const existingMembers = getSheetMemberBaseUsers(addBlockTargetSheet);
-      addBlockFixedRoster = (addBlockTargetSheet !== 'Main_8Man') && (addBlockTargetSheet !== TEMP_RAID_SHEET_ID_JS) && existingMembers.size > 0;
-      let basePool = characterPoolData.filter(c => !hiddenCharNames.has(c.name));
-      let members = new Set();
-      if (addBlockFixedRoster) {
-        members = existingMembers;
-        basePool = basePool.filter(c => members.has((c.user || '').split('(')[0].trim()));
-      }
-      window.__addBlockMemberUsers = members;
+      // 어느 조든 유저(계정 구분 무관 - 안녕(본)/안녕(워)은 같은 사람)당 최대 1명만 - 한 사람이
+      // 같은 레이드에 캐릭터 둘로 동시에 들어갈 수는 없으니까(toggleAddBlockChar). 그 외에는 자유
+      // 선택이라 서브그룹에도 조원이 아닌 유저를 넣을 수 있고 조원 전원이 다 들어갈 필요도 없다 -
+      // 같은 조라도 레이드마다 멤버가 달라질 수 있고, 겹치는 인원이 있으면 어차피 진행중 레이드
+      // 중복 검사에서 동시 진행이 막힌다. (조 인원은 모든 블록에 나오는 유저의 합집합이라, 새
+      // 유저를 넣으면 그 조 인원에 합류한다.)
+      const basePool = characterPoolData.filter(c => !hiddenCharNames.has(c.name));
       const cands = basePool.map(c => ({ c, needsLevelUp: minLevel > 0 && c.level < minLevel }));
       window.__addBlockAllCands = cands;
 
-      addBlockRosterOverflow = addBlockFixedRoster && members.size > cap;
       addBlockSelectedChars = new Set();
 
       const searchInput = document.getElementById('addBlockSearchInput');
       if (searchInput) searchInput.value = '';
+      resetAddBlockUserFilter(cands);
       const listLabel = document.getElementById('addBlockListLabel');
-      if (listLabel) listLabel.textContent = addBlockFixedRoster ? '조원별 캐릭터 선택' : '캐릭터 선택';
+      if (listLabel) listLabel.textContent = '캐릭터 선택 (유저당 1명)';
 
       section.classList.remove('hidden');
       renderAddBlockFilteredList(cands);
       updateAddBlockConfirmState();
     }
 
+    // 레이드를 새로 고를 때마다 유저 필터를 "전체 유저"로 되돌리고, 지금 후보 캐릭터의 유저들로 옵션을 다시 채운다.
+    function resetAddBlockUserFilter(cands) {
+      const select = document.getElementById('addBlockUserFilter');
+      if (!select) return;
+      const baseUsers = new Set(cands.map(x => (x.c.user || '').split('(')[0].trim()).filter(Boolean));
+      select.innerHTML = '<option value="" class="bg-[#161b22]">전체 유저</option>' +
+        Array.from(baseUsers).sort().map(u => `<option value="${u}" class="bg-[#161b22]">${u}</option>`).join('');
+      select.value = '';
+      syncCustomSelect('addBlockUserFilter');
+      syncAddBlockFilterRow();
+    }
+
+    function onAddBlockUserFilterChange() {
+      syncAddBlockFilterRow();
+      filterAddBlockCandidates();
+    }
+
+    // 유저 칸 옆 자리는 계정 칸과 검색창 중 하나만 - 계정 칸이 보이면 검색창은 숨기고 검색어도 비운다
+    // (숨겨진 검색어가 몰래 목록을 거르고 있지 않도록).
+    function syncAddBlockFilterRow() {
+      syncAccountFilter('addBlockUserFilter', 'addBlockAccountFilter');
+      const hasAccounts = !document.getElementById('addBlockAccountFilterWrap').classList.contains('hidden');
+      document.getElementById('addBlockSearchWrap').classList.toggle('hidden', hasAccounts);
+      if (hasAccounts) document.getElementById('addBlockSearchInput').value = '';
+    }
+
     function filterAddBlockCandidates() {
-      const all = window.__addBlockAllCands || [];
-      const keyword = (document.getElementById('addBlockSearchInput').value || '').trim().toLowerCase();
-      const filtered = keyword ? all.filter(x => x.c.name.toLowerCase().includes(keyword)) : all;
-      renderAddBlockFilteredList(filtered);
+      renderAddBlockFilteredList(filterCurrentAddBlockList());
     }
 
     function renderAddBlockFilteredList(cands) {
@@ -5866,32 +6176,33 @@
     function toggleAddBlockChar(name) {
       if (addBlockSelectedChars.has(name)) {
         addBlockSelectedChars.delete(name);
-      } else if (addBlockFixedRoster) {
-        // 서브그룹은 유저(계정)당 정확히 1명만 - 같은 유저의 다른 캐릭터를 이미 골랐다면
+      } else {
+        // 유저당 최대 1명만 - 같은 유저(본/부 계정 포함)의 다른 캐릭터를 이미 골랐다면
         // 그 선택을 빼고 새로 고른 캐릭터로 바꾼다 (부캐는 매 레이드마다 다를 수 있으니까).
         const c = characterPoolData.find(x => x.name === name);
         const baseUser = c ? (c.user || '').split('(')[0].trim() : '';
-        Array.from(addBlockSelectedChars).forEach(n => {
+        const sameUserChars = Array.from(addBlockSelectedChars).filter(n => {
           const cc = characterPoolData.find(x => x.name === n);
-          if (cc && (cc.user || '').split('(')[0].trim() === baseUser) addBlockSelectedChars.delete(n);
+          return cc && (cc.user || '').split('(')[0].trim() === baseUser;
         });
-        addBlockSelectedChars.add(name);
-      } else {
-        if (addBlockSelectedChars.size >= addBlockCurrentCap) {
+        // 같은 유저 캐릭터를 바꾸는 건 인원 수가 그대로라 정원 검사는 새 유저를 추가할 때만.
+        if (sameUserChars.length === 0 && addBlockSelectedChars.size >= addBlockCurrentCap) {
           customAlert(`이 레이드는 최대 ${addBlockCurrentCap}명까지만 가능합니다.`);
           return;
         }
+        sameUserChars.forEach(n => addBlockSelectedChars.delete(n));
         addBlockSelectedChars.add(name);
       }
       renderAddBlockFilteredList(window.__addBlockAllCands ? filterCurrentAddBlockList() : []);
       updateAddBlockConfirmState();
     }
 
-    // 검색창에 입력된 게 있으면 그 필터를 유지한 채로 다시 그린다.
+    // 유저 필터 + 캐릭터명 검색어를 둘 다 적용한 후보 목록.
     function filterCurrentAddBlockList() {
       const all = window.__addBlockAllCands || [];
       const keyword = (document.getElementById('addBlockSearchInput').value || '').trim().toLowerCase();
-      return keyword ? all.filter(x => x.c.name.toLowerCase().includes(keyword)) : all;
+      const uFilter = getUserFilterValue('addBlockUserFilter', 'addBlockAccountFilter');
+      return all.filter(x => matchesUserFilter(x.c, uFilter) && (!keyword || x.c.name.toLowerCase().includes(keyword)));
     }
 
     function updateAddBlockConfirmState() {
@@ -5914,32 +6225,34 @@
         return;
       }
 
-      const totalMembers = (window.__addBlockMemberUsers || new Set()).size;
-      if (addBlockRosterOverflow) {
-        btn.disabled = true;
-        btn.textContent = `이 조 인원(${totalMembers}명)이 정원(${addBlockCurrentCap}명)보다 많습니다`;
-      } else if (addBlockFixedRoster) {
-        const coveredUsers = new Set(Array.from(addBlockSelectedChars).map(n => {
-          const c = characterPoolData.find(x => x.name === n);
-          return c ? (c.user || '').split('(')[0].trim() : null;
-        }).filter(Boolean));
-        if (totalMembers === 0) {
-          btn.disabled = true;
-          btn.textContent = '이 조에 소속된 캐릭터가 없습니다';
-        } else if (coveredUsers.size < totalMembers) {
-          btn.disabled = true;
-          btn.textContent = `조원 전체 선택 필요 (${coveredUsers.size}/${totalMembers}명)`;
-        } else {
-          btn.disabled = false;
-          btn.textContent = `이 조 전원(${totalMembers}명)으로 레이드 추가`;
-        }
-      } else if (addBlockSelectedChars.size === 0) {
+      // 혼자 가는 레이드는 굳이 일정에 만들어 둘 필요가 없으니 최소 2명부터.
+      if (addBlockSelectedChars.size === 0) {
         btn.disabled = true;
         btn.textContent = '캐릭터를 선택해 주세요';
+      } else if (addBlockSelectedChars.size < ADD_BLOCK_MIN_CHARS) {
+        btn.disabled = true;
+        btn.textContent = `최소 ${ADD_BLOCK_MIN_CHARS}명 이상 선택해 주세요`;
+      } else if (!addBlockHasMemberOverlap()) {
+        btn.disabled = true;
+        btn.textContent = '이 조의 조원이 1명 이상 있어야 합니다';
       } else {
         btn.disabled = false;
-        btn.textContent = `${addBlockSelectedChars.size}명으로 레이드 추가`;
+        btn.textContent = addBlockEditTarget ? `${addBlockSelectedChars.size}명으로 변경` : `${addBlockSelectedChars.size}명으로 레이드 추가`;
       }
+    }
+
+    // 기존 서브그룹에 넣을 때는 고른 인원 중 그 조의 기존 조원이 최소 1명은 있어야 한다 -
+    // 하나도 안 겹치면 그 조의 레이드가 아니라 사실상 새 그룹이니까("새 그룹에 추가"를 쓰면 됨).
+    // [토요일 고정]·임시 레이드·"새 그룹에 추가"·조원이 0명인 빈 서브그룹은 비교할 조원이 없어 통과.
+    function addBlockHasMemberOverlap() {
+      if (addBlockEditTarget) return true; // 실제 인원 변경은 그 조에 레이드를 넣는 게 아니라 해당 없음
+      if (addBlockTargetSheet === 'Main_8Man' || addBlockTargetSheet === TEMP_RAID_SHEET_ID_JS) return true;
+      const members = getSheetMemberBaseUsers(addBlockTargetSheet);
+      if (members.size === 0) return true;
+      return Array.from(addBlockSelectedChars).some(n => {
+        const c = characterPoolData.find(x => x.name === n);
+        return c && members.has((c.user || '').split('(')[0].trim());
+      });
     }
 
     // Raid_Info 의 축약어(abbr 열)와 짧은 난이도 표기로 블록 제목을 만든다 -
@@ -5959,24 +6272,22 @@
     }
 
     async function confirmAddBlock() {
-      if (!addBlockCurrentRaid || addBlockSelectedChars.size === 0) return;
+      if (addBlockEditTarget) return confirmActualRosterEdit();
+      if (!addBlockCurrentRaid || addBlockSelectedChars.size < ADD_BLOCK_MIN_CHARS || !addBlockHasMemberOverlap()) return;
 
       const chars = Array.from(addBlockSelectedChars).map(name => {
         const c = characterPoolData.find(x => x.name === name);
         return { user: c ? c.user : '', name: name };
       });
-      if (addBlockFixedRoster) {
-        // 서브그룹은 시트에 이미 정해진 유저-컬럼 순서(A블록에서부터 써온 순서)가 있으므로,
-        // 클릭한 순서가 아니라 그 순서에 맞춰 써야 다른 블록들과 컬럼이 어긋나지 않는다.
-        // (addBlockFixedRoster는 기존 인원이 있는 시트를 골랐을 때만 true라 "새 그룹에
-        // 추가"에서는 여기 오지 않는다 - 그때는 order 계산에 필요한 시트가 아직 없다.)
-        const order = (sheetsDataStore[addBlockTargetSheet] && sheetsDataStore[addBlockTargetSheet].users) || [];
-        chars.sort((a, b) => {
-          const ua = (a.user || '').split('(')[0].trim();
-          const ub = (b.user || '').split('(')[0].trim();
-          return order.indexOf(ua) - order.indexOf(ub);
-        });
-      }
+      // 어느 조든 시트에 이미 써온 유저-컬럼 순서가 있으면, 클릭한 순서가 아니라 그 순서에 맞춰
+      // 써야 다른 블록들과 컬럼이 최대한 어긋나지 않는다. 그 시트에 없던 유저는 뒤로 보낸다
+      // ("새 그룹에 추가"처럼 시트가 아직 없으면 order가 비어 있어 클릭 순서 그대로).
+      const order = (sheetsDataStore[addBlockTargetSheet] && sheetsDataStore[addBlockTargetSheet].users) || [];
+      const rank = c => {
+        const i = order.indexOf((c.user || '').split('(')[0].trim());
+        return i === -1 ? order.length : i;
+      };
+      chars.sort((a, b) => rank(a) - rank(b));
       const raid = addBlockCurrentRaid;
       const { abbrName, abbrDiff } = getAbbrRaidTitleParts(raid.name, raid.diff);
 
