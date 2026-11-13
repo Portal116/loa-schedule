@@ -192,7 +192,7 @@
           <span class="font-bold text-lg text-white tracking-wide whitespace-nowrap"><span class="mark-narrow">공대</span><span class="mark-wide">로아 공대</span></span>
           <!-- 마크(로고 텍스트)는 A가 "미니"로 접힐 때만 같이 줄어든다(축약형 단계에서는 로고는 풀네임 유지) -->
           <button onclick="openInfoModal('changelog')" class="text-[10px] font-mono font-bold px-1.5 sm:px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/30 hover:bg-purple-500/20 transition cursor-pointer" title="클릭하여 업데이트 이력 확인">
-            v2.19.0
+            v2.19.4
           </button>
         </div>
 
@@ -707,6 +707,34 @@
 
       <div id="auctionCalcResult" class="space-y-1.5"></div>
       <p class="text-[11px] text-gray-600 mt-3">낙찰가는 클릭하면 복사됩니다.</p>
+    </div>
+  </div>
+
+  <!-- 진행중 레이드 [화면 인식](관리자모드) - 파티창 스크린샷 붙여넣기 → 이름 인식 → [인원 변경] 창을 미리 선택해 연다 -->
+  <div id="screenOcrModal" onclick="if (event.target === this) closeScreenOcrModal()" class="js-modal fixed inset-0 z-50 bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="card-bg w-full max-w-md max-h-[85vh] rounded-2xl p-6 border border-gray-700 shadow-2xl relative flex flex-col">
+      <button onclick="closeScreenOcrModal()" class="absolute top-4 right-4 text-gray-400 hover:text-white">
+        <i data-lucide="x" class="w-5 h-5"></i>
+      </button>
+      <div class="flex items-center space-x-2 text-cyan-300 mb-2">
+        <i data-lucide="scan-text" class="w-5 h-5"></i>
+        <h3 class="text-sm font-bold text-white">화면 인식</h3>
+      </div>
+      <p id="screenOcrStatus" class="text-xs text-gray-400 mb-3 whitespace-pre-wrap"></p>
+      <div class="flex items-center gap-1.5 mb-3">
+        <label class="px-2.5 py-1.5 rounded-md border text-[11px] font-semibold text-gray-300 border-gray-700 bg-gray-800 hover:bg-gray-700 transition cursor-pointer">
+          파일 선택
+          <input type="file" accept="image/*" class="hidden" onchange="runScreenOcr(this.files[0]); this.value = ''">
+        </label>
+      </div>
+      <div class="overflow-y-auto modal-scroll pr-1.5 flex-1">
+        <img id="screenOcrPreview" class="hidden mb-3 max-h-40 rounded-lg border border-gray-800" alt="붙여넣은 화면">
+        <div id="screenOcrResult" class="space-y-1.5"></div>
+      </div>
+      <div class="mt-4 pt-3 border-t border-gray-800 flex items-center justify-end gap-2">
+        <button onclick="closeScreenOcrModal()" class="px-4 py-2 rounded-lg text-xs font-semibold text-gray-400 hover:text-white bg-gray-800 transition">취소</button>
+        <button id="screenOcrApplyBtn" onclick="applyScreenOcrResult()" disabled class="px-4 py-2 rounded-lg text-xs font-bold text-black bg-cyan-400 hover:bg-cyan-300 disabled:opacity-40 disabled:cursor-not-allowed transition">인원 변경 창에서 확인</button>
+      </div>
     </div>
   </div>
 
@@ -1677,7 +1705,7 @@
     // ─── 관리자모드 ─────────────────────────────────
     // "본인만" 체크를 우회해 남의 것도 조작할 수 있게 하는 숨겨진 모드(서버 인증 없음 - 화면에서만 판정).
     // 키보드 조합으로만 켜고 끈다(켜기: Ctrl+Shift+Alt+넘버패드+, 끄기: Ctrl+Shift+Alt+넘버패드-).
-    const ADMIN_MODE_IDLE_MS = 10 * 60 * 1000; // 마지막 관리자 동작 기준 10분 유휴 만료
+    const ADMIN_MODE_IDLE_MS = 60 * 60 * 1000; // 마지막 관리자 동작 기준 1시간 유휴 만료(연속 레이드 중 풀리지 않게)
     let adminModeOn = localStorage.getItem('loa_admin_mode') === '1';
     let adminModeLastActionAt = parseInt(localStorage.getItem('loa_admin_mode_last_action') || '0', 10) || 0;
 
@@ -3297,20 +3325,24 @@
         <span class="text-[11px] ${effective.differsFromSchedule ? 'text-cyan-300' : 'text-gray-500'}">${effective.differsFromSchedule ? '일정표 편성과 다른 인원으로 진행 중' : '참여 캐릭터'}</span>
         <div class="flex items-center gap-1.5">
           ${effective.differsFromDefault ? `<button onclick="resetActualRoster()" class="${btnClass} text-gray-300 border-gray-700 bg-gray-800 hover:bg-gray-700">원래대로</button>` : ''}
+          <button onclick="openScreenOcrModal()" class="${btnClass} text-cyan-300 border-cyan-700/50 bg-cyan-950/20 hover:bg-cyan-900/40">화면 인식</button>
           <button onclick="openActualRosterEditor()" class="${btnClass} text-cyan-300 border-cyan-700/50 bg-cyan-950/20 hover:bg-cyan-900/40">인원 변경</button>
         </div>
       `;
     }
 
     // [인원 변경] - 레이드 추가 창을 "참여 캐릭터 변경" 모드로 연다(규칙은 레이드 추가와 동일, 지금 참여캐릭 미리 선택).
-    function openActualRosterEditor() {
+    // preselectedNames를 주면(화면 인식 결과) 지금 참여캐릭 대신 그 캐릭터들을 미리 선택한다.
+    function openActualRosterEditor(preselectedNames) {
       if (!activeProgressTarget) return;
       const target = { ...activeProgressTarget };
       const { sheetId, blockIndex, rawRaidTitle } = target;
       const block = (sheetsDataStore[sheetId] && sheetsDataStore[sheetId].blocks[blockIndex]) || null;
       if (!block) return;
 
-      const preselected = getEffectiveBlockSlots(sheetId, blockIndex, rawRaidTitle).slots.map(s => s.name);
+      const preselected = Array.isArray(preselectedNames)
+        ? preselectedNames
+        : getEffectiveBlockSlots(sheetId, blockIndex, rawRaidTitle).slots.map(s => s.name);
 
       closeRaidProgressModal();
       addBlockEditTarget = target;
@@ -3396,6 +3428,246 @@
       const info = getRaidStatusFor(target.sheetId, target.blockIndex, target.rawRaidTitle);
       if (info) info.actualRoster = buildDefaultActualRoster(target.sheetId, target.blockIndex);
       openRaidProgressModal(target.sheetId, target.blockIndex, target.rawRaidTitle, target.displayTitle);
+    }
+
+    // ─── 화면 인식(관리자 [화면 인식]) ─────────────────
+    // 게임 파티창 스크린샷을 붙여넣으면 브라우저 안에서 글자를 읽고(Tesseract.js - 처음 쓸 때만 불러옴, 서버 안 거침)
+    // 캐릭터풀 이름과 맞춘 뒤 [인원 변경] 창을 그 캐릭터들로 미리 선택해 연다. 저장은 그 창에서 확인할 때만(규칙·겹침 검사 그대로).
+    // 캐릭터풀에 한 글자 차이 이름이 많아서(요리조리/요리죠리, 도아가/도화가, 숫자 2/3 등) 비슷한 이름으로 자동 보정하지 않는다:
+    // 정확히 일치하고 (비슷한 이름이 없거나 인식 신뢰도가 높을 때)만 자동 선택, 나머지는 후보 중에서 직접 고른다.
+    const TESSERACT_SRC = 'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js';
+    const SCREEN_OCR_SURE_CONF = 85;   // 비슷한 이름이 있는 정확 일치를 자동 선택할 최소 신뢰도(이름 글자 중 최저값, 깨끗한 캡처는 89~93)
+    const SCREEN_OCR_SKIP = -1;        // 후보 대신 [제외]를 고른 상태
+    let screenOcrWorkerPromise = null;
+    let screenOcrItems = [];           // [{ text, conf, candidates: [이름], choice: 후보 index | SCREEN_OCR_SKIP | null(미선택) }]
+    let screenOcrBusy = false;
+    let screenOcrPreviewUrl = '';
+
+    function loadScreenOcrWorker() {
+      if (!screenOcrWorkerPromise) {
+        screenOcrWorkerPromise = new Promise((resolve, reject) => {
+          if (window.Tesseract) return resolve();
+          const s = document.createElement('script');
+          s.src = TESSERACT_SRC;
+          s.onload = resolve;
+          s.onerror = () => reject(new Error('인식 기능을 불러오지 못했습니다.'));
+          document.head.appendChild(s);
+        }).then(() => Tesseract.createWorker('kor'));
+        screenOcrWorkerPromise.catch(() => { screenOcrWorkerPromise = null; }); // 실패하면 다음에 다시 시도
+      }
+      return screenOcrWorkerPromise;
+    }
+
+    function setScreenOcrStatus(text, isError) {
+      const el = document.getElementById('screenOcrStatus');
+      el.textContent = text;
+      el.classList.toggle('text-red-400', !!isError);
+      el.classList.toggle('text-gray-400', !isError);
+    }
+
+    function openScreenOcrModal() {
+      if (!activeProgressTarget) return;
+      screenOcrItems = [];
+      const preview = document.getElementById('screenOcrPreview');
+      preview.classList.add('hidden');
+      preview.removeAttribute('src');
+      setScreenOcrStatus('게임 파티창을 캡처(Win+Shift+S)한 뒤 이 창에서 Ctrl+V로 붙여넣으세요.');
+      renderScreenOcrResult();
+      document.getElementById('screenOcrModal').classList.remove('hidden');
+      drawIcons();
+      loadScreenOcrWorker().catch(() => {}); // 붙여넣기 전에 미리 받아둔다
+    }
+
+    function closeScreenOcrModal() {
+      document.getElementById('screenOcrModal').classList.add('hidden');
+    }
+
+    function isScreenOcrModalOpen() {
+      const el = document.getElementById('screenOcrModal');
+      return !!(el && !el.classList.contains('hidden'));
+    }
+
+    document.addEventListener('paste', (e) => {
+      if (!isScreenOcrModalOpen()) return;
+      const item = Array.from((e.clipboardData && e.clipboardData.items) || []).find(i => i.type.startsWith('image/'));
+      if (!item) return;
+      e.preventDefault();
+      runScreenOcr(item.getAsFile());
+    });
+
+    // 어두운 배경의 밝은 글자 → 흰 바탕 검은 글자로 뒤집고, 작은 캡처는 키워서 읽기 쉽게 한다.
+    function prepareScreenOcrCanvas(bitmap) {
+      const scale = Math.max(1, Math.min(4, 2400 / Math.max(bitmap.width, bitmap.height)));
+      const c = document.createElement('canvas');
+      c.width = Math.round(bitmap.width * scale);
+      c.height = Math.round(bitmap.height * scale);
+      const g = c.getContext('2d');
+      g.imageSmoothingEnabled = true;
+      g.imageSmoothingQuality = 'high';
+      g.drawImage(bitmap, 0, 0, c.width, c.height);
+      const d = g.getImageData(0, 0, c.width, c.height), p = d.data;
+      for (let i = 0; i < p.length; i += 4) {
+        const v = 255 - Math.max(p[i], p[i + 1], p[i + 2]);
+        p[i] = p[i + 1] = p[i + 2] = v;
+        p[i + 3] = 255;
+      }
+      g.putImageData(d, 0, 0);
+      return c;
+    }
+
+    function screenOcrEditDistance(a, b) {
+      const prev = Array.from({ length: b.length + 1 }, (_, j) => j);
+      for (let i = 1; i <= a.length; i++) {
+        let diag = prev[0];
+        prev[0] = i;
+        for (let j = 1; j <= b.length; j++) {
+          const tmp = prev[j];
+          prev[j] = Math.min(prev[j] + 1, prev[j - 1] + 1, diag + (a[i - 1] === b[j - 1] ? 0 : 1));
+          diag = tmp;
+        }
+      }
+      return prev[b.length];
+    }
+
+    // 인식 결과의 줄을 공백 단위 토큰으로 나눈다. 한글은 Tesseract의 words가 글자 하나씩이라 줄 글자를 공백으로 자르고,
+    // 토큰 신뢰도는 그 토큰을 이루는 글자들(words) 중 가장 낮은 값으로 한다.
+    function splitScreenOcrTokens(lines) {
+      const tokens = [];
+      for (const line of lines) {
+        const words = (line.words || []).slice();
+        for (const raw of (line.text || '').split(/\s+/).filter(Boolean)) {
+          let len = 0, conf = 100;
+          while (words.length && len < raw.length) {
+            const w = words.shift();
+            len += (w.text || '').length;
+            conf = Math.min(conf, w.confidence || 0);
+          }
+          tokens.push({ text: raw, confidence: conf });
+        }
+      }
+      return tokens;
+    }
+
+    // 토큰마다 캐릭터풀에서 정확히 같은 이름 + 한두 글자 차이 후보를 찾는다. 후보가 없는 토큰(파티, 모집중 등)은 버린다.
+    function matchScreenOcrTokens(tokens) {
+      const poolNames = Array.from(new Set(characterPoolData.map(c => c.name)));
+      const items = [];
+      const seen = new Set();
+      for (const w of tokens) {
+        const text = (w.text || '').replace(/[^0-9A-Za-z가-힣]/g, '');
+        if (text.length < 2 || seen.has(text)) continue;
+        const exact = poolNames.includes(text);
+        // 정확히 일치하면 바꿔 고를 후보는 한 글자 차이만, 일치하지 않으면 긴 이름은 두 글자 차이까지(최대 5개).
+        const maxDist = exact || text.length <= 4 ? 1 : 2;
+        const near = poolNames
+          .filter(n => n !== text && Math.abs(n.length - text.length) <= maxDist)
+          .map(n => ({ n, d: screenOcrEditDistance(n, text) }))
+          .filter(x => x.d <= maxDist)
+          .sort((a, b) => a.d - b.d)
+          .slice(0, 5)
+          .map(x => x.n);
+        if (!exact && !near.length) continue;
+        seen.add(text);
+        const conf = Math.round(w.confidence || 0);
+        const sure = exact && (!near.length || conf >= SCREEN_OCR_SURE_CONF);
+        items.push({ text, conf, candidates: exact ? [text, ...near] : near, choice: sure ? 0 : null });
+      }
+      return items;
+    }
+
+    async function runScreenOcr(blob) {
+      if (!blob || screenOcrBusy) return;
+      screenOcrBusy = true;
+      screenOcrItems = [];
+      renderScreenOcrResult();
+      try {
+        if (screenOcrPreviewUrl) URL.revokeObjectURL(screenOcrPreviewUrl);
+        screenOcrPreviewUrl = URL.createObjectURL(blob);
+        const preview = document.getElementById('screenOcrPreview');
+        preview.src = screenOcrPreviewUrl;
+        preview.classList.remove('hidden');
+
+        setScreenOcrStatus('글자를 읽는 중... (처음 한 번은 인식 데이터를 받느라 조금 걸립니다)');
+        const bitmap = await createImageBitmap(blob);
+        const worker = await loadScreenOcrWorker();
+        const { data } = await worker.recognize(prepareScreenOcrCanvas(bitmap));
+        screenOcrItems = matchScreenOcrTokens(splitScreenOcrTokens(data.lines || []));
+
+        if (!screenOcrItems.length) {
+          setScreenOcrStatus('캐릭터 이름을 찾지 못했습니다. 파티창 부분만 크게 캡처해서 다시 붙여넣어 주세요.', true);
+        } else {
+          const block = sheetsDataStore[activeProgressTarget.sheetId].blocks[activeProgressTarget.blockIndex];
+          const cap = block ? getBlockCapacity(block) : 0;
+          const unsure = screenOcrItems.filter(it => it.choice === null).length;
+          setScreenOcrStatus(`${screenOcrItems.length}명 인식${cap ? ` (정원 ${cap}명)` : ''}` +
+            (unsure ? ` - 비슷한 이름이 있는 ${unsure}명은 맞는 캐릭터를 직접 골라 주세요.` : ' - 확인 후 [인원 변경 창에서 확인]을 눌러 주세요.'));
+        }
+      } catch (e) {
+        setScreenOcrStatus('인식하지 못했습니다: ' + (e && e.message ? e.message : e), true);
+      } finally {
+        screenOcrBusy = false;
+        renderScreenOcrResult();
+      }
+    }
+
+    function pickScreenOcr(itemIndex, choice) {
+      const it = screenOcrItems[itemIndex];
+      if (!it) return;
+      it.choice = choice;
+      renderScreenOcrResult();
+    }
+
+    function renderScreenOcrResult() {
+      const box = document.getElementById('screenOcrResult');
+      const btn = document.getElementById('screenOcrApplyBtn');
+      const userOf = name => ((characterPoolData.find(c => c.name === name) || {}).user || '');
+      const chipClass = on => `px-2 py-1 rounded-md border text-[11px] font-semibold transition ${on
+        ? 'text-black bg-cyan-400 border-cyan-400'
+        : 'text-gray-300 bg-gray-800 border-gray-700 hover:bg-gray-700'}`;
+      box.innerHTML = screenOcrItems.map((it, i) => {
+        const unsure = it.choice === null;
+        const chips = it.candidates.map((name, j) => `
+          <button type="button" onclick="pickScreenOcr(${i}, ${j})" class="${chipClass(it.choice === j)}">
+            ${escapeHtml(name)} <span class="${it.choice === j ? 'text-cyan-900' : 'text-gray-500'} font-normal">${escapeHtml(userOf(name))}</span>
+          </button>`).join('');
+        return `
+          <div class="p-2 rounded-lg border ${unsure ? 'border-amber-600/60 bg-amber-950/20' : 'border-gray-800 bg-[#0d1117]'}">
+            <p class="text-[11px] ${unsure ? 'text-amber-300' : 'text-gray-500'} mb-1">읽은 글자: ${escapeHtml(it.text)}${unsure ? ' - 어느 캐릭터인지 골라 주세요' : ''}</p>
+            <div class="flex flex-wrap gap-1">
+              ${chips}
+              <button type="button" onclick="pickScreenOcr(${i}, ${SCREEN_OCR_SKIP})" class="${chipClass(it.choice === SCREEN_OCR_SKIP)}">제외</button>
+            </div>
+          </div>`;
+      }).join('');
+      // 지금 참여캐릭과 비교 - 인식 결과로 통째로 바뀌므로(기존 명단은 안 남김) 빠지는 사람이 잘 보이게 한다.
+      const pickedNames = screenOcrItems
+        .filter(it => it.choice !== null && it.choice !== SCREEN_OCR_SKIP)
+        .map(it => it.candidates[it.choice]);
+      if (pickedNames.length && activeProgressTarget) {
+        const { sheetId, blockIndex, rawRaidTitle } = activeProgressTarget;
+        const current = getEffectiveBlockSlots(sheetId, blockIndex, rawRaidTitle).slots.map(s => s.name);
+        const added = pickedNames.filter(n => !current.includes(n));
+        const removed = current.filter(n => !pickedNames.includes(n));
+        const line = (label, names, cls) => names.length
+          ? `<p class="text-[11px] ${cls}">${label}: ${names.map(escapeHtml).join(', ')}</p>` : '';
+        box.innerHTML += `
+          <div class="pt-2 space-y-0.5">
+            ${added.length || removed.length
+              ? line('새로 들어감', added, 'text-cyan-300') + line('빠짐', removed, 'text-red-400')
+              : '<p class="text-[11px] text-gray-500">지금 참여 캐릭터와 같습니다.</p>'}
+          </div>`;
+      }
+      btn.disabled = screenOcrBusy || !pickedNames.length || screenOcrItems.some(it => it.choice === null);
+    }
+
+    function applyScreenOcrResult() {
+      if (screenOcrItems.some(it => it.choice === null)) return;
+      const names = Array.from(new Set(screenOcrItems
+        .filter(it => it.choice !== SCREEN_OCR_SKIP)
+        .map(it => it.candidates[it.choice])));
+      if (!names.length) return;
+      closeScreenOcrModal();
+      openActualRosterEditor(names);
     }
 
     // 진행중 모달이 열려 있으면 같은 대상으로(재조회 없이) 다시 그린다.
@@ -5870,6 +6142,13 @@
       } else if (addBlockSelectedChars.size < ADD_BLOCK_MIN_CHARS) {
         btn.disabled = true;
         btn.textContent = `최소 ${ADD_BLOCK_MIN_CHARS}명 이상 선택해 주세요`;
+      } else if (addBlockSelectedChars.size > addBlockCurrentCap) {
+        // 클릭 선택은 toggleAddBlockChar가 막지만, 화면 인식처럼 미리 선택해서 열면 넘칠 수 있다.
+        btn.disabled = true;
+        btn.textContent = `최대 ${addBlockCurrentCap}명까지 가능합니다`;
+      } else if (addBlockHasDuplicateUser()) {
+        btn.disabled = true;
+        btn.textContent = '같은 유저 캐릭터가 2명 이상 선택됨';
       } else if (!addBlockHasMemberOverlap()) {
         btn.disabled = true;
         btn.textContent = '이 조의 조원이 1명 이상 있어야 합니다';
@@ -5877,6 +6156,19 @@
         btn.disabled = false;
         btn.textContent = addBlockEditTarget ? `${addBlockSelectedChars.size}명으로 변경` : `${addBlockSelectedChars.size}명으로 레이드 추가`;
       }
+    }
+
+    // 유저당 1명(본/부 계정 포함) 위반 여부 - 클릭 선택은 toggleAddBlockChar가 교체해 주지만 미리 선택해서 열면 겹칠 수 있다.
+    function addBlockHasDuplicateUser() {
+      const seen = new Set();
+      for (const n of addBlockSelectedChars) {
+        const c = characterPoolData.find(x => x.name === n);
+        const base = c ? (c.user || '').split('(')[0].trim() : '';
+        if (!base) continue;
+        if (seen.has(base)) return true;
+        seen.add(base);
+      }
+      return false;
     }
 
     // 기존 서브그룹에 넣을 때는 그 조 조원이 최소 1명 있어야 한다(안 겹치면 사실상 새 그룹).
