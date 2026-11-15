@@ -337,7 +337,7 @@
     });
     // reason = 기록용 한 줄, why = 상태 바용 짧은 설명, body = 알림창 본문(창은 자동으로 닫히니 길어도 됨)
     const reason = `남은 ${left}회, 이번 ${cur ? raidLabelOf(cur) : '?'}, 더 비싼 레이드: ${desc.join(' ') || '없음'}${esc ? ' [ESC 기준]' : ''}`;
-    const src = esc ? ' (ESC 기준)' : '';
+    const src = esc && esc.rows.length ? ' (ESC 기준)' : '';
     const curLine = `이번 레이드: ${cur ? raidLineOf(cur) : '?'}\n남은 골드: ${left}회${src}`
       + (done.length ? `\n이번 주 완료한 더 비싼 레이드: ${done.map(h => RAID_SHORT_NAME[h.key] || h.key).join(', ')}` : '');
     if (left > pending.length + unknown.length) return { verdict: 'take', reason, why: `남은 골드 ${left}회로 충분합니다${src}` };
@@ -550,7 +550,7 @@
     if (!target || !target.famKey) return;
     const me = target.slots.find(s => (s.user || '').startsWith(selectedUser));
     if (!me || !lastParty.names.includes(me.name)) return;
-    if (escData[me.name] && Date.now() - escData[me.name].at < ESC_FRESH_MS) return;
+    if (escData[me.name] && (escData[me.name].noList || Date.now() - escData[me.name].at < ESC_FRESH_MS)) return;
     if (Date.now() - (escAskedAt[me.name] || 0) < ESC_ASK_COOLDOWN_MS) return;
     const diffKey = normalizeDiff(target.block.title);
     const verdicts = new Set([1, 2, 3].map(left => judgeGold(me.name, target.famKey, diffKey, left).verdict));
@@ -596,11 +596,13 @@
       .sort((a, b) => ((b.user || '').startsWith(selectedUser || '\u0000') - (a.user || '').startsWith(selectedUser || '\u0000')) || b.name.length - a.name.length);
     const charName = (escRequest && escRequest.char && fullText.includes(escRequest.char)) ? escRequest.char : (mineFirst[0] && mineFirst[0].name);
     if (!charName || !lm) return;
-    escData[charName] = { at: Date.now(), left: +lm[1], rows }; // rows = 이번 주 참여 완료한 레이드(gold = 골드 받음)
+    // rows = 이번 주 참여 완료한 레이드(gold = 골드 받음). 게임 메뉴 레이드 목록은 각자 직접 설정하는 거라 안 한 사람은
+    // 비어 있다 - 그러면 noList로 기억해 두고 이 캐릭터에게는 다시 ESC를 요청하지 않는다(남은 횟수만 쓴다).
+    escData[charName] = { at: Date.now(), left: +lm[1], rows, noList: rows.length === 0 };
     escRequest = null;
     const goldNames = rows.filter(r => r.gold).map(r => RAID_SHORT_NAME[r.key] || r.key).join(', ') || '없음';
-    log(`ESC 읽음: ${charName} 남은 ${lm[1]}회, 골드 받은 레이드 ${goldNames}`);
-    setStatus(`ESC 확인: ${charName} 남은 골드 ${lm[1]}회 (받은 곳: ${goldNames})`);
+    log(`ESC 읽음: ${charName} 남은 ${lm[1]}회, ${rows.length ? '골드 받은 레이드 ' + goldNames : '레이드 목록 없음(다시 요청 안 함)'}`);
+    setStatus(rows.length ? `ESC 확인: ${charName} 남은 골드 ${lm[1]}회 (받은 곳: ${goldNames})` : `ESC 확인: ${charName} 남은 골드 ${lm[1]}회 (레이드 목록 없음)`);
     notify('info');
   }
 

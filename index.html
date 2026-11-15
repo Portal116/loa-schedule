@@ -192,7 +192,7 @@
           <span class="font-bold text-lg text-white tracking-wide whitespace-nowrap"><span class="mark-narrow">공대</span><span class="mark-wide">로아 공대</span></span>
           <!-- 마크(로고 텍스트)는 A가 "미니"로 접힐 때만 같이 줄어든다(축약형 단계에서는 로고는 풀네임 유지) -->
           <button onclick="openInfoModal('changelog')" class="text-[10px] font-mono font-bold px-1.5 sm:px-2 py-0.5 rounded bg-yellow-500/10 text-yellow-400 border border-yellow-500/30 hover:bg-yellow-500/20 transition cursor-pointer" title="클릭하여 업데이트 이력 확인">
-            v2.19
+            v2.20
           </button>
         </div>
 
@@ -254,6 +254,11 @@
         <button onclick="openInfoModal('guide')" class="flex items-center gap-1 h-8 bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white border border-gray-700 text-xs font-semibold px-2.5 rounded-lg transition" title="도움말 및 패치노트">
           <i data-lucide="help-circle" class="w-3.5 h-3.5 text-yellow-400"></i>
           <span class="unit-c-full">도움말</span>
+        </button>
+
+        <button onclick="toggleRaidShare()" id="raidShareBtn" class="flex items-center gap-1 h-8 bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white border border-gray-700 text-xs font-semibold px-2.5 rounded-lg transition" title="게임 화면을 공유하면 입장 창을 읽어 골드를 받을지 알려 주고, 관리자 모드면 파티 인원으로 참여 캐릭터를 바꿉니다(PC 크롬)">
+          <i data-lucide="monitor-up" class="w-3.5 h-3.5 text-cyan-400"></i>
+          <span class="unit-c-full">화면 공유</span>
         </button>
 
         <div class="flex items-center gap-2">
@@ -1073,6 +1078,19 @@
             </p>
           </div>
           <div class="bg-[#0d1117] p-3.5 rounded-xl border border-gray-800">
+            <h4 class="font-bold text-xs mb-1.5 text-yellow-400">Q. [화면 공유]는 어떻게 쓰나요?</h4>
+            <p class="text-xs text-gray-300 leading-relaxed">
+              PC 크롬/엣지에서 위쪽 [화면 공유]를 누르고 로스트아크 창을 고르면, 레이드 입장 창이 뜰 때 이번 레이드에서 골드를 받아도 되는지 알려 줍니다. 먼저 위쪽 "강조"에서 본인을 골라 주세요. 받으면 안 되면 빨간 창, 판단이 애매하면 노란 창이 "삐삐" 소리와 함께 뜨고, 레이드를 시작하면 자동으로 닫힙니다. 게임은 창모드나 전체 창모드로 켜 주세요. 화면은 내 PC 안에서만 읽고 어디에도 보내지 않습니다.
+            </p>
+          </div>
+          <div class="bg-[#0d1117] p-3.5 rounded-xl border border-gray-800">
+            <h4 class="font-bold text-xs mb-1.5 text-yellow-400">Q. 화면 공유 중에 "ESC를 눌러 주세요"가 떠요!</h4>
+            <p class="text-xs text-gray-300 leading-relaxed">
+              골드를 받을지 판단할 정보가 부족할 때만 뜹니다. 게임에서 ESC를 한 번 눌러 게임 메뉴를 열면, 오른쪽에 있는 남은 골드 횟수와 레이드 목록을 읽어 갑니다. "삐삐" 소리가 나면 메뉴를 닫으셔도 됩니다.<br>
+              게임 메뉴 오른쪽 레이드 목록에 골드 받을 레이드를 설정해 두면 더 정확하게 알려 줍니다. 설정하지 않았으면 같은 캐릭터에게는 이번 주에 다시 요청하지 않습니다.
+            </p>
+          </div>
+          <div class="bg-[#0d1117] p-3.5 rounded-xl border border-gray-800">
             <h4 class="font-bold text-xs mb-1.5 text-yellow-400">Q. 레이드 진행 관리 창의 [만찬]은 뭔가요?</h4>
             <p class="text-xs text-gray-300 leading-relaxed">
               은지/안녕님이 만찬을 깔면 어느 계정인지, 얼마나 남았는지(최대 1시간) 여기서 확인할 수 있습니다. 등록/변경은 은지·안녕님만 가능합니다.
@@ -1115,7 +1133,17 @@
         <div id="infoContentChangelog" class="space-y-3 hidden">
           <div class="border-l-2 border-yellow-500 pl-3 py-1 mb-3">
             <div class="flex items-center justify-between">
-              <span class="font-bold text-white text-xs">v2.19 - 레이드 추가·진행 개선</span>
+              <span class="font-bold text-white text-xs">v2.20 - 화면 공유</span>
+              <span class="text-[11px] text-gray-500">2026.11.15</span>
+            </div>
+            <ul class="text-xs text-gray-400 mt-1 space-y-0.5 list-disc pl-3">
+              <li>PC에서 [화면 공유]로 게임 화면을 공유하면, 레이드 입장 때 이 캐릭터가 골드를 받아도 되는지 알려주는 기능 추가</li>
+              <li>진행 중인 레이드에서 인원이 바뀐 캐릭터에도 골드 표시가 나오도록 수정</li>
+            </ul>
+          </div>
+          <div class="border-l-2 border-gray-700 pl-3 py-1 mb-3">
+            <div class="flex items-center justify-between">
+              <span class="font-bold text-gray-300 text-xs">v2.19 - 레이드 추가·진행 개선</span>
               <span class="text-[11px] text-gray-500">2026.11.01</span>
             </div>
             <ul class="text-xs text-gray-400 mt-1 space-y-0.5 list-disc pl-3">
@@ -1697,7 +1725,7 @@
     const RAID_STATUS_POLL_MS = 15000;
     // 운영(index.html)에 배포된 실제 버전. Config 시트 '앱버전' 값과 달라지면 새로고침을 유도한다.
     // dev.html은 빌드 번호가 세션마다 바뀌므로 이 체크 자체를 IS_DEV로 건너뛴다.
-    const APP_VERSION = '2.19';
+    const APP_VERSION = '2.20';
     let pendingAttendance = { date: '', status: '', memo: '' };
     // 만찬은 은지/안녕만 까는 전역 상태 하나(siteConfig.feastStatus) - 시작 후 1시간 동안 활성.
     const FEAST_PEOPLE = ['은지', '안녕'];
@@ -3102,11 +3130,27 @@
 
     // ─── 커스텀 알림/확인/입력 모달 (alert/confirm/prompt 대체) ─────
     // 네이티브 다이얼로그는 다크 테마와 안 어울리고 브라우저 자동화 입력도 막아서 in-app 모달로 대체한다(Promise 반환).
-    function customAlert(message, title) {
+    // tone: 'danger' 빨강(화면 공유 "골드 받지 마세요"), 'caution' 노랑(골드 애매 - 본인 판단). 없으면 평소 모양.
+    function customAlert(message, title, tone) {
       return new Promise(resolve => {
-        document.getElementById('customAlertTitle').textContent = title || '알림';
+        const titleEl = document.getElementById('customAlertTitle');
+        titleEl.textContent = title || '알림';
         document.getElementById('customAlertMessage').textContent = message;
         const modal = document.getElementById('customAlertModal');
+        const danger = tone === 'danger', caution = tone === 'caution', special = danger || caution;
+        const box = modal.firstElementChild;
+        box.classList.toggle('border-gray-700', !special);
+        box.classList.toggle('ring-4', special);
+        box.classList.toggle('border-red-500', danger);
+        box.classList.toggle('ring-red-500/40', danger);
+        box.classList.toggle('border-amber-400', caution);
+        box.classList.toggle('ring-amber-400/40', caution);
+        box.classList.toggle('!bg-amber-950', caution);
+        titleEl.classList.toggle('text-white', !special);
+        titleEl.classList.toggle('text-red-300', danger);
+        titleEl.classList.toggle('text-amber-300', caution);
+        titleEl.classList.toggle('text-base', special);
+        titleEl.classList.toggle('text-sm', !special);
         const okBtn = document.getElementById('customAlertOkBtn');
         modal.classList.remove('hidden');
         const cleanup = () => {
@@ -3276,8 +3320,8 @@
     // slots는 참여캐릭(getEffectiveBlockSlots)이라 불참자는 없다.
     function renderRaidProgressRosterRows(slots, isInProgress) {
       return slots.map(s => {
-        // 원래 편성에 없던(인원 변경으로 들어온) 캐릭터는 골드 판정이 없어 뱃지/경고색을 생략한다.
-        const goldStatus = s.goldUnknown ? null : (slotGoldStatusMap[s.slotUid] || 'NONE');
+        // 원래 편성에 없던(인원 변경으로 들어온) 캐릭터는 getEffectiveBlockSlots가 같은 규칙으로 판정해 goldStatus에 넣어 둔다.
+        const goldStatus = s.goldStatus || slotGoldStatusMap[s.slotUid] || 'NONE';
         const maybeDesc = goldStatus === 'MAYBE' ? getMaybePairDesc(s.foundInPool ? s.level : 0) : '';
         const isMe = selectedUser && (s.user || '').startsWith(selectedUser);
 
@@ -3312,7 +3356,8 @@
       setTimeout(() => { el.textContent = name; }, 1200);
     }
 
-    // 진행중 레이드 명단 위 한 줄(관리자모드 전용) - 편성과 다른지 표시 + [인원 변경]/[원래대로].
+    // 진행중 레이드 명단 위 한 줄(관리자모드 전용) - [인원 변경]/[화면 인식]/[원래대로]. 손댄 여부는 [원래대로]로만 보인다
+    // ("편성과 다른 인원" 문구는 불참자만 있어도 떠서 헷갈려 v2.19.5에서 뺐다).
     function renderRaidProgressRosterTools(isInProgress, effective) {
       const el = document.getElementById('raidProgressRosterTools');
       if (!el) return;
@@ -3322,7 +3367,7 @@
       if (!show) { el.innerHTML = ''; return; }
       const btnClass = 'shrink-0 whitespace-nowrap px-2 py-1 rounded-md border text-[11px] font-semibold transition';
       el.innerHTML = `
-        <span class="text-[11px] ${effective.differsFromSchedule ? 'text-cyan-300' : 'text-gray-500'}">${effective.differsFromSchedule ? '일정표 편성과 다른 인원으로 진행 중' : '참여 캐릭터'}</span>
+        <span class="text-[11px] text-gray-500">참여 캐릭터</span>
         <div class="flex items-center gap-1.5">
           ${effective.differsFromDefault ? `<button onclick="resetActualRoster()" class="${btnClass} text-gray-300 border-gray-700 bg-gray-800 hover:bg-gray-700">원래대로</button>` : ''}
           <button onclick="openScreenOcrModal()" class="${btnClass} text-cyan-300 border-cyan-700/50 bg-cyan-950/20 hover:bg-cyan-900/40">화면 인식</button>
@@ -3442,6 +3487,7 @@
     let screenOcrItems = [];           // [{ text, conf, candidates: [이름], choice: 후보 index | SCREEN_OCR_SKIP | null(미선택) }]
     let screenOcrBusy = false;
     let screenOcrPreviewUrl = '';
+    let screenOcrReAdded = new Set();  // 인식 안 된 기존 참여캐릭 중 [빠짐] 칩을 눌러 다시 넣은 이름
 
     function loadScreenOcrWorker() {
       if (!screenOcrWorkerPromise) {
@@ -3468,6 +3514,7 @@
     function openScreenOcrModal() {
       if (!activeProgressTarget) return;
       screenOcrItems = [];
+      screenOcrReAdded = new Set();
       const preview = document.getElementById('screenOcrPreview');
       preview.classList.add('hidden');
       preview.removeAttribute('src');
@@ -3549,8 +3596,11 @@
     }
 
     // 토큰마다 캐릭터풀에서 정확히 같은 이름 + 한두 글자 차이 후보를 찾는다. 후보가 없는 토큰(파티, 모집중 등)은 버린다.
-    function matchScreenOcrTokens(tokens) {
+    // rosterNames(지금 참여캐릭 + 일정표 편성)는 짧은 이름도 두 글자 차이까지 후보로 본다 - 금색 장식 글꼴 영문처럼
+    // 일부가 깨져 읽히는 경우("AP포탈" → "사포탈"). 후보는 글자 차이 적은 순, 같으면 명단에 있는 이름 먼저.
+    function matchScreenOcrTokens(tokens, rosterNames) {
       const poolNames = Array.from(new Set(characterPoolData.map(c => c.name)));
+      const roster = new Set(rosterNames || []);
       const items = [];
       const seen = new Set();
       for (const w of tokens) {
@@ -3560,10 +3610,10 @@
         // 정확히 일치하면 바꿔 고를 후보는 한 글자 차이만, 일치하지 않으면 긴 이름은 두 글자 차이까지(최대 5개).
         const maxDist = exact || text.length <= 4 ? 1 : 2;
         const near = poolNames
-          .filter(n => n !== text && Math.abs(n.length - text.length) <= maxDist)
-          .map(n => ({ n, d: screenOcrEditDistance(n, text) }))
-          .filter(x => x.d <= maxDist)
-          .sort((a, b) => a.d - b.d)
+          .filter(n => n !== text)
+          .map(n => ({ n, d: screenOcrEditDistance(n, text), r: roster.has(n) }))
+          .filter(x => x.d <= maxDist || (!exact && x.r && x.d <= 2 && x.d <= x.n.length - 2))
+          .sort((a, b) => a.d - b.d || b.r - a.r)
           .slice(0, 5)
           .map(x => x.n);
         if (!exact && !near.length) continue;
@@ -3579,6 +3629,7 @@
       if (!blob || screenOcrBusy) return;
       screenOcrBusy = true;
       screenOcrItems = [];
+      screenOcrReAdded = new Set();
       renderScreenOcrResult();
       try {
         if (screenOcrPreviewUrl) URL.revokeObjectURL(screenOcrPreviewUrl);
@@ -3591,7 +3642,11 @@
         const bitmap = await createImageBitmap(blob);
         const worker = await loadScreenOcrWorker();
         const { data } = await worker.recognize(prepareScreenOcrCanvas(bitmap));
-        screenOcrItems = matchScreenOcrTokens(splitScreenOcrTokens(data.lines || []));
+        const { sheetId, blockIndex, rawRaidTitle } = activeProgressTarget;
+        const rosterNames = getEffectiveBlockSlots(sheetId, blockIndex, rawRaidTitle).slots.map(s => s.name)
+          .concat(((sheetsDataStore[sheetId] && sheetsDataStore[sheetId].blocks[blockIndex]) || { slots: [] }).slots.map(s => s.name))
+          .filter(Boolean);
+        screenOcrItems = matchScreenOcrTokens(splitScreenOcrTokens(data.lines || []), rosterNames);
 
         if (!screenOcrItems.length) {
           setScreenOcrStatus('캐릭터 이름을 찾지 못했습니다. 파티창 부분만 크게 캡처해서 다시 붙여넣어 주세요.', true);
@@ -3639,35 +3694,103 @@
             </div>
           </div>`;
       }).join('');
-      // 지금 참여캐릭과 비교 - 인식 결과로 통째로 바뀌므로(기존 명단은 안 남김) 빠지는 사람이 잘 보이게 한다.
-      const pickedNames = screenOcrItems
+      // 지금 참여캐릭과 비교 - 인식 결과로 통째로 바뀌므로(기존 명단은 안 남김) 인식 안 된 기존 인원을 칩으로 보여 주고,
+      // 누르면 다시 넣는다(이름을 아예 못 읽은 경우 대비).
+      const { picked, missing, allCurrentPicked } = getScreenOcrSelection();
+      if (screenOcrItems.length && !screenOcrBusy) {
+        box.innerHTML += missing.length ? `
+          <div class="pt-2">
+            <p class="text-[11px] text-red-400 mb-1">빠짐 - 인식 안 된 기존 인원은 누르면 다시 넣습니다</p>
+            <div class="flex flex-wrap gap-1">
+              ${missing.map((name, i) => {
+                const on = screenOcrReAdded.has(name);
+                return `<button type="button" onclick="toggleScreenOcrReAdd(${i})" class="${on ? chipClass(true) : 'px-2 py-1 rounded-md border text-[11px] font-semibold transition text-red-300 bg-red-950/30 border-red-800/60 hover:bg-red-900/40'}">
+                  ${escapeHtml(name)} <span class="${on ? 'text-cyan-900' : 'text-red-400/70'} font-normal">${on ? '다시 넣음' : escapeHtml(userOf(name))}</span>
+                </button>`;
+              }).join('')}
+            </div>
+          </div>` : (picked.length && allCurrentPicked ? '<p class="pt-2 text-[11px] text-gray-500">지금 참여 캐릭터가 모두 인식됐습니다.</p>' : '');
+      }
+      btn.disabled = screenOcrBusy || !picked.length || screenOcrItems.some(it => it.choice === null);
+    }
+
+    // 최종 선택 = 인식 결과에서 고른 이름 + [빠짐]에서 다시 넣은 이름. missing = 인식 결과 어디에도(후보 칩 포함) 안 나온
+    // 지금 참여캐릭 - 위 후보 칩에 있는 이름은 거기서 고르면 되므로 [빠짐]에 또 띄우지 않는다.
+    function getScreenOcrSelection() {
+      const fromOcr = screenOcrItems
         .filter(it => it.choice !== null && it.choice !== SCREEN_OCR_SKIP)
         .map(it => it.candidates[it.choice]);
-      if (pickedNames.length && activeProgressTarget) {
+      const shown = new Set(screenOcrItems.flatMap(it => it.candidates));
+      let current = [];
+      if (activeProgressTarget) {
         const { sheetId, blockIndex, rawRaidTitle } = activeProgressTarget;
-        const current = getEffectiveBlockSlots(sheetId, blockIndex, rawRaidTitle).slots.map(s => s.name);
-        const added = pickedNames.filter(n => !current.includes(n));
-        const removed = current.filter(n => !pickedNames.includes(n));
-        const line = (label, names, cls) => names.length
-          ? `<p class="text-[11px] ${cls}">${label}: ${names.map(escapeHtml).join(', ')}</p>` : '';
-        box.innerHTML += `
-          <div class="pt-2 space-y-0.5">
-            ${added.length || removed.length
-              ? line('새로 들어감', added, 'text-cyan-300') + line('빠짐', removed, 'text-red-400')
-              : '<p class="text-[11px] text-gray-500">지금 참여 캐릭터와 같습니다.</p>'}
-          </div>`;
+        current = getEffectiveBlockSlots(sheetId, blockIndex, rawRaidTitle).slots.map(s => s.name);
       }
-      btn.disabled = screenOcrBusy || !pickedNames.length || screenOcrItems.some(it => it.choice === null);
+      const missing = current.filter(n => !shown.has(n));
+      const reAdded = missing.filter(n => screenOcrReAdded.has(n));
+      const picked = Array.from(new Set(fromOcr.concat(reAdded)));
+      return { picked, missing, allCurrentPicked: current.every(n => picked.includes(n)) };
+    }
+
+    function toggleScreenOcrReAdd(missingIndex) {
+      const name = getScreenOcrSelection().missing[missingIndex];
+      if (!name) return;
+      if (screenOcrReAdded.has(name)) screenOcrReAdded.delete(name);
+      else screenOcrReAdded.add(name);
+      renderScreenOcrResult();
     }
 
     function applyScreenOcrResult() {
       if (screenOcrItems.some(it => it.choice === null)) return;
-      const names = Array.from(new Set(screenOcrItems
-        .filter(it => it.choice !== SCREEN_OCR_SKIP)
-        .map(it => it.candidates[it.choice])));
+      const names = getScreenOcrSelection().picked;
       if (!names.length) return;
       closeScreenOcrModal();
       openActualRosterEditor(names);
+    }
+
+    // ─── 화면 공유(게임 창 읽기) ───────────────────────────────
+    // 기능 본체는 raid-share(.dev).js에 따로 두고 처음 누를 때만 불러온다(평소 페이지 로딩/파싱 비용 없음).
+    // 운영(index.html)은 raid-share.js, dev는 raid-share.dev.js - 같은 GitHub Pages라 dev 수정이 운영에 섞이지 않게 나눈다.
+    const RAID_SHARE_SRC = IS_DEV ? 'raid-share.dev.js' : 'raid-share.js';
+    let raidShareScriptPromise = null;
+    // 화면 공유를 지원하는 브라우저(PC 크롬/엣지 등)에서만 버튼을 보인다 - 모바일/태블릿 브라우저는 숨김.
+    (function () {
+      const btn = document.getElementById('raidShareBtn');
+      if (btn && !(navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia)) btn.style.display = 'none';
+    })();
+    function loadRaidShareScript() {
+      if (!raidShareScriptPromise) {
+        raidShareScriptPromise = new Promise((resolve, reject) => {
+          if (window.RaidShare) return resolve();
+          const s = document.createElement('script');
+          s.src = `${RAID_SHARE_SRC}?v=${encodeURIComponent(APP_VERSION)}-${Date.now()}`;
+          s.onload = resolve;
+          s.onerror = () => reject(new Error('화면 공유 기능을 불러오지 못했습니다.'));
+          document.head.appendChild(s);
+        });
+        raidShareScriptPromise.catch(() => { raidShareScriptPromise = null; });
+      }
+      return raidShareScriptPromise;
+    }
+
+    // 화면 선택 창(getDisplayMedia)은 클릭 직후에만 열 수 있어 스크립트를 불러오기 전에 먼저 띄운다.
+    async function toggleRaidShare() {
+      if (window.RaidShare && window.RaidShare.isActive()) { window.RaidShare.stop(); return; }
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
+        customAlert('화면 공유는 PC 크롬/엣지에서만 쓸 수 있습니다.');
+        return;
+      }
+      let stream;
+      try {
+        stream = await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: 5 }, audio: false });
+      } catch (e) { return; } // 사용자가 취소
+      try {
+        await loadRaidShareScript();
+        await window.RaidShare.start(stream);
+      } catch (e) {
+        stream.getTracks().forEach(t => t.stop());
+        customAlert(e && e.message ? e.message : '화면 공유를 시작하지 못했습니다.');
+      }
     }
 
     // 진행중 모달이 열려 있으면 같은 대상으로(재조회 없이) 다시 그린다.
@@ -3727,7 +3850,7 @@
       const goldWarnEl = document.getElementById('raidProgressGoldWarning');
       if (goldWarnEl) {
         const mySlot = (isInProgress && selectedUser) ? rosterSlots.find(s => (s.user || '').startsWith(selectedUser)) : null;
-        const goldStatus = (mySlot && !mySlot.goldUnknown) ? (slotGoldStatusMap[mySlot.slotUid] || 'NONE') : null;
+        const goldStatus = mySlot ? (mySlot.goldStatus || slotGoldStatusMap[mySlot.slotUid] || 'NONE') : null;
         if (!goldStatus || goldStatus === 'EARN') {
           goldWarnEl.classList.add('hidden');
         } else {
@@ -4785,7 +4908,7 @@
         const isGoldChar = goldEligibleCharNames.has(c.name);
 
         // 주간 골드 진행도 - 확정(EARN)은 한 칸씩, 선택 구간(MAYBE)은 여러 개를 돌아도 남은 칸 수만큼만 인정한다.
-        const tierMap = isGoldChar ? computeGoldTiers(c.level) : {};
+        const tierMap = isGoldChar ? getGoldTierMapForLevel(c.level) : {};
         // Wild_Clears 기록(V/W)은 완료 시점에 남아 조기 리셋으로 Raid_Status가 비워져도 유지된다(유예 보정 불필요).
         const isDone = k => {
           const st = getCharRaidStatus(c.name, k);
@@ -5293,7 +5416,7 @@
     }
 
     // 참여캐릭 슬롯 목록(진행중 명단/겹침 검사/자동 팝업 공통). 원래 편성 캐릭터는 그 슬롯을 그대로 써서 골드 판정을
-    // 유지하고, 새로 들어온 캐릭터는 goldUnknown. differsFromDefault = 관리자가 손댐([원래대로] 표시 기준).
+    // 유지하고, 새로 들어온 캐릭터는 같은 규칙으로 골드를 판정해 goldStatus에 넣는다. differsFromDefault = 관리자가 손댐([원래대로] 표시 기준).
     function getEffectiveBlockSlots(sheetId, blockIndex, rawRaidTitle) {
       const block = (sheetsDataStore[sheetId] && sheetsDataStore[sheetId].blocks[blockIndex]) || null;
       const baseSlots = block ? block.slots : [];
@@ -5303,12 +5426,12 @@
       const slots = roster.map(o => {
         const orig = baseSlots.find(s => s.name === o.name);
         if (orig) return orig;
-        return enrichSlotFromPool({ slotUid: `actual_${sheetId}_${blockIndex}_${o.name}`, user: o.user, name: o.name, goldUnknown: true });
+        return enrichSlotFromPool({ slotUid: `actual_${sheetId}_${blockIndex}_${o.name}`, user: o.user, name: o.name,
+          goldStatus: getCharRaidGoldStatus(o.name, block ? block.title : '') });
       });
       const nameKey = list => list.map(x => x.name).sort().join(',');
       return {
         slots,
-        differsFromSchedule: nameKey(roster) !== nameKey(baseSlots.filter(s => s.name)),
         differsFromDefault: nameKey(roster) !== nameKey(defaults)
       };
     }
@@ -5354,27 +5477,50 @@
 
     function calculateGoldEligibilities(instances) {
       slotGoldStatusMap = {};
-
-      const tierMapCache = {};
-      function getTierMapForLevel(lvl) {
-        if (!tierMapCache[lvl]) tierMapCache[lvl] = computeGoldTiers(lvl);
-        return tierMapCache[lvl];
-      }
-
       instances.forEach(inst => {
-        const isGoldChar = goldEligibleCharNames.has(inst.charName);
-        if (!isGoldChar) {
-          slotGoldStatusMap[inst.slotUid] = 'NONE';
-          return;
-        }
-
-        const charObj = characterPoolData.find(c => c.name === inst.charName);
-        const charLvl = charObj ? charObj.level : 0;
-        const tierMap = getTierMapForLevel(charLvl);
-
-        const instKey = getRaidFamilyKey(inst.raidTitle);
-        slotGoldStatusMap[inst.slotUid] = instKey ? (tierMap[instKey] || 'NONE') : 'NONE';
+        slotGoldStatusMap[inst.slotUid] = getCharRaidGoldStatus(inst.charName, inst.raidTitle);
       });
+    }
+
+    // 캐릭터 x 레이드 골드 판정(EARN/MAYBE/NONE). 캐릭터풀(계정별 상위 6캐릭 + 레벨)과 레이드 계열만 보고 편성과는
+    // 무관하므로, 진행중 [인원 변경]으로 새로 들어온 캐릭터도 같은 함수로 판정한다.
+    function getCharRaidGoldStatus(charName, raidTitle) {
+      if (!goldEligibleCharNames.has(charName)) return 'NONE';
+      const charObj = characterPoolData.find(c => c.name === charName);
+      const famKey = getRaidFamilyKey(raidTitle);
+      return famKey ? (getGoldTierMapForLevel(charObj ? charObj.level : 0)[famKey] || 'NONE') : 'NONE';
+    }
+
+    // ─── 골드 구간 표 ─────────────────────────────────────────
+    // 레이드(계열+난이도)마다 "이 레벨 구간이면 골드 확정/선택" 행을 Raid_Info에서 한 번 만들어 둔다.
+    // { key, name, diff, min, max, status } - min <= 레벨 < max. 판정이 바뀌는 지점은 Raid_Info 입장 레벨뿐이라
+    // 입장 레벨 사이 구간은 시작 레벨의 computeGoldTiers 결과와 같다. Raid_Info가 다시 들어오면 새로 만든다.
+    let goldRangeTable = [], goldRangeTableSrc = null;
+    function getGoldRangeTable() {
+      if (goldRangeTableSrc === raidInfoData) return goldRangeTable;
+      goldRangeTableSrc = raidInfoData;
+      const levels = Array.from(new Set(raidInfoData.map(r => parseGoldNum(r.level)).filter(n => n > 0))).sort((a, b) => a - b);
+      const rows = [];
+      levels.forEach((min, i) => {
+        const max = i + 1 < levels.length ? levels[i + 1] : Infinity;
+        const tiers = computeGoldTiers(min);
+        getCharTop3Raids(min).forEach(c => {
+          const status = tiers[c.key];
+          if (status !== 'EARN' && status !== 'MAYBE') return;
+          const prev = rows.find(r => r.key === c.key && r.diff === c.diff && r.status === status && r.max === min);
+          if (prev) prev.max = max;
+          else rows.push({ key: c.key, name: c.name, diff: c.diff, min, max, status, payout: c.payout });
+        });
+      });
+      goldRangeTable = rows;
+      return rows;
+    }
+
+    // 레벨 하나의 { 계열키: 'EARN' | 'MAYBE' } (표에 없는 계열은 미획득).
+    function getGoldTierMapForLevel(level) {
+      const map = {};
+      getGoldRangeTable().forEach(r => { if (r.min <= level && level < r.max) map[r.key] = r.status; });
+      return map;
     }
 
     // ─── 빈 자리에 본인 추가 ──────────────────────────────────
