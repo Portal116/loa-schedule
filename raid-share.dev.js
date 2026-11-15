@@ -1,0 +1,704 @@
+// 진행중 레이드 화면 공유 - dev.html이 [화면 공유]를 처음 누를 때만 불러온다(평소 로딩에 영향 없음).
+// 운영 승격 때는 이 파일을 raid-share.js로 복사한다(index.html은 raid-share.js를 불러옴).
+// dev.html의 전역(함수, let 변수)을 그대로 쓴다 - 일반 <script>끼리는 최상위 let/const도 공유된다.
+//
+// 하는 일(게임 창을 공유받아 2초마다 일부만 읽는다. 화면은 이 PC 안에서만 처리하고 어디에도 보내지 않음):
+//  1) 입장 창(가운데): 레이드/난이도/남은 골드 횟수를 읽어 내 캐릭터가 여기서 골드를 받아도 되는지 판단,
+//     받지 말아야 하면 "삐" 소리 + 사이트 알림창. 관리자 모드면 직전에 읽은 파티창 인원으로 참여 캐릭터 자동 변경(정확 일치만).
+//  2) 파티창(오른쪽): 파티원 이름. "모집 상세 정보" 글자 위치로 영역을 자동으로 찾는다.
+//  3) ESC 게임 메뉴: 판단이 갈릴 때만 "ESC를 눌러 달라"고 요청해서 남은 횟수 + 골드 받은 레이드를 읽는다.
+(function () {
+  'use strict';
+
+  const TICK_MS = 2000;
+  const PARTY_EVERY = 3;              // 파티창은 3박자마다
+  const PARTY_RELOCATE_MIN_MS = 15000; // 파티창 다시 찾기 최소 간격(화면 전체 읽기는 1~3초 걸림)
+  const ESC_WAIT_MS = 45000;          // ESC 요청 후 기다리는 시간
+  const ESC_ASK_COOLDOWN_MS = 10 * 60 * 1000;
+  const PARTY_FRESH_MS = 3 * 60 * 1000;
+  const ESC_FRESH_MS = 12 * 60 * 60 * 1000;
+  const PARTY_REGION_KEY = 'loa_share_party_region';
+  // 입장 창은 항상 가운데라 화면 비율로 충분하다(1337~1919px 창모드 스샷 4장 기준 + 여유).
+  const DIALOG_REGION = { x: 0.385, y: 0.27, w: 0.23, h: 0.46 };
+  const DEFAULT_PARTY_REGION = { x: 0.665, y: 0.15, w: 0.335, h: 0.45 }; // 16인(파티 4개)까지
+  // 게임 화면 이름 → 레이드 계열(getRaidFamilyKey로 안 잡히는 것만). ESC 목록은 보스 이름으로 나온다.
+  const GAME_RAID_ALIASES = [
+    ['코르부스', 'serka'], ['고통의 마녀', 'serka'],
+    ['크라그마', 'belga'], ['계율자', 'belga'],
+    ['카제로스', 'final'], ['최후의 날', 'final'],
+    ['파멸의 성채', 'act4'], ['지평', 'cathedral']
+  ];
+
+  let stream = null, video = null, tickWorker = null, busy = false, tickNo = 0;
+  let frame = null;                    // 재사용 캔버스(매 박자 전체 프레임)
+  let partyRegion = loadPartyRegion(), partyMiss = 0, lastLocateAt = 0;
+  let lastParty = null;                // { at, items, names }
+  let dialogOpen = false;
+  const escData = {};                  // 캐릭터명 -> { at, left, rows: [{ key, gold }] }
+  const escAskedAt = {};               // 캐릭터명 -> 마지막 요청 시각
+  let escRequest = null;               // { until, char }
+  const logs = [];
+
+  // ─── 시작/중지 ───────────────────────────────────────────
+  async function start(mediaStream) {
+    stop(true);
+    stream = mediaStream;
+    video = document.createElement('video');
+    video.muted = true; video.srcObject = stream;
+    await video.play();
+    stream.getVideoTracks()[0].addEventListener('ended', () => stop());
+    frame = document.createElement('canvas');
+    renderBar();
+    setHeaderActive(true);
+    setStatus('인식 데이터 준비 중...');
+    await loadScreenOcrWorker();
+    const s = stream.getVideoTracks()[0].getSettings();
+    log(`공유 시작 ${s.width}x${s.height}`);
+    setStatus('화면 공유 중 - 입장 창/파티창을 읽고 있습니다');
+    // 탭이 가려져도 박자가 늦춰지지 않게 워커 안 타이머를 쓴다.
+    const src = `setInterval(() => postMessage(0), ${TICK_MS});`;
+    tickWorker = new Worker(URL.createObjectURL(new Blob([src], { type: 'text/javascript' })));
+    tickWorker.onmessage = onTick;
+  }
+
+  function stop(silent) {
+    if (tickWorker) tickWorker.terminate();
+    tickWorker = null;
+    if (stream) stream.getTracks().forEach(t => t.stop());
+    stream = null; video = null; escRequest = null; dialogOpen = false;
+    setHeaderActive(false);
+    const bar = document.getElementById('raidShareBar');
+    if (bar) bar.remove();
+    if (!silent) log('공유 중지');
+  }
+
+  function isActive() { return !!stream; }
+
+  // ─── 박자 ───────────────────────────────────────────────
+  async function onTick() {
+    if (!stream || busy || !video || !video.videoWidth) return;
+    busy = true;
+    try {
+      tickNo++;
+      grabFrame();
+      await processFrame(frame);
+    } catch (e) {
+      log('오류: ' + (e && e.message ? e.message : e));
+    } finally {
+      busy = false;
+    }
+  }
+
+  function grabFrame() {
+    if (frame.width !== video.videoWidth || frame.height !== video.videoHeight) {
+      frame.width = video.videoWidth; frame.height = video.videoHeight;
+    }
+    frame.getContext('2d').drawImage(video, 0, 0);
+  }
+
+  // 한 프레임 처리(시험 때는 스샷 캔버스를 바로 넣을 수 있게 분리).
+  async function processFrame(f) {
+    if (escRequest) {
+      if (Date.now() > escRequest.until) { escRequest = null; setStatus('ESC 화면을 못 찾았습니다'); }
+      else { await scanEsc(f); return; }
+    }
+    const dialogText = await readRegion(f, DIALOG_REGION);
+    const dialog = parseDialog(dialogText);
+    if (dialog && !dialogOpen) await onEntryDialog(dialog);
+    dialogOpen = !!dialog;
+    if (!dialog && goldWatch) { await checkGoldSetting(f); return; }
+    if (!dialog && tickNo % PARTY_EVERY === 0) await readParty(f);
+  }
+
+  // ─── 영역 읽기 ───────────────────────────────────────────
+  // 어두운 바탕 밝은 글자 → 흰 바탕 검은 글자, 작은 영역은 키운다(긴 변 1200px 정도면 충분하고 빠르다).
+  async function readRegion(f, r, withData) {
+    const sx = Math.round(r.x * f.width), sy = Math.round(r.y * f.height);
+    const sw = Math.round(r.w * f.width), sh = Math.round(r.h * f.height);
+    if (sw < 10 || sh < 10) return withData ? { text: '', data: null } : '';
+    const scale = Math.max(1, Math.min(3, 1200 / Math.max(sw, sh)));
+    const c = invertedCanvas(f, sx, sy, sw, sh, scale);
+    const worker = await loadScreenOcrWorker();
+    const { data } = await worker.recognize(c);
+    const text = (data.lines || []).map(l => l.text.trim()).filter(Boolean).join('\n');
+    return withData ? { text, data, sx, sy, scale } : text;
+  }
+
+  function invertedCanvas(f, sx, sy, sw, sh, scale) {
+    const c = document.createElement('canvas');
+    c.width = Math.round(sw * scale); c.height = Math.round(sh * scale);
+    const g = c.getContext('2d', { willReadFrequently: true });
+    g.imageSmoothingQuality = 'high';
+    g.drawImage(f, sx, sy, sw, sh, 0, 0, c.width, c.height);
+    const d = g.getImageData(0, 0, c.width, c.height), p = d.data;
+    for (let i = 0; i < p.length; i += 4) { const v = 255 - Math.max(p[i], p[i + 1], p[i + 2]); p[i] = p[i + 1] = p[i + 2] = v; }
+    g.putImageData(d, 0, 0);
+    return c;
+  }
+
+  // 화면 전체(긴 변 2000px로 줄여서) 읽기 - 파티창 위치 찾기/ESC 화면에만 쓴다.
+  async function readFull(f) {
+    const scale = Math.min(1, 2000 / Math.max(f.width, f.height));
+    const c = invertedCanvas(f, 0, 0, f.width, f.height, scale);
+    const worker = await loadScreenOcrWorker();
+    const { data } = await worker.recognize(c);
+    return { data, scale };
+  }
+
+  // 한 줄에서 연속 글자(공백 무시) phrase가 차지하는 위치. 한글은 words가 글자 하나씩이라 이어 붙여 찾는다.
+  function phraseBox(line, phrase) {
+    const ws = (line.words || []).filter(w => (w.text || '').trim());
+    const joined = ws.map(w => w.text.trim()).join('');
+    const at = joined.indexOf(phrase);
+    if (at < 0) return null;
+    let pos = 0; const span = [];
+    for (const w of ws) {
+      const t = w.text.trim();
+      if (pos + t.length > at && pos < at + phrase.length) span.push(w.bbox);
+      pos += t.length;
+    }
+    if (!span.length) return null;
+    return { x0: Math.min(...span.map(b => b.x0)), x1: Math.max(...span.map(b => b.x1)), y0: Math.min(...span.map(b => b.y0)), y1: Math.max(...span.map(b => b.y1)) };
+  }
+
+  // ─── 입장 창 ─────────────────────────────────────────────
+  // 골드 남음: "(엔드 콘텐츠 골드 보상 3회 남음)", 다 받음: "엔드 콘텐츠 골드 보상 횟수 모두 소진".
+  // 레이드 줄: "4막 : 파멸의 성채 - [싱글 모드]", "죽음의 계율자, 벨가르딘 - [나이트메어]".
+  function parseDialog(text) {
+    if (!/입장/.test(text) || !/골드\s*보상/.test(text)) return null;
+    const exhausted = /모두\s*소진/.test(text);
+    const lm = text.match(/골드\s*보상\s*([0-9])\s*회\s*남/);
+    const rm = text.match(/^(.*\S)\s*-\s*\[([^\]]+)\]/m);
+    const raidName = rm ? rm[1].trim() : '';
+    return {
+      raidName,
+      famKey: gameRaidKey(raidName),
+      diffKey: gameDiffKey(rm ? rm[2] : ''),
+      diffText: rm ? rm[2].trim() : '',
+      left: exhausted ? 0 : (lm ? +lm[1] : null)
+    };
+  }
+
+  function gameRaidKey(name) {
+    if (!name) return null;
+    const k = getRaidFamilyKey(name);
+    if (k) return k;
+    const hit = GAME_RAID_ALIASES.find(([word]) => name.includes(word));
+    return hit ? hit[1] : null;
+  }
+
+  // 난이도 글자 오타 대비(나이트메이 등) 앞부분으로 맞춘 뒤 normalizeDiff.
+  function gameDiffKey(t) {
+    t = (t || '').trim();
+    if (/나이트|나메/.test(t)) return 'NM';
+    if (/싱글/.test(t)) return 'NORMAL';
+    return normalizeDiff(t);
+  }
+
+  async function onEntryDialog(d) {
+    const raidLabel = `${d.raidName || '?'} [${d.diffText || '?'}]`;
+    log(`입장 창: ${raidLabel}, 남은 골드 ${d.left === null ? '?' : d.left + '회'}`);
+    if (isAdminModeActive()) await applyPartyToRoster(d.famKey);
+    if (d.left === 0) { setStatus(`${raidLabel} - 골드 횟수 소진`); return; }
+    if (!d.famKey) { setStatus(`${raidLabel} - 골드 판단 대상 레이드 아님`); return; }
+    const charName = findMyChar(d.famKey);
+    if (!charName) { setStatus(`${raidLabel} - 내 캐릭터를 못 찾음(상단 강조에서 본인 선택)`); return; }
+    const j = judgeGold(charName, d.famKey, d.diffKey, d.left);
+    const head = `${charName} · ${raidLabel}`;
+    if (j.verdict === 'skip') {
+      setStatus(`⚠ ${head}: 골드 받지 마세요 - ${j.why}`, 'warn');
+      showGoldAlert('skip', head, j.body || `${j.why || j.reason}\n\n→ 입장 창의 [골드 보상 획득] 체크를 끄고 들어가세요.`);
+    } else if (j.verdict === 'unsure') {
+      setStatus(`? ${head}: 골드 확인 필요 - ${j.why}`, 'warn');
+      showGoldAlert('unsure', head, j.body || j.why || j.reason);
+    }
+    else if (j.verdict === 'take') setStatus(`✓ ${head}: 골드 받기 - ${j.why}`);
+    else setStatus(`${head}: ${j.reason}`);
+    log(`판단 ${j.verdict}: ${j.reason}`);
+  }
+
+  // ─── 골드 알림창 + 레이드 안 골드 보상 설정 확인 ─────────────
+  // 골드 알림은 한 창으로: 명백히 받지 말아야 하면 빨강(skip), 애매하면 노랑(unsure, 본인 판단).
+  // 입장 후 왼쪽 위 "골드 보상 설정"(앞 아이콘 빨간 X = 끔, 금화만 = 켬, 1762x1016 실측)을 지켜본다.
+  //  - 빨강: 시작 전 꺼진(X) 걸 보면 닫고, 켜져 있으면 한 번 더 알린다.
+  //  - 레이드를 시작하면 이 줄이 사라지는데(더는 못 바꿈), 그걸 보면 빨강/노랑 모두 닫고 끝낸다.
+  //  - 즉 입장 창 때 1번 + 시작 전 1번까지만 알리고, 시작 뒤엔 창을 정리한다. 3분 지나면 그냥 끝.
+  const GOLD_ALERT_TITLES = { skip: '⚠ 골드 받지 마세요', unsure: '골드 받을지 확인해 주세요' };
+  const GOLD_WATCH_MS = 3 * 60 * 1000;
+  const HUD_GONE_MISSES = 2;          // 설정 줄이 2번 연속 안 보이면 레이드 시작으로 본다(글자 인식 실수 대비)
+  const RAID_HUD_REGION = { x: 0, y: 0.04, w: 0.17, h: 0.22 };
+  let goldWatch = null;               // { kind, head, until, seenHud, misses, realerted }
+
+  function showGoldAlert(kind, head, body) {
+    closeGoldAlert();
+    notify(kind === 'skip' ? 'warn' : 'caution', `${head}\n\n${body}\n\n※ 레이드 안 왼쪽 위 골드 보상 설정을 확인하면 이 창은 자동으로 닫힙니다.`, GOLD_ALERT_TITLES[kind]);
+    goldWatch = { kind, head, until: Date.now() + GOLD_WATCH_MS, seenHud: false, misses: 0, realerted: false };
+  }
+
+  async function checkGoldSetting(f) {
+    if (Date.now() > goldWatch.until) { goldWatch = null; return; }
+    const state = await readGoldSetting(f);
+    if (state === null) {
+      if (goldWatch.seenHud && ++goldWatch.misses >= HUD_GONE_MISSES) {
+        log('레이드 시작(골드 보상 설정 사라짐) - 골드 알림 정리');
+        closeGoldAlert();
+        setStatus(`${goldWatch.head}: 레이드 시작`);
+        goldWatch = null;
+      }
+      return;
+    }
+    goldWatch.seenHud = true; goldWatch.misses = 0;
+    if (goldWatch.kind === 'skip' && state === 'off') {
+      closeGoldAlert();
+      setStatus(`✓ ${goldWatch.head}: 골드 꺼진 것 확인`);
+      log('레이드 안 골드 보상 설정: 꺼짐 확인');
+      notify('info');
+      goldWatch = null;
+    } else if (goldWatch.kind === 'skip' && state === 'on' && !goldWatch.realerted) {
+      goldWatch.realerted = true;
+      log('레이드 안 골드 보상 설정: 아직 켜져 있음');
+      closeGoldAlert();
+      notify('warn', `${goldWatch.head}\n\n골드가 아직 켜져 있습니다.\n레이드 왼쪽 위 [골드 보상 설정]에서 꺼 주세요.\n\n※ 레이드를 시작하거나 꺼진(X) 걸 확인하면 이 창은 자동으로 닫힙니다.`, GOLD_ALERT_TITLES.skip);
+    }
+  }
+
+  // 'off' | 'on' | null(못 찾음)
+  async function readGoldSetting(f) {
+    const hud = await readRegion(f, RAID_HUD_REGION, true);
+    const line = (hud.data.lines || []).find(l => /골드\s*보상/.test(l.text));
+    const b = line && phraseBox(line, '골드보상');
+    if (!b) return null;
+    const x0 = hud.sx + b.x0 / hud.scale, y0 = hud.sy + b.y0 / hud.scale, y1 = hud.sy + b.y1 / hud.scale;
+    const h = y1 - y0;
+    const x = Math.round(x0 - 2.4 * h), y = Math.round(y0 - 0.4 * h), w = Math.round(2.2 * h), hh = Math.round(1.8 * h);
+    if (x < 0 || y < 0 || w < 4 || hh < 4) return null;
+    const d = f.getContext('2d', { willReadFrequently: true }).getImageData(x, y, w, hh).data;
+    let red = 0, gold = 0;
+    for (let i = 0; i < d.length; i += 4) {
+      const R = d[i], G = d[i + 1], B = d[i + 2];
+      if (R > 170 && G < 100 && B < 100) red++;
+      else if (R > 170 && G > 130 && B < 100 && R - B > 90) gold++;
+    }
+    const area = w * hh;
+    if (red / area > 0.05 && red > gold) return 'off';
+    if (gold / area > 0.05 && red < gold * 0.3) return 'on';
+    return null;
+  }
+
+  function closeGoldAlert() {
+    const modal = document.getElementById('customAlertModal');
+    const title = document.getElementById('customAlertTitle');
+    if (modal && !modal.classList.contains('hidden') && title && Object.values(GOLD_ALERT_TITLES).includes(title.textContent)) {
+      document.getElementById('customAlertOkBtn').click();
+    }
+  }
+
+  // ─── 골드 판단 ───────────────────────────────────────────
+  // 이번 레이드보다 골드(총골드)가 많은 레이드(H) 중 "이번 주에 앞으로 갈" 것의 수가 남은 횟수보다 적으면 받기.
+  // H 상태: 이번 주 완료(일정완료/개별 체크) → 끝, 일정표에 편성·미완료 → 앞으로 감, 그 외 → 모름.
+  // 모름이 있으면 갔다/안 갔다 양쪽으로 계산해 결과가 같을 때만 단정한다. ESC를 읽었으면 그 목록이 우선.
+  function judgeGold(charName, famKey, diffKey, left) {
+    const c = characterPoolData.find(x => x.name === charName);
+    if (!c) return { verdict: 'unsure', reason: '캐릭터 정보 없음' };
+    if (!goldEligibleCharNames.has(charName)) return { verdict: 'skip', reason: '골드 대상 캐릭터(계정 상위 6) 아님', why: '골드 대상 캐릭터(계정 레벨 상위 6)가 아닙니다' };
+    const cur = raidEntry(famKey, diffKey, c.level);
+    const curPayout = cur ? cur.payout : 0;
+    // 다른 레이드: 일정표에 편성(미완료)돼 있으면 그 블록의 실제 난이도, 아니면 갈 수 있는 난이도 후보
+    // (최고 난이도 + 난이도 3개짜리 레이드는 최상위를 갈 수 있을 때 2번째 난이도까지)로 본다.
+    // 후보 중 가장 비싼 게 이번 레이드보다 비싸면 "더 비싼 레이드"이고, 2번째 난이도가 이번보다 싸면 alt로 같이 알려 준다.
+    const higher = [];
+    RAID_DEFINITIONS.forEach(def => {
+      if (def.key === famKey) return;
+      const s = scheduledPendingRow(charName, def.key);
+      const opts = s ? [s] : candidateDiffs(def.key, c.level);
+      if (!opts.length || opts[0].payout <= curPayout) return;
+      const alt = opts[1] && opts[1].payout <= curPayout ? opts[1] : null;
+      higher.push({ ...opts[0], scheduled: !!s, alt });
+    });
+    // 선택 구간 짝(예: 1750+ 성당 3단 귀속 ↔ 종막 하드 유통)은 귀속을 어떻게 보느냐에 따라 갈리므로 확정하지 않는다.
+    const tiers = getGoldTierMapForLevel(c.level);
+    const isMaybePair = key => tiers[famKey] === 'MAYBE' && tiers[key] === 'MAYBE';
+    const esc = escData[charName] && Date.now() - escData[charName].at < ESC_FRESH_MS ? escData[charName] : null;
+    if (left === null || left === undefined) left = esc ? esc.left : null;
+    if (left === null) return { verdict: 'unsure', reason: '남은 골드 횟수를 못 읽음', why: '남은 골드 횟수를 읽지 못했습니다' };
+    if (left === 0) return { verdict: 'none', reason: '골드 횟수 소진' };
+    const pending = [], unknown = [], done = [], desc = [];
+    higher.forEach(h => {
+      let st;
+      // ESC는 "참여 완료"로 보이는 레이드만 끝난 걸로 친다(안 간 레이드가 목록에 어떻게 나오는지는 아직 모름).
+      if ((esc && esc.rows.some(r => r.key === h.key)) || isDoneThisWeek(charName, h.key)) st = 'done';
+      else if (isMaybePair(h.key)) { st = 'unknown'; h.maybePair = true; }
+      else if (h.scheduled) st = 'pending';
+      else st = 'unknown';
+      if (st === 'pending') pending.push(h);
+      if (st === 'unknown') unknown.push(h);
+      if (st === 'done') done.push(h);
+      desc.push(`${raidLabelOf(h)}(${st === 'done' ? '완료' : st === 'pending' ? '남음' : '모름'})`);
+    });
+    // reason = 기록용 한 줄, why = 상태 바용 짧은 설명, body = 알림창 본문(창은 자동으로 닫히니 길어도 됨)
+    const reason = `남은 ${left}회, 이번 ${cur ? raidLabelOf(cur) : '?'}, 더 비싼 레이드: ${desc.join(' ') || '없음'}${esc ? ' [ESC 기준]' : ''}`;
+    const src = esc ? ' (ESC 기준)' : '';
+    const curLine = `이번 레이드: ${cur ? raidLineOf(cur) : '?'}\n남은 골드: ${left}회${src}`
+      + (done.length ? `\n이번 주 완료한 더 비싼 레이드: ${done.map(h => RAID_SHORT_NAME[h.key] || h.key).join(', ')}` : '');
+    if (left > pending.length + unknown.length) return { verdict: 'take', reason, why: `남은 골드 ${left}회로 충분합니다${src}` };
+    if (left <= pending.length) {
+      return { verdict: 'skip', reason,
+        why: `남은 골드 ${left}회 · 더 비싼 레이드 예정: ${pending.map(raidLabelOf).join(', ')}${src}`,
+        body: `${curLine}\n\n일정표에 남은 더 비싼 레이드:\n${pending.map(h => '· ' + raidLineOf(h)).join('\n')}\n\n→ 입장 창의 [골드 보상 획득] 체크를 끄고 들어가세요.` };
+    }
+    // 애매할 때는 판단 기준을 그대로 알려 준다: 모르는 레이드 중 앞으로 골드 받을 곳이 (남은 횟수 - 예정 수) 이상이면 끄기.
+    const need = left - pending.length;
+    const cond = unknown.length === 1 ? '위 레이드에서 골드 받을 예정이면'
+      : need >= unknown.length ? '위 레이드 모두에서 골드 받을 예정이면'
+      : `위 레이드 중 ${need}곳 이상에서 골드 받을 예정이면`;
+    const notes = h => [
+      h.alt ? `${diffName(h.alt)} 난이도(${man(h.alt.payout)})면 이번 레이드가 더 비쌈` : '',
+      h.maybePair ? '선택 구간 - 귀속을 낮게 보면 이번 레이드가 나음' : ''
+    ].filter(Boolean).join(', ');
+    const unknownLines = unknown.map(h => { const n = notes(h); return `· ${raidLineOf(h)}${n ? '\n   └ ' + n : ''}`; }).join('\n');
+    return { verdict: 'unsure', reason, needEsc: !esc,
+      why: `남은 골드 ${left}회 · ${unknown.map(raidLabelOf).join(', ')} 확인 필요`,
+      body: `${curLine}${pending.length ? `\n일정표에 남은 더 비싼 레이드: ${pending.map(raidLabelOf).join(', ')}` : ''}\n\n이번 주 기록이 없는 더 비싼 레이드:\n${unknownLines}\n\n→ ${cond} 끄기, 아니면 받기` };
+  }
+
+  // ─── 레이드 금액 도우미 (Raid_Info) ─────────────────────────
+  function rowEntry(r) {
+    return { key: getRaidFamilyKey(r.name), diff: (r.diff || '').trim(), level: parseGoldNum(r.level),
+      payout: parseGoldNum(r.goldTotal), trade: parseGoldNum(r.goldTrade), bound: parseGoldNum(r.goldBound) };
+  }
+  function familyRows(key) {
+    return raidInfoData.filter(r => getRaidFamilyKey(r.name) === key).map(rowEntry).sort((a, b) => (a.level - b.level) || (a.payout - b.payout));
+  }
+  // 그 레벨에서 고려할 난이도(비싼 순): 갈 수 있는 최고 난이도, 그리고 난이도가 3개인 레이드는 최상위 난이도를
+  // 갈 수 있을 때 2번째 난이도까지(빡세서 한 단계 낮춰 가는 경우 - 2026-11-15 사용자 규칙).
+  function candidateDiffs(key, level) {
+    const rows = familyRows(key);
+    const ok = rows.filter(r => level >= r.level);
+    if (!ok.length) return [];
+    const top = ok[ok.length - 1];
+    if (rows.length >= 3 && top === rows[rows.length - 1] && ok.length >= 2) return [top, ok[ok.length - 2]];
+    return [top];
+  }
+  // 입장한 레이드+난이도. 난이도를 못 읽었으면 그 레벨 최고 난이도로 본다.
+  function raidEntry(key, diffKey, level) {
+    return familyRows(key).find(r => normalizeDiff(r.diff) === diffKey) || candidateDiffs(key, level)[0] || null;
+  }
+  function man(v) { return `${(v / 10000).toFixed(1).replace(/\.0$/, '')}만`; }
+  function diffName(e) { return e.diff.replace('나이트메어', '나메').replace('단계', '단'); }
+  function raidLabelOf(e) { return `${RAID_SHORT_NAME[e.key] || e.key} ${diffName(e)}`; }
+  function raidLineOf(e) {
+    const kind = e.bound > 0 ? (e.trade > 0 ? '유통+귀속' : '귀속') : '유통';
+    return `${raidLabelOf(e)} ${man(e.payout)} (${kind})`;
+  }
+
+  function isDoneThisWeek(charName, key) {
+    const st = getCharRaidStatus(charName, key);
+    return st === 'V' || st === 'W';
+  }
+
+  // 일정표에 이 캐릭터가 편성돼 있고 아직 완료 안 된 그 계열 블록의 레이드+난이도(여럿이면 비싼 것). 없으면 null.
+  function scheduledPendingRow(charName, key) {
+    let best = null;
+    (window.allRaidInstancesStore || []).forEach(i => {
+      if (i.charName !== charName || getRaidFamilyKey(i.raidTitle) !== key) return;
+      const s = getRaidStatusFor(i.sheetId, i.blockIndex, i.rawRaidTitle);
+      if (s && s.status === '완료') return;
+      const row = familyRows(key).find(r => normalizeDiff(r.diff) === normalizeDiff(i.raidTitle));
+      if (row && (!best || row.payout > best.payout)) best = row;
+    });
+    return best;
+  }
+
+  // 내 캐릭터 = 상단 "강조"로 고른 유저의 캐릭터. 진행중 레이드(같은 계열) → 최근 파티창 → 최근 ESC 순으로 찾는다.
+  function findMyChar(famKey) {
+    if (!selectedUser) return null;
+    const isMine = name => { const c = characterPoolData.find(x => x.name === name); return !!(c && (c.user || '').startsWith(selectedUser)); };
+    for (const t of inProgressTargets()) {
+      if (famKey && t.famKey !== famKey) continue;
+      const me = t.slots.find(s => (s.user || '').startsWith(selectedUser));
+      if (me) return me.name;
+    }
+    if (lastParty && Date.now() - lastParty.at < PARTY_FRESH_MS) {
+      const n = lastParty.names.find(isMine);
+      if (n) return n;
+    }
+    const escChar = Object.keys(escData).filter(isMine).sort((a, b) => escData[b].at - escData[a].at)[0];
+    return escChar || null;
+  }
+
+  function inProgressTargets() {
+    return raidStatusData.filter(s => s.status === '진행중').map(s => {
+      const block = sheetsDataStore[s.sheetId] && sheetsDataStore[s.sheetId].blocks[s.blockIndex];
+      if (!block) return null;
+      return {
+        sheetId: s.sheetId, blockIndex: s.blockIndex, rawRaidTitle: s.rawRaidTitle, block,
+        famKey: getRaidFamilyKey(block.title),
+        slots: getEffectiveBlockSlots(s.sheetId, s.blockIndex, s.rawRaidTitle).slots
+      };
+    }).filter(Boolean);
+  }
+
+  // ─── 파티창 ──────────────────────────────────────────────
+  async function readParty(f) {
+    const text = await readRegion(f, partyRegion);
+    if (!/모집|파티/.test(text)) {
+      partyMiss++;
+      if (partyMiss >= 3 && Date.now() - lastLocateAt > PARTY_RELOCATE_MIN_MS) await locateParty(f);
+      return;
+    }
+    partyMiss = 0;
+    const targets = inProgressTargets();
+    const rosterNames = targets.flatMap(t => t.slots.map(s => s.name).concat(t.block.slots.map(s => s.name))).filter(Boolean);
+    const tokens = trimTokensToPoolNames(splitScreenOcrTokens(text.split('\n').map(t => ({ text: t, words: [] }))));
+    const items = matchScreenOcrTokens(tokens, rosterNames);
+    if (!items.length) return;
+    const names = items.filter(it => it.choice !== null && it.choice !== SCREEN_OCR_SKIP).map(it => it.candidates[it.choice]);
+    lastParty = { at: Date.now(), items, names };
+    maybeAskEsc();
+  }
+
+  // 아이콘이 이름 앞에 붙어 "봄줄은지야기상"처럼 읽히는 경우 - 캐릭터 이름으로 끝나면 그 이름만 남긴다(긴 이름 우선).
+  // splitScreenOcrTokens는 words가 없으면 신뢰도 100으로 두므로, 정확 일치 여부만 자동 선택 기준이 된다.
+  function trimTokensToPoolNames(tokens) {
+    const names = Array.from(new Set(characterPoolData.map(c => c.name))).sort((a, b) => b.length - a.length);
+    return tokens.map(t => {
+      const clean = (t.text || '').replace(/[^0-9A-Za-z가-힣]/g, '');
+      const hit = names.find(n => n.length >= 3 && clean.length > n.length && clean.endsWith(n));
+      return hit ? { ...t, text: hit } : t;
+    });
+  }
+
+  // 화면 전체에서 "모집 상세 정보" 글자를 찾아 파티창 영역을 맞춘다(1756x1017 실측: 패널 폭 ≈ 글자 폭 4.4배,
+  // 16인 파티 4개 2줄까지 ≈ 글자 아래 26줄 높이).
+  async function locateParty(f) {
+    lastLocateAt = Date.now();
+    const { data, scale } = await readFull(f);
+    let hit = null;
+    for (const l of (data.lines || [])) {
+      if (!/모집\s*상세/.test(l.text)) continue;
+      hit = phraseBox(l, '모집상세');
+      if (hit) break;
+    }
+    if (!hit) return false;
+    const W = f.width * scale, H = f.height * scale;
+    // pw는 "모집상세" 4글자 폭이라 실측 기준("모집상세정보" 6글자)에 맞게 1.5배 해서 쓴다.
+    const pw = (hit.x1 - hit.x0) * 1.5, ph = hit.y1 - hit.y0;
+    const x0 = Math.max(0, hit.x1 - pw * 4.6), x1 = Math.min(W, hit.x1 + pw * 1.3);
+    const y0 = Math.max(0, hit.y0 - ph * 1.5), y1 = Math.min(H, hit.y1 + ph * 26);
+    partyRegion = { x: x0 / W, y: y0 / H, w: (x1 - x0) / W, h: (y1 - y0) / H };
+    try { localStorage.setItem(PARTY_REGION_KEY, JSON.stringify(partyRegion)); } catch (e) {}
+    partyMiss = 0;
+    log('파티창 위치를 다시 찾았습니다');
+    return true;
+  }
+
+  function loadPartyRegion() {
+    try { const r = JSON.parse(localStorage.getItem(PARTY_REGION_KEY)); if (r && r.w > 0) return r; } catch (e) {}
+    return { ...DEFAULT_PARTY_REGION };
+  }
+
+  // 입장 직전(입장 창이 뜬 순간) 마지막으로 읽은 파티 인원으로 진행중 레이드 참여 캐릭터를 바꾼다(관리자 모드).
+  // 모든 이름이 정확히 일치할 때만 저장하고, 비슷한 이름이 섞이면 알리기만 한다. 규칙은 [인원 변경]과 같다.
+  async function applyPartyToRoster(famKey) {
+    if (!lastParty || Date.now() - lastParty.at > PARTY_FRESH_MS) return;
+    if (lastParty.items.some(it => it.choice === null)) {
+      setStatus('파티 인원 중 비슷한 이름이 있어 자동으로 바꾸지 않았습니다 - [화면 인식]으로 확인하세요', 'warn');
+      notify('info', '파티 인원 중 비슷한 이름(조/죠 등)이 있어 참여 캐릭터를 자동으로 바꾸지 않았습니다.\n\n필요하면 진행중 창의 [화면 인식]으로 확인해 주세요.', '참여 캐릭터 확인');
+      return;
+    }
+    const names = Array.from(new Set(lastParty.names));
+    if (names.length < ADD_BLOCK_MIN_CHARS) return;
+    const candidates = inProgressTargets().filter(t => !famKey || t.famKey === famKey);
+    if (!candidates.length) return;
+    const score = t => t.slots.filter(s => names.includes(s.name)).length;
+    const target = candidates.sort((a, b) => score(b) - score(a))[0];
+    if (candidates.length > 1 && score(target) === 0) return; // 어느 레이드인지 모름
+    const current = target.slots.map(s => s.name);
+    if (current.length === names.length && current.every(n => names.includes(n))) return;
+
+    const base = u => (u || '').split('(')[0].trim();
+    const chars = names.map(name => {
+      const c = characterPoolData.find(x => x.name === name);
+      return { user: c ? c.user : '', name };
+    });
+    const users = chars.map(c => base(c.user));
+    if (users.some(u => !u) || new Set(users).size !== users.length) { setStatus('파티 인원에 같은 유저 캐릭터가 둘 이상이라 자동 변경 안 함', 'warn'); return; }
+    if (chars.length > getBlockCapacity(target.block)) return;
+    const busyElsewhere = inProgressTargets().some(t => t !== target && !(t.sheetId === target.sheetId && t.blockIndex === target.blockIndex)
+      && t.slots.some(s => users.includes(base(s.user))));
+    if (busyElsewhere) { setStatus('파티 인원 중 다른 진행중 레이드에 있는 사람이 있어 자동 변경 안 함', 'warn'); return; }
+
+    const result = await saveAction('setRaidActualRoster', { sheetId: target.sheetId, blockIndex: target.blockIndex, rawRaidTitle: target.rawRaidTitle, characters: chars }, {
+      errorLabel: '참여 캐릭터 자동 변경', loadingText: '파티 인원으로 참여 캐릭터 변경 중...'
+    });
+    if (result.status !== 'success') return;
+    const info = getRaidStatusFor(target.sheetId, target.blockIndex, target.rawRaidTitle);
+    if (info) info.actualRoster = chars;
+    renderActiveTabContent();
+    refreshOpenRaidProgressModal();
+    log(`참여 캐릭터 자동 변경: ${names.join(', ')}`);
+    setStatus(`파티 인원으로 [${sanitizeTitle(target.rawRaidTitle)}] 참여 캐릭터를 바꿨습니다`);
+    notify('info');
+  }
+
+  // ─── ESC 화면 ────────────────────────────────────────────
+  // 파티창에서 내 캐릭터를 봤을 때, 일정표 정보만으로 판단이 갈리는 경우에만 ESC를 요청한다(입장 창이 뜬 뒤엔
+  // ESC가 입장 창을 닫을 수 있어서 미리 묻는다). 같은 캐릭터는 10분에 한 번만.
+  function maybeAskEsc() {
+    if (escRequest || !lastParty) return;
+    const target = inProgressTargets().find(t => t.slots.some(s => (s.user || '').startsWith(selectedUser || '\u0000')));
+    if (!target || !target.famKey) return;
+    const me = target.slots.find(s => (s.user || '').startsWith(selectedUser));
+    if (!me || !lastParty.names.includes(me.name)) return;
+    if (escData[me.name] && Date.now() - escData[me.name].at < ESC_FRESH_MS) return;
+    if (Date.now() - (escAskedAt[me.name] || 0) < ESC_ASK_COOLDOWN_MS) return;
+    const diffKey = normalizeDiff(target.block.title);
+    const verdicts = new Set([1, 2, 3].map(left => judgeGold(me.name, target.famKey, diffKey, left).verdict));
+    if (verdicts.size === 1 && !verdicts.has('unsure')) return;
+    escAskedAt[me.name] = Date.now();
+    requestEsc(me.name);
+  }
+
+  function requestEsc(charName) {
+    escRequest = { until: Date.now() + ESC_WAIT_MS, char: charName || null };
+    setStatus('ESC를 한 번 눌러 게임 메뉴를 열어 주세요 (골드 현황 확인)', 'warn');
+    notify('info', `${charName ? charName + '의 ' : ''}골드 현황 확인이 필요합니다.\n\n게임에서 ESC를 한 번 눌러 게임 메뉴를 열어 주세요.\n(${Math.round(ESC_WAIT_MS / 1000)}초 안에 읽습니다)`, 'ESC를 눌러 주세요');
+  }
+
+  // ESC 게임 메뉴 오른쪽: 캐릭터명, "엔드 콘텐츠 골드 획득 n / 3"(남은 횟수), 레이드 줄 "참여 완료"(+초록 체크=골드 받음).
+  // 화면 전체 읽기는 줄이 섞이거나 빠져서, "엔드 콘텐츠" 위치만 찾고 그 패널만 크게 다시 읽는다.
+  async function scanEsc(f) {
+    const full = await readFull(f);
+    const endFull = (full.data.lines || []).find(l => /엔드\s*콘텐츠/.test(l.text));
+    const eb = endFull && phraseBox(endFull, '엔드콘텐츠');
+    if (!eb) return;
+    // 1758x1015 실측("엔드콘텐츠" x 1308~1372, 글자 높이 11): 패널 x 1270~1605(체크 아이콘 ~1595), 캐릭터명 y ~305,
+    // 마지막 레이드 줄 y ~670 → 폭(ew) 기준 왼쪽 -0.6ew·폭 5.4ew, 높이(eh) 기준 위 11줄·전체 36줄.
+    const ex0 = eb.x0 / full.scale, ew = (eb.x1 - eb.x0) / full.scale;
+    const ey0 = eb.y0 / full.scale, eh = (eb.y1 - eb.y0) / full.scale;
+    const rx = Math.max(0, ex0 - ew * 0.6), ry = Math.max(0, ey0 - eh * 11);
+    const rw = Math.min(f.width - rx, ew * 5.4), rh = Math.min(f.height - ry, eh * 36);
+    const panel = await readRegion(f, { x: rx / f.width, y: ry / f.height, w: rw / f.width, h: rh / f.height }, true);
+    const lines = panel.data.lines || [];
+    const endLine = lines.find(l => /엔드\s*콘텐츠/.test(l.text));
+    const lm = endLine && endLine.text.match(/([0-9])\s*\/\s*3/);
+    const rows = [];
+    lines.filter(l => /참여\s*완료/.test(l.text)).forEach(l => {
+      const key = gameRaidKey(l.text);
+      if (!key) return;
+      const b = phraseBox(l, '완료');
+      const box = b && { x0: panel.sx + b.x0 / panel.scale, x1: panel.sx + b.x1 / panel.scale, y0: panel.sy + b.y0 / panel.scale, y1: panel.sy + b.y1 / panel.scale };
+      rows.push({ key, gold: box ? hasGreenCheck(f, box, 1) : false });
+    });
+    const fullText = panel.text + '\n' + (full.data.lines || []).map(l => l.text).join('\n');
+    const mineFirst = characterPoolData
+      .filter(c => fullText.includes(c.name))
+      .sort((a, b) => ((b.user || '').startsWith(selectedUser || '\u0000') - (a.user || '').startsWith(selectedUser || '\u0000')) || b.name.length - a.name.length);
+    const charName = (escRequest && escRequest.char && fullText.includes(escRequest.char)) ? escRequest.char : (mineFirst[0] && mineFirst[0].name);
+    if (!charName || !lm) return;
+    escData[charName] = { at: Date.now(), left: +lm[1], rows }; // rows = 이번 주 참여 완료한 레이드(gold = 골드 받음)
+    escRequest = null;
+    const goldNames = rows.filter(r => r.gold).map(r => RAID_SHORT_NAME[r.key] || r.key).join(', ') || '없음';
+    log(`ESC 읽음: ${charName} 남은 ${lm[1]}회, 골드 받은 레이드 ${goldNames}`);
+    setStatus(`ESC 확인: ${charName} 남은 골드 ${lm[1]}회 (받은 곳: ${goldNames})`);
+    notify('info');
+  }
+
+  // "참여 완료" 바로 오른쪽의 초록 체크(원본 프레임 픽셀). 글자 높이 기준으로 범위를 잡는다.
+  function hasGreenCheck(f, box, scale) {
+    const h = (box.y1 - box.y0) / scale;
+    const x = Math.round(box.x1 / scale + h * 0.2), y = Math.round(box.y0 / scale - h * 0.4);
+    const w = Math.round(h * 2.2), hh = Math.round(h * 1.8);
+    if (x + w > f.width || y < 0 || y + hh > f.height) return false;
+    const d = f.getContext('2d', { willReadFrequently: true }).getImageData(x, y, w, hh).data;
+    let n = 0;
+    for (let i = 0; i < d.length; i += 4) if (d[i + 1] > 140 && d[i + 1] > d[i] + 40 && d[i + 1] > d[i + 2] + 40) n++;
+    return n / (w * hh) > 0.03;
+  }
+
+  // ─── 화면 표시 / 소리 ─────────────────────────────────────
+  function renderBar() {
+    if (document.getElementById('raidShareBar')) return;
+    const bar = document.createElement('div');
+    bar.id = 'raidShareBar';
+    bar.className = 'fixed bottom-3 right-3 z-40 w-80 max-w-[calc(100vw-24px)] bg-[#161b22] border border-cyan-700/60 rounded-lg shadow-lg text-xs';
+    bar.innerHTML = `
+      <div class="flex items-start gap-2 px-3 py-2">
+        <span class="mt-1 w-2 h-2 shrink-0 rounded-full bg-cyan-400 animate-pulse"></span>
+        <span id="raidShareStatus" class="flex-1 text-gray-300 break-keep">화면 공유 중</span>
+      </div>
+      <div class="flex justify-end gap-1.5 px-3 pb-2">
+        <button type="button" onclick="RaidShare.toggleLog()" class="px-2 py-0.5 rounded border border-gray-700 bg-gray-800 hover:bg-gray-700 text-gray-300">기록</button>
+        <button type="button" onclick="RaidShare.requestEsc()" class="px-2 py-0.5 rounded border border-gray-700 bg-gray-800 hover:bg-gray-700 text-gray-300">ESC 읽기</button>
+        <button type="button" onclick="RaidShare.stop()" class="px-2 py-0.5 rounded border border-red-800/60 bg-red-950/30 hover:bg-red-900/40 text-red-300">중지</button>
+      </div>
+      <div id="raidShareLog" class="hidden max-h-48 overflow-auto px-3 pb-2 font-mono text-[11px] text-gray-400 whitespace-pre-wrap"></div>`;
+    document.body.appendChild(bar);
+  }
+
+  function setStatus(text, tone) {
+    const el = document.getElementById('raidShareStatus');
+    if (!el) return;
+    el.textContent = text;
+    el.className = `flex-1 break-keep ${tone === 'warn' ? 'text-amber-300' : 'text-gray-300'}`;
+  }
+
+  function log(msg) {
+    const t = new Date().toLocaleTimeString('ko-KR', { hour12: false });
+    logs.unshift(`[${t}] ${msg}`);
+    if (logs.length > 40) logs.pop();
+    const el = document.getElementById('raidShareLog');
+    if (el) el.textContent = logs.join('\n');
+  }
+
+  function toggleLog() {
+    const el = document.getElementById('raidShareLog');
+    if (!el) return;
+    el.textContent = logs.join('\n');
+    el.classList.toggle('hidden');
+  }
+
+  function setHeaderActive(on) {
+    const btn = document.getElementById('raidShareBtn');
+    if (!btn) return;
+    btn.classList.toggle('border-cyan-500', on);
+    btn.classList.toggle('text-cyan-300', on);
+    btn.classList.toggle('border-gray-700', !on);
+  }
+
+  // 소리는 "삐삐" 하나로 통일(디스코드·유튜브 소리 위로도 잘 들림, 2026-11-15 사용자 확인). 내용은 사이트 알림창.
+  // 골드 받지 말아야 할 때만 알림창을 빨간 테두리로 띄운다(음성은 어색하다고 해서 뺌, v2.19.16).
+  function notify(kind, message, title) {
+    beep();
+    if (message) customAlert(message, title, kind === 'warn' ? 'danger' : kind === 'caution' ? 'caution' : undefined);
+  }
+
+  let audioCtx = null;
+  function getAudio() {
+    audioCtx = audioCtx || new AudioContext();
+    if (audioCtx.state === 'suspended') audioCtx.resume().catch(() => {});
+    return audioCtx;
+  }
+  // 평소 알림은 시험 페이지에서 들어 본 그 소리 그대로(880Hz, 일정한 크기 0.18초) - 소리가 줄어드는 처리를 넣었더니
+  // 너무 작게 들린다고 해서 되돌림(v2.19.13). 한 번은 놓치기 쉬워 두 번 울린다(v2.19.14).
+  function beep() {
+    try {
+      const ctx = getAudio(), t0 = ctx.currentTime;
+      for (let i = 0; i < 2; i++) {
+        const t = t0 + i * 0.28;
+        const o = ctx.createOscillator(), g = ctx.createGain();
+        o.frequency.value = 880; g.gain.value = 0.15;
+        o.connect(g).connect(ctx.destination);
+        o.start(t); o.stop(t + 0.18);
+      }
+    } catch (e) {}
+  }
+
+  window.RaidShare = {
+    start, stop, isActive, toggleLog,
+    testSound: kind => notify(kind === 'warn' ? 'warn' : 'info'),
+    requestEsc: () => requestEsc(null),
+    // 시험용(스샷 캔버스를 바로 넣어 보기)
+    _test: { processFrame, readGoldSetting, setGoldWatch: w => { goldWatch = w; }, get goldWatch() { return goldWatch; }, parseDialog, judgeGold, scanEsc, locateParty, readParty, setLastParty: p => { lastParty = p; }, escData, get lastParty() { return lastParty; }, get partyRegion() { return partyRegion; }, setEscRequest: r => { escRequest = r; } }
+  };
+})();
