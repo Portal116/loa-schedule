@@ -23,10 +23,10 @@
   const DEFAULT_PARTY_REGION = { x: 0.665, y: 0.15, w: 0.335, h: 0.45 }; // 16인(파티 4개)까지
   // 게임 화면 이름 → 레이드 계열(getRaidFamilyKey로 안 잡히는 것만). ESC 목록은 보스 이름으로 나온다.
   const GAME_RAID_ALIASES = [
-    ['코르부스', 'serka'], ['고통의 마녀', 'serka'],
-    ['크라그마', 'belga'], ['계율자', 'belga'],
+    ['코르부스', 'serka'], ['고통의 마녀', 'serka'], ['빙결의 성소', 'serka'],
+    ['크라그마', 'belga'], ['계율자', 'belga'], ['안식의 묘원', 'belga'],
     ['카제로스', 'final'], ['최후의 날', 'final'],
-    ['파멸의 성채', 'act4'], ['지평', 'cathedral']
+    ['파멸의 성채', 'act4'], ['지평', 'cathedral'], ['구원의 종탑', 'cathedral'], ['종탑', 'cathedral']
   ];
 
   let stream = null, video = null, tickWorker = null, busy = false, tickNo = 0;
@@ -170,11 +170,14 @@
     const lm = text.match(/골드\s*보상\s*([0-9])\s*회\s*남/);
     const rm = text.match(/^(.*\S)\s*-\s*\[([^\]]+)\]/m);
     const raidName = rm ? rm[1].trim() : '';
+    const diffText = rm ? rm[2].trim() : '';
+    // 성당은 단계마다 게임 안 이름이 다르다(예: 구원의 종탑). 이름을 못 알아보면 "N단계"로 성당을 추정한다.
+    const famKey = gameRaidKey(raidName) || (/\d\s*단계/.test(diffText) ? 'cathedral' : null);
     return {
       raidName,
-      famKey: gameRaidKey(raidName),
-      diffKey: gameDiffKey(rm ? rm[2] : ''),
-      diffText: rm ? rm[2].trim() : '',
+      famKey,
+      diffKey: gameDiffKey(diffText),
+      diffText,
       left: exhausted ? 0 : (lm ? +lm[1] : null)
     };
   }
@@ -452,9 +455,21 @@
     const tokens = trimTokensToPoolNames(splitScreenOcrTokens(text.split('\n').map(t => ({ text: t, words: [] }))));
     const items = matchScreenOcrTokens(tokens, rosterNames);
     if (!items.length) return;
+    resolveAmbiguousByRoster(items, rosterNames);
     const names = items.filter(it => it.choice !== null && it.choice !== SCREEN_OCR_SKIP).map(it => it.candidates[it.choice]);
     lastParty = { at: Date.now(), items, names };
     maybeAskEsc();
+  }
+
+  // OCR이 한 글자 틀려("믕"→"몽") 비슷한 후보가 여럿이면 정해지지 않는다. 그 레이드의 참여 캐릭터/일정표 편성 안에 있는
+  // 후보가 딱 하나뿐일 때만 그쪽으로 확정한다(둘 이상이거나 하나도 없으면 그대로 두고 사람이 고른다).
+  function resolveAmbiguousByRoster(items, rosterNames) {
+    const roster = new Set(rosterNames);
+    items.forEach(it => {
+      if (it.choice !== null) return;
+      const hits = it.candidates.map((n, i) => ({ n, i })).filter(x => roster.has(x.n));
+      if (hits.length === 1) it.choice = hits[0].i;
+    });
   }
 
   // 아이콘이 이름 앞에 붙어 "봄줄은지야기상"처럼 읽히는 경우 - 캐릭터 이름으로 끝나면 그 이름만 남긴다(긴 이름 우선).
@@ -500,21 +515,17 @@
   // 입장 직전(입장 창이 뜬 순간) 마지막으로 읽은 파티 인원으로 진행중 레이드 참여 캐릭터를 바꾼다(관리자 모드).
   // 모든 이름이 정확히 일치할 때만 저장하고, 비슷한 이름이 섞이면 알리기만 한다. 규칙은 [인원 변경]과 같다.
   async function applyPartyToRoster(famKey) {
-    if (!lastParty || Date.now() - lastParty.at > PARTY_FRESH_MS) return;
-    if (lastParty.items.some(it => it.choice === null)) {
-      setStatus('파티 인원 중 비슷한 이름이 있어 자동으로 바꾸지 않았습니다 - [화면 인식]으로 확인하세요', 'warn');
-      notify('info', '파티 인원 중 비슷한 이름(조/죠 등)이 있어 참여 캐릭터를 자동으로 바꾸지 않았습니다.\n\n필요하면 진행중 창의 [화면 인식]으로 확인해 주세요.', '참여 캐릭터 확인');
-      return;
-    }
+    if (!lastParty || Date.now() - lastParty.at > PARTY_FRESH_MS) { log('인원 자동 변경 안 함: 최근 3분 안에 읽은 파티 정보가 없음'); return; }
+    if (lastParty.items.some(it => it.choice === null)) { openPartyConfirm(famKey); return; }
     const names = Array.from(new Set(lastParty.names));
-    if (names.length < ADD_BLOCK_MIN_CHARS) return;
+    if (names.length < ADD_BLOCK_MIN_CHARS) { log(`인원 자동 변경 안 함: 읽은 파티 인원이 ${names.length}명`); return; }
     const candidates = inProgressTargets().filter(t => !famKey || t.famKey === famKey);
-    if (!candidates.length) return;
+    if (!candidates.length) { log('인원 자동 변경 안 함: 이 레이드에 해당하는 진행중 레이드가 없음'); return; }
     const score = t => t.slots.filter(s => names.includes(s.name)).length;
     const target = candidates.sort((a, b) => score(b) - score(a))[0];
-    if (candidates.length > 1 && score(target) === 0) return; // 어느 레이드인지 모름
+    if (candidates.length > 1 && score(target) === 0) { log('인원 자동 변경 안 함: 진행중 레이드가 여럿인데 어느 쪽인지 모름'); return; }
     const current = target.slots.map(s => s.name);
-    if (current.length === names.length && current.every(n => names.includes(n))) return;
+    if (current.length === names.length && current.every(n => names.includes(n))) { log('인원 변경 없음: 파티가 지금 참여 캐릭터와 같음'); return; }
 
     const base = u => (u || '').split('(')[0].trim();
     const chars = names.map(name => {
@@ -522,11 +533,11 @@
       return { user: c ? c.user : '', name };
     });
     const users = chars.map(c => base(c.user));
-    if (users.some(u => !u) || new Set(users).size !== users.length) { setStatus('파티 인원에 같은 유저 캐릭터가 둘 이상이라 자동 변경 안 함', 'warn'); return; }
-    if (chars.length > getBlockCapacity(target.block)) return;
+    if (users.some(u => !u) || new Set(users).size !== users.length) { log('인원 자동 변경 안 함: 같은 유저의 캐릭터가 둘 이상이거나 유저를 모름'); setStatus('파티 인원에 같은 유저 캐릭터가 둘 이상이라 자동 변경 안 함', 'warn'); return; }
+    if (chars.length > getBlockCapacity(target.block)) { log(`인원 자동 변경 안 함: 읽은 인원 ${chars.length}명이 정원보다 많음`); return; }
     const busyElsewhere = inProgressTargets().some(t => t !== target && !(t.sheetId === target.sheetId && t.blockIndex === target.blockIndex)
       && t.slots.some(s => users.includes(base(s.user))));
-    if (busyElsewhere) { setStatus('파티 인원 중 다른 진행중 레이드에 있는 사람이 있어 자동 변경 안 함', 'warn'); return; }
+    if (busyElsewhere) { log('인원 자동 변경 안 함: 다른 진행중 레이드에 있는 사람이 파티에 있음'); setStatus('파티 인원 중 다른 진행중 레이드에 있는 사람이 있어 자동 변경 안 함', 'warn'); return; }
 
     const result = await saveAction('setRaidActualRoster', { sheetId: target.sheetId, blockIndex: target.blockIndex, rawRaidTitle: target.rawRaidTitle, characters: chars }, {
       errorLabel: '참여 캐릭터 자동 변경', loadingText: '파티 인원으로 참여 캐릭터 변경 중...'
@@ -539,6 +550,28 @@
     log(`참여 캐릭터 자동 변경: ${names.join(', ')}`);
     setStatus(`파티 인원으로 [${sanitizeTitle(target.rawRaidTitle)}] 참여 캐릭터를 바꿨습니다`);
     notify('info');
+  }
+
+  // 비슷한 이름이 있어 확정하지 못하면 알림창 대신 [화면 인식] 창을 캡처 없이 바로 연다(읽은 결과를 그대로 채워서).
+  // 사람이 고른 뒤 [인원 변경 창에서 확인]으로 이어지고, 저장은 거기서 확인해야만 된다. 사이트가 아직 이 기능을 모르면
+  // (index.html이 예전 버전) 예전처럼 알림창으로 알린다.
+  function openPartyConfirm(famKey) {
+    const unsure = lastParty.items.filter(it => it.choice === null).map(it => it.text).join(', ');
+    log(`비슷한 이름이 있어 확정하지 못함: ${unsure}`);
+    const names = lastParty.items.flatMap(it => it.candidates);
+    const targets = inProgressTargets().filter(t => !famKey || t.famKey === famKey);
+    const score = t => t.slots.concat(t.block.slots).filter(s => names.includes(s.name)).length;
+    const target = targets.sort((a, b) => score(b) - score(a))[0];
+    const canOpen = target && (targets.length === 1 || score(target) > 0) && typeof openScreenOcrFromShare === 'function';
+    if (canOpen && typeof isScreenOcrModalOpen === 'function' && isScreenOcrModalOpen()) return; // 이미 열려 있음
+    if (canOpen) {
+      openScreenOcrFromShare(lastParty.items, target);
+      setStatus('파티 인원 확인이 필요해 [화면 인식] 창을 열었습니다', 'warn');
+      beep();
+      return;
+    }
+    setStatus('파티 인원 중 비슷한 이름이 있어 자동으로 바꾸지 않았습니다 - [화면 인식]으로 확인하세요', 'warn');
+    notify('info', '파티 인원 중 비슷한 이름(조/죠 등)이 있어 참여 캐릭터를 자동으로 바꾸지 않았습니다.\n\n필요하면 진행중 창의 [화면 인식]으로 확인해 주세요.', '참여 캐릭터 확인');
   }
 
   // ─── ESC 화면 ────────────────────────────────────────────
@@ -590,6 +623,12 @@
       const box = b && { x0: panel.sx + b.x0 / panel.scale, x1: panel.sx + b.x1 / panel.scale, y0: panel.sy + b.y0 / panel.scale, y1: panel.sy + b.y1 / panel.scale };
       rows.push({ key, gold: box ? hasGreenCheck(f, box, 1) : false });
     });
+    // 아직 안 간 레이드는 "참여 가능"으로 나온다(2026-11-19 초기화 후 실측). 판단에는 아직 쓰지 않고 기록만 한다.
+    const open = [];
+    lines.filter(l => /참여\s*가능/.test(l.text)).forEach(l => {
+      const key = gameRaidKey(l.text);
+      if (key && !open.includes(key) && !rows.some(r => r.key === key)) open.push(key);
+    });
     const fullText = panel.text + '\n' + (full.data.lines || []).map(l => l.text).join('\n');
     const mineFirst = characterPoolData
       .filter(c => fullText.includes(c.name))
@@ -598,11 +637,15 @@
     if (!charName || !lm) return;
     // rows = 이번 주 참여 완료한 레이드(gold = 골드 받음). 게임 메뉴 레이드 목록은 각자 직접 설정하는 거라 안 한 사람은
     // 비어 있다 - 그러면 noList로 기억해 두고 이 캐릭터에게는 다시 ESC를 요청하지 않는다(남은 횟수만 쓴다).
-    escData[charName] = { at: Date.now(), left: +lm[1], rows, noList: rows.length === 0 };
+    escData[charName] = { at: Date.now(), left: +lm[1], rows, open, noList: rows.length === 0 && open.length === 0 };
     escRequest = null;
     const goldNames = rows.filter(r => r.gold).map(r => RAID_SHORT_NAME[r.key] || r.key).join(', ') || '없음';
-    log(`ESC 읽음: ${charName} 남은 ${lm[1]}회, ${rows.length ? '골드 받은 레이드 ' + goldNames : '레이드 목록 없음(다시 요청 안 함)'}`);
-    setStatus(rows.length ? `ESC 확인: ${charName} 남은 골드 ${lm[1]}회 (받은 곳: ${goldNames})` : `ESC 확인: ${charName} 남은 골드 ${lm[1]}회 (레이드 목록 없음)`);
+    const openNames = open.map(k => RAID_SHORT_NAME[k] || k).join(', ');
+    const parts = [];
+    if (rows.length) parts.push('골드 받은 레이드 ' + goldNames);
+    if (open.length) parts.push('참여 가능 ' + openNames);
+    log(`ESC 읽음: ${charName} 남은 ${lm[1]}회, ${parts.length ? parts.join(' / ') : '레이드 목록 없음(다시 요청 안 함)'}`);
+    setStatus(parts.length ? `ESC 확인: ${charName} 남은 골드 ${lm[1]}회 (${parts.join(' · ')})` : `ESC 확인: ${charName} 남은 골드 ${lm[1]}회 (레이드 목록 없음)`);
     notify('info');
   }
 
@@ -623,7 +666,8 @@
     if (document.getElementById('raidShareBar')) return;
     const bar = document.createElement('div');
     bar.id = 'raidShareBar';
-    bar.className = 'fixed bottom-3 right-3 z-40 w-80 max-w-[calc(100vw-24px)] bg-[#161b22] border border-cyan-700/60 rounded-lg shadow-lg text-xs';
+    bar.style.zIndex = '65'; // 모달(z-50/60) 배경 위, 저장 중 오버레이(z-70) 아래 - 어느 창이 열려 있어도 흐려지지 않게
+    bar.className = 'fixed bottom-3 right-3 w-80 max-w-[calc(100vw-24px)] bg-[#161b22] border border-cyan-700/60 rounded-lg shadow-lg text-xs';
     bar.innerHTML = `
       <div class="flex items-start gap-2 px-3 py-2">
         <span class="mt-1 w-2 h-2 shrink-0 rounded-full bg-cyan-400 animate-pulse"></span>
@@ -701,6 +745,6 @@
     testSound: kind => notify(kind === 'warn' ? 'warn' : 'info'),
     requestEsc: () => requestEsc(null),
     // 시험용(스샷 캔버스를 바로 넣어 보기)
-    _test: { processFrame, readGoldSetting, setGoldWatch: w => { goldWatch = w; }, get goldWatch() { return goldWatch; }, parseDialog, judgeGold, scanEsc, locateParty, readParty, setLastParty: p => { lastParty = p; }, escData, get lastParty() { return lastParty; }, get partyRegion() { return partyRegion; }, setEscRequest: r => { escRequest = r; } }
+    _test: { applyPartyToRoster, resolveAmbiguousByRoster, getLogs: () => logs.slice(), processFrame,readGoldSetting, setGoldWatch: w => { goldWatch = w; }, get goldWatch() { return goldWatch; }, parseDialog, judgeGold, scanEsc, locateParty, readParty, setLastParty: p => { lastParty = p; }, escData, get lastParty() { return lastParty; }, get partyRegion() { return partyRegion; }, setEscRequest: r => { escRequest = r; } }
   };
 })();

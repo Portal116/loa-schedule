@@ -192,7 +192,7 @@
           <span class="font-bold text-lg text-white tracking-wide whitespace-nowrap"><span class="mark-narrow">공대</span><span class="mark-wide">로아 공대</span></span>
           <!-- 마크(로고 텍스트)는 A가 "미니"로 접힐 때만 같이 줄어든다(축약형 단계에서는 로고는 풀네임 유지) -->
           <button onclick="openInfoModal('changelog')" class="text-[10px] font-mono font-bold px-1.5 sm:px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/30 hover:bg-purple-500/20 transition cursor-pointer" title="클릭하여 업데이트 이력 확인">
-            v2.20.0
+            v2.20.1
           </button>
         </div>
 
@@ -3525,8 +3525,27 @@
       loadScreenOcrWorker().catch(() => {}); // 붙여넣기 전에 미리 받아둔다
     }
 
+    // 화면 공유가 읽은 파티 인원을 캡처 없이 바로 이 창에 채워 연다(raid-share에서 호출). 진행중 모달이 닫혀 있어도 대상 레이드를 지정한다.
+    function openScreenOcrFromShare(items, target) {
+      if (!target || !target.block) return;
+      activeProgressTarget = { sheetId: target.sheetId, blockIndex: target.blockIndex, rawRaidTitle: target.rawRaidTitle, displayTitle: target.block.title };
+      screenOcrItems = items.map(it => ({ text: it.text, conf: it.conf, candidates: it.candidates.slice(), choice: it.choice }));
+      screenOcrReAdded = new Set();
+      const preview = document.getElementById('screenOcrPreview');
+      preview.classList.add('hidden');
+      preview.removeAttribute('src');
+      const unsure = screenOcrItems.filter(it => it.choice === null).length;
+      setScreenOcrStatus(`화면 공유로 읽은 파티 인원입니다 (${screenOcrItems.length}명)` +
+        (unsure ? ` - 비슷한 이름이 있는 ${unsure}명은 맞는 캐릭터를 직접 골라 주세요.` : ' - 확인 후 [인원 변경 창에서 확인]을 눌러 주세요.'));
+      renderScreenOcrResult();
+      document.getElementById('screenOcrModal').classList.remove('hidden');
+      drawIcons();
+    }
+
     function closeScreenOcrModal() {
       document.getElementById('screenOcrModal').classList.add('hidden');
+      // 진행중 모달 없이 화면 공유가 직접 연 경우, 닫으면 대상 지정도 풀어 둔다(진행중 모달이 열려 있으면 그쪽 것이라 그대로).
+      if (!isRaidProgressModalOpen()) activeProgressTarget = null;
     }
 
     function isScreenOcrModalOpen() {
@@ -3744,7 +3763,9 @@
       if (screenOcrItems.some(it => it.choice === null)) return;
       const names = getScreenOcrSelection().picked;
       if (!names.length) return;
+      const target = activeProgressTarget; // closeScreenOcrModal이 대상 지정을 풀 수 있어 먼저 잡아 둔다
       closeScreenOcrModal();
+      activeProgressTarget = target;
       openActualRosterEditor(names);
     }
 
