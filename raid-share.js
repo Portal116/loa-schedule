@@ -169,7 +169,8 @@
     const exhausted = /모두\s*소진/.test(text);
     const lm = text.match(/골드\s*보상\s*([0-9])\s*회\s*남/);
     const rm = text.match(/^(.*\S)\s*-\s*\[([^\]]+)\]/m);
-    const raidName = rm ? rm[1].trim() : '';
+    // 이름 앞에 배경 글자가 섞여 읽히는 경우("}드 빈      죽음의 계율자, …")가 있어 큰 공백 뒤 마지막 덩어리만 쓴다.
+    const raidName = rm ? rm[1].split(/\s{3,}/).pop().replace(/^[^0-9A-Za-z가-힣]+/, '').trim() : '';
     const diffText = rm ? rm[2].trim() : '';
     // 성당은 단계마다 게임 안 이름이 다르다(예: 구원의 종탑). 이름을 못 알아보면 "N단계"로 성당을 추정한다.
     const famKey = gameRaidKey(raidName) || (/\d\s*단계/.test(diffText) ? 'cathedral' : null);
@@ -575,6 +576,10 @@
     if (candidates.length > 1 && score(target) === 0) { log('인원 자동 변경 안 함: 진행중 레이드가 여럿인데 어느 쪽인지 모름'); return; }
     const current = target.slots.map(s => s.name);
     if (current.length === names.length && current.every(n => names.includes(n))) { log('인원 변경 없음: 파티가 지금 참여 캐릭터와 같음'); return; }
+    // 파티가 정원보다 적게 읽혔는데 지금 참여 캐릭터 중 빠진 사람이 있으면, 진짜 불참인지 글자를 못 읽은 건지 알 수 없다
+    // (2026-11-20 무한대로흑화가 안 읽혀 2명으로 바뀐 일) - 저장하지 않고 [화면 인식] 창으로 확인받는다.
+    const missing = current.filter(n => !names.includes(n));
+    if (missing.length && names.length < getBlockCapacity(target.block)) { openPartyConfirm(famKey, `파티창에서 안 읽힌 사람: ${missing.join(', ')}`); return; }
 
     const base = u => (u || '').split('(')[0].trim();
     const chars = names.map(name => {
@@ -604,9 +609,9 @@
   // 비슷한 이름이 있어 확정하지 못하면 알림창 대신 [화면 인식] 창을 캡처 없이 바로 연다(읽은 결과를 그대로 채워서).
   // 사람이 고른 뒤 [인원 변경 창에서 확인]으로 이어지고, 저장은 거기서 확인해야만 된다. 사이트가 아직 이 기능을 모르면
   // (index.html이 예전 버전) 예전처럼 알림창으로 알린다.
-  function openPartyConfirm(famKey) {
+  function openPartyConfirm(famKey, reason) {
     const unsure = lastParty.items.filter(it => it.choice === null).map(it => it.text).join(', ');
-    log(`비슷한 이름이 있어 확정하지 못함: ${unsure}`);
+    log(reason ? `인원 확인 필요: ${reason}` : `비슷한 이름이 있어 확정하지 못함: ${unsure}`);
     const names = lastParty.items.flatMap(it => it.candidates);
     const targets = inProgressTargets().filter(t => !famKey || t.famKey === famKey);
     const score = t => t.slots.concat(t.block.slots).filter(s => names.includes(s.name)).length;
@@ -615,12 +620,13 @@
     if (canOpen && typeof isScreenOcrModalOpen === 'function' && isScreenOcrModalOpen()) return; // 이미 열려 있음
     if (canOpen) {
       openScreenOcrFromShare(lastParty.items, target);
-      setStatus('파티 인원 확인이 필요해 [화면 인식] 창을 열었습니다', 'warn');
+      setStatus(reason ? `${reason} - [화면 인식] 창에서 확인해 주세요` : '파티 인원 확인이 필요해 [화면 인식] 창을 열었습니다', 'warn');
       beep();
       return;
     }
-    setStatus('파티 인원 중 비슷한 이름이 있어 자동으로 바꾸지 않았습니다 - [화면 인식]으로 확인하세요', 'warn');
-    notify('info', '파티 인원 중 비슷한 이름(조/죠 등)이 있어 참여 캐릭터를 자동으로 바꾸지 않았습니다.\n\n필요하면 진행중 창의 [화면 인식]으로 확인해 주세요.', '참여 캐릭터 확인');
+    const why = reason || '파티 인원 중 비슷한 이름(조/죠 등)이 있음';
+    setStatus(`${why} - 자동으로 바꾸지 않았습니다. [화면 인식]으로 확인하세요`, 'warn');
+    notify('info', `${why}\n참여 캐릭터를 자동으로 바꾸지 않았습니다.\n\n필요하면 진행중 창의 [화면 인식]으로 확인해 주세요.`, '참여 캐릭터 확인');
   }
 
   // ─── ESC 게임 메뉴 읽기([ESC 읽기] 버튼으로만) ─────────────────
