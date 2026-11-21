@@ -9,7 +9,7 @@
 //  3) 레이드 안 왼쪽 위: "골드 보상 설정"으로 골드 알림 자동 닫기, 마지막 관문 뒤 "나가기" 버튼으로 레이드 끝 판정
 //     (일정표 밖이면 내 캐릭터 완료 체크, 일정표 레이드면 관리자 모드에서 [완료 처리] 누른 것처럼 처리).
 //  4) [ESC 읽기] 버튼(수동): 게임 메뉴 레이드 목록으로 캐릭터 현황 완료 체크를 맞춘다("참여 완료" 체크, "참여 가능"이면 개별 체크 해제).
-//  5) 입장 창에서 내 캐릭터를 못 찾으면(싱글/매칭, 공대장이 아니라 파티창이 안 보임 등) 상태 바로 "입장한 뒤 ESC 한 번"을
+//  5) 입장 창에서 내 캐릭터를 못 찾으면(싱글/매칭, 공대장이 아니라 파티창이 안 보임 등) 노란 알림창+소리로 "입장한 뒤 ESC 한 번"을
 //     요청하고, 게임 메뉴의 캐릭터 이름을 읽어 1)의 골드 판단과 3)의 레이드 끝 감시를 이어서 한다(2026-11-22).
 //     입장 창이 떠 있는 동안은 ESC를 못 누르므로 입장 뒤에 본다(입장 전 미리 묻던 방식은 2026-11-20에 뺐음).
 (function () {
@@ -216,14 +216,29 @@
     if (isAdminModeActive()) { markAdminAction(); await applyPartyToRoster(d.famKey); }
     const charName = d.famKey ? findMyChar(d.famKey) : null;
     endWatch = null;
-    if (escRequest && escRequest.entry) escRequest = null; // 앞 입장 창의 ESC 기다림은 새 입장 창으로 대신한다
+    // 앞 입장 창의 ESC 기다림은 새 입장 창으로 대신한다(싱글 모드에서 레이드를 고르며 같은 창이 여러 번 뜨면 다시 울리지 않음)
+    const prev = escRequest && escRequest.entry;
+    if (prev) escRequest = null;
     if (d.famKey && !charName && selectedUser) {
       escRequest = { until: Date.now() + ENTRY_ESC_WAIT_MS, entry: d };
       log('내 캐릭터를 못 찾음 - 입장 뒤 ESC(게임 메뉴)를 기다림');
       setStatus(`${raidLabel} - 내 캐릭터를 모릅니다. 입장한 뒤 ESC(게임 메뉴)를 한 번 열어 주세요`, 'warn');
+      if (!(prev && prev.famKey === d.famKey && prev.diffKey === d.diffKey && isEscAlertOpen())) {
+        closeGoldAlert();
+        notify('caution', `${raidLabel}\n\n파티창이 안 보여 내 캐릭터를 알 수 없습니다.\n입장한 뒤 게임에서 ESC(게임 메뉴)를 한 번 열어 주세요.\n\n※ 캐릭터 이름을 읽으면 이 창은 자동으로 닫히고 골드 판단을 이어서 합니다.`, ESC_ALERT_TITLE);
+      }
       return;
     }
+    if (prev) closeGoldAlert([ESC_ALERT_TITLE]);
     judgeEntry(d, charName);
+  }
+
+  // 내 캐릭터를 못 찾았을 때 ESC 요청 알림창(골드 주의와 같은 노란 창 + 소리)
+  const ESC_ALERT_TITLE = 'ESC를 한 번 열어 주세요';
+  function isEscAlertOpen() {
+    const modal = document.getElementById('customAlertModal');
+    const title = document.getElementById('customAlertTitle');
+    return !!(modal && !modal.classList.contains('hidden') && title && title.textContent === ESC_ALERT_TITLE);
   }
 
   // 입장 창 판단(골드 + 레이드 끝 감시). 입장 창에서 바로, 또는 입장 뒤 ESC로 캐릭터 이름을 읽은 다음에 부른다.
@@ -450,10 +465,10 @@
     return null;
   }
 
-  function closeGoldAlert() {
+  function closeGoldAlert(titles) {
     const modal = document.getElementById('customAlertModal');
     const title = document.getElementById('customAlertTitle');
-    if (modal && !modal.classList.contains('hidden') && title && Object.values(GOLD_ALERT_TITLES).includes(title.textContent)) {
+    if (modal && !modal.classList.contains('hidden') && title && (titles || Object.values(GOLD_ALERT_TITLES)).includes(title.textContent)) {
       document.getElementById('customAlertOkBtn').click();
     }
   }
@@ -753,6 +768,7 @@
     const e = escRequest;
     escRequest = null;
     if (!e.entry) { setStatus('게임 메뉴를 못 찾았습니다 - 본인 캐릭터로 ESC를 열고 다시 [ESC 읽기]'); return; }
+    closeGoldAlert([ESC_ALERT_TITLE]);
     log(`ESC 기다림 그만: ${entryLabel(e.entry)} - 시간 지남`);
     setStatus(`${entryLabel(e.entry)} - 내 캐릭터를 못 찾음(ESC를 못 읽음)`);
   }
@@ -820,7 +836,7 @@
       : '레이드 목록 없음(게임 메뉴 목록에 레이드를 넣어 두면 읽을 수 있음)';
     log(`ESC 읽음: ${charName} - ${seen}${changed.length ? ' → ' + changed.join(', ') : ''}${locked.length ? ` (일정표 편성이라 그대로: ${locked.join(', ')})` : ''}`);
     // 입장 창 뒤라면 방금 맞춘 완료 체크까지 반영해서 그 입장 창 판단을 이어서 한다(상태 바/알림은 판단 쪽이 띄움)
-    if (entry) { judgeEntry(entry, charName); return; }
+    if (entry) { closeGoldAlert([ESC_ALERT_TITLE]); judgeEntry(entry, charName); return; }
     setStatus(`ESC 확인: ${charName} - ${changed.length ? changed.join(', ') : '바꿀 것 없음'}`);
     notify('info');
   }
