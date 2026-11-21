@@ -9,7 +9,9 @@
 //  3) 레이드 안 왼쪽 위: "골드 보상 설정"으로 골드 알림 자동 닫기, 마지막 관문 뒤 "나가기" 버튼으로 레이드 끝 판정
 //     (일정표 밖이면 내 캐릭터 완료 체크, 일정표 레이드면 관리자 모드에서 [완료 처리] 누른 것처럼 처리).
 //  4) [ESC 읽기] 버튼(수동): 게임 메뉴 레이드 목록으로 캐릭터 현황 완료 체크를 맞춘다("참여 완료" 체크, "참여 가능"이면 개별 체크 해제).
-//  ESC 자동 요청은 2026-11-20에 뺐다(입장 창이 떠 있으면 ESC를 못 눌러 파티창 단계에서 미리 물어야 했고 대부분 필요 없었음).
+//  5) 입장 창에서 내 캐릭터를 못 찾으면(싱글/매칭, 공대장이 아니라 파티창이 안 보임 등) 상태 바로 "입장한 뒤 ESC 한 번"을
+//     요청하고, 게임 메뉴의 캐릭터 이름을 읽어 1)의 골드 판단과 3)의 레이드 끝 감시를 이어서 한다(2026-11-22).
+//     입장 창이 떠 있는 동안은 ESC를 못 누르므로 입장 뒤에 본다(입장 전 미리 묻던 방식은 2026-11-20에 뺐음).
 (function () {
   'use strict';
 
@@ -37,7 +39,8 @@
   let dialogOpen = false;
   let endWatch = null;                 // { famKey, diffKey, charName, wild, until } 레이드 끝("나가기") 대기
   const ESC_WAIT_MS = 45000;           // [ESC 읽기] 누른 뒤 게임 메뉴를 기다리는 시간
-  let escRequest = null;               // { until }
+  const ENTRY_ESC_WAIT_MS = 3 * 60 * 1000; // 입장 창에서 내 캐릭터를 못 찾았을 때 입장 뒤 ESC를 기다리는 시간
+  let escRequest = null;               // { until, entry } entry = 내 캐릭터를 못 찾은 입장 창(ESC에서 이름을 읽으면 이어서 판단)
   const logs = [];
 
   // ─── 시작/중지 ───────────────────────────────────────────
@@ -99,14 +102,14 @@
 
   // 한 프레임 처리(시험 때는 스샷 캔버스를 바로 넣을 수 있게 분리).
   async function processFrame(f) {
-    if (escRequest) {
-      if (Date.now() > escRequest.until) { escRequest = null; setStatus('게임 메뉴를 못 찾았습니다 - 본인 캐릭터로 ESC를 열고 다시 [ESC 읽기]'); }
-      else { await scanEsc(f); return; }
-    }
+    if (escRequest && Date.now() > escRequest.until) escTimeout();
+    if (escRequest && !escRequest.entry) { await scanEsc(f); return; } // [ESC 읽기] 버튼 - 게임 메뉴만 본다
     const dialogText = await readRegion(f, DIALOG_REGION);
     const dialog = parseDialog(dialogText);
     if (dialog && !dialogOpen) await onEntryDialog(dialog);
     dialogOpen = !!dialog;
+    // 입장 창에서 내 캐릭터를 못 찾았으면 입장 뒤 게임 메뉴(ESC)에서 이름을 읽는다(입장 창이 닫힌 뒤에만)
+    if (!dialog && escRequest) { await scanEsc(f); return; }
     // 레이드 끝 감시는 길어서(입장 창에서 거절했을 수도 있음) 레이드 안 화면이 안 보이면 파티창 읽기도 계속한다.
     if (!dialog && (goldWatch || endWatch)) {
       const inRaid = await checkHud(f);
@@ -204,13 +207,28 @@
     return normalizeDiff(t);
   }
 
+  function entryLabel(d) { return `${d.raidName || '?'} [${d.diffText || '?'}]`; }
+
   async function onEntryDialog(d) {
-    const raidLabel = `${d.raidName || '?'} [${d.diffText || '?'}]`;
+    const raidLabel = entryLabel(d);
     log(`입장 창: ${raidLabel}, 남은 골드 ${d.left === null ? '?' : d.left + '회'}`);
     // 관리자 모드로 화면 공유 중이면 입장 창마다 관리자 유휴 시간(1시간)을 갱신한다 - 레이드가 길거나 이어져도 안 풀리게.
     if (isAdminModeActive()) { markAdminAction(); await applyPartyToRoster(d.famKey); }
     const charName = d.famKey ? findMyChar(d.famKey) : null;
     endWatch = null;
+    if (escRequest && escRequest.entry) escRequest = null; // 앞 입장 창의 ESC 기다림은 새 입장 창으로 대신한다
+    if (d.famKey && !charName && selectedUser) {
+      escRequest = { until: Date.now() + ENTRY_ESC_WAIT_MS, entry: d };
+      log('내 캐릭터를 못 찾음 - 입장 뒤 ESC(게임 메뉴)를 기다림');
+      setStatus(`${raidLabel} - 내 캐릭터를 모릅니다. 입장한 뒤 ESC(게임 메뉴)를 한 번 열어 주세요`, 'warn');
+      return;
+    }
+    judgeEntry(d, charName);
+  }
+
+  // 입장 창 판단(골드 + 레이드 끝 감시). 입장 창에서 바로, 또는 입장 뒤 ESC로 캐릭터 이름을 읽은 다음에 부른다.
+  function judgeEntry(d, charName) {
+    const raidLabel = entryLabel(d);
     if (charName) startEndWatch(d, charName);
     if (d.left === 0) { setStatus(`${raidLabel} - 골드 횟수 소진`); return; }
     if (!d.famKey) { setStatus(`${raidLabel} - 골드 판단 대상 레이드 아님`); return; }
@@ -725,22 +743,46 @@
   // 일정표 완료 체크와 일정표에 편성돼 잠긴 칸은 건드리지 않는다. 메뉴의 캐릭터가 본인(상단 "강조") 캐릭터일 때만 저장.
   function requestEsc() {
     if (!selectedUser) { setStatus('상단 "강조"에서 본인을 먼저 골라 주세요', 'warn'); return; }
-    escRequest = { until: Date.now() + ESC_WAIT_MS };
+    // 입장 창 뒤 ESC를 기다리던 중이면 그 입장 창도 이어서 판단한다
+    const entry = escRequest && escRequest.entry;
+    escRequest = { until: Date.now() + (entry ? ENTRY_ESC_WAIT_MS : ESC_WAIT_MS), entry };
     setStatus('게임에서 ESC를 눌러 게임 메뉴를 열어 주세요 (이번 주 완료 레이드 확인)', 'warn');
   }
 
-  // 화면 전체 읽기는 줄이 섞이거나 빠져서, "엔드 콘텐츠" 위치만 찾고 그 패널만 크게 다시 읽는다.
+  function escTimeout() {
+    const e = escRequest;
+    escRequest = null;
+    if (!e.entry) { setStatus('게임 메뉴를 못 찾았습니다 - 본인 캐릭터로 ESC를 열고 다시 [ESC 읽기]'); return; }
+    log(`ESC 기다림 그만: ${entryLabel(e.entry)} - 시간 지남`);
+    setStatus(`${entryLabel(e.entry)} - 내 캐릭터를 못 찾음(ESC를 못 읽음)`);
+  }
+
+  function findPhrase(lines, re, phrase) {
+    for (const l of lines) {
+      if (!re.test(l.text)) continue;
+      const b = phraseBox(l, phrase);
+      if (b) return b;
+    }
+    return null;
+  }
+
+  // 화면 전체 읽기는 줄이 섞이거나 빠져서, 기준 글자 위치만 찾고 그 패널만 크게 다시 읽는다.
+  // 기준: "엔드 콘텐츠 골드 획득" 줄(골드 획득 지정 캐릭터만 있음) 또는 캐릭터 이름 바로 아래 "전체 현황 보기" 버튼.
   async function scanEsc(f) {
     const full = await readFull(f);
-    const endFull = (full.data.lines || []).find(l => /엔드\s*콘텐츠/.test(l.text));
-    const eb = endFull && phraseBox(endFull, '엔드콘텐츠');
-    if (!eb) return;
-    // 1758x1015 실측("엔드콘텐츠" x 1308~1372, 글자 높이 11): 패널 x 1270~1605, 캐릭터명 y ~305,
-    // 마지막 레이드 줄 y ~670 → 폭(ew) 기준 왼쪽 -0.6ew·폭 5.4ew, 높이(eh) 기준 위 11줄·전체 36줄.
-    const ex0 = eb.x0 / full.scale, ew = (eb.x1 - eb.x0) / full.scale;
-    const ey0 = eb.y0 / full.scale, eh = (eb.y1 - eb.y0) / full.scale;
-    const rx = Math.max(0, ex0 - ew * 0.6), ry = Math.max(0, ey0 - eh * 11);
-    const rw = Math.min(f.width - rx, ew * 5.4), rh = Math.min(f.height - ry, eh * 36);
+    const fullLines = full.data.lines || [];
+    const eb = findPhrase(fullLines, /엔드\s*콘텐츠/, '엔드콘텐츠');
+    const ab = !eb && findPhrase(fullLines, /전체\s*현황/, '전체현황');
+    const b = eb || ab;
+    if (!b) return;
+    const bx0 = b.x0 / full.scale, bw = (b.x1 - b.x0) / full.scale;
+    const by0 = b.y0 / full.scale, bh = (b.y1 - b.y0) / full.scale;
+    // 패널 x 1270~1605, 캐릭터명 y ~306, 마지막 레이드 줄 y ~640(1758x1015, 1756x1017 실측).
+    //  "엔드콘텐츠" x 1308~1372·높이 11 → 폭(bw) 기준 왼쪽 -0.6·폭 5.4, 높이(bh) 기준 위 11줄·전체 36줄.
+    //  "전체현황" x 1414~1464·y 331~343 → 왼쪽 -2.9·폭 6.8, 위 3줄·전체 32줄.
+    const g = eb ? { l: 0.6, w: 5.4, u: 11, h: 36 } : { l: 2.9, w: 6.8, u: 3, h: 32 };
+    const rx = Math.max(0, bx0 - bw * g.l), ry = Math.max(0, by0 - bh * g.u);
+    const rw = Math.min(f.width - rx, bw * g.w), rh = Math.min(f.height - ry, bh * g.h);
     const panel = await readRegion(f, { x: rx / f.width, y: ry / f.height, w: rw / f.width, h: rh / f.height }, true);
     const lines = panel.data.lines || [];
     const done = [], open = [];
@@ -754,11 +796,12 @@
     });
     const openOnly = open.filter(k => !done.includes(k));
     // 메뉴 위쪽 캐릭터 이름 - 본인 캐릭터 중 긴 이름 우선("은지"가 "악마같은지" 안에 걸리지 않게).
-    const fullText = panel.text + '\n' + (full.data.lines || []).map(l => l.text).join('\n');
+    const fullText = panel.text + '\n' + fullLines.map(l => l.text).join('\n');
     const me = characterPoolData
       .filter(c => (c.user || '').startsWith(selectedUser || '\u0000') && fullText.includes(c.name))
       .sort((a, b) => b.name.length - a.name.length)[0];
     if (!me) return; // 아직 메뉴가 덜 보였거나 본인 캐릭터가 아님 - 시간 끝날 때까지 다시 본다
+    const entry = escRequest && escRequest.entry;
     escRequest = null;
     const charName = me.name;
     const short = k => RAID_SHORT_NAME[k] || k;
@@ -776,6 +819,8 @@
       ? `참여 완료 ${done.map(short).join(', ') || '없음'} / 참여 가능 ${openOnly.map(short).join(', ') || '없음'}`
       : '레이드 목록 없음(게임 메뉴 목록에 레이드를 넣어 두면 읽을 수 있음)';
     log(`ESC 읽음: ${charName} - ${seen}${changed.length ? ' → ' + changed.join(', ') : ''}${locked.length ? ` (일정표 편성이라 그대로: ${locked.join(', ')})` : ''}`);
+    // 입장 창 뒤라면 방금 맞춘 완료 체크까지 반영해서 그 입장 창 판단을 이어서 한다(상태 바/알림은 판단 쪽이 띄움)
+    if (entry) { judgeEntry(entry, charName); return; }
     setStatus(`ESC 확인: ${charName} - ${changed.length ? changed.join(', ') : '바꿀 것 없음'}`);
     notify('info');
   }
@@ -864,6 +909,6 @@
     testSound: kind => notify(kind === 'warn' ? 'warn' : 'info'),
     requestEsc,
     // 시험용(스샷 캔버스를 바로 넣어 보기)
-    _test: { applyPartyToRoster, resolveAmbiguousByRoster, getLogs: () => logs.slice(), processFrame, readGoldSetting, readGoldHud, checkHud, startEndWatch, isWildTarget, setEndWatch: w => { endWatch = w; }, get endWatch() { return endWatch; }, setGoldWatch: w => { goldWatch = w; }, get goldWatch() { return goldWatch; }, parseDialog, judgeGold, locateParty, readParty, setLastParty: p => { lastParty = p; }, get lastParty() { return lastParty; }, get partyRegion() { return partyRegion; }, scanEsc, setManualClear, setEscRequest: r => { escRequest = r; }, get escRequest() { return escRequest; } }
+    _test: { onEntryDialog, applyPartyToRoster, resolveAmbiguousByRoster, getLogs: () => logs.slice(), processFrame, readGoldSetting, readGoldHud, checkHud, startEndWatch, isWildTarget, setEndWatch: w => { endWatch = w; }, get endWatch() { return endWatch; }, setGoldWatch: w => { goldWatch = w; }, get goldWatch() { return goldWatch; }, parseDialog, judgeGold, locateParty, readParty, setLastParty: p => { lastParty = p; }, get lastParty() { return lastParty; }, get partyRegion() { return partyRegion; }, scanEsc, setManualClear, setEscRequest: r => { escRequest = r; }, get escRequest() { return escRequest; } }
   };
 })();
