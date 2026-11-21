@@ -6,7 +6,8 @@
 //  1) 입장 창(가운데): 레이드/난이도/남은 골드 횟수를 읽어 내 캐릭터가 여기서 골드를 받아도 되는지 판단,
 //     받지 말아야 하면 "삐" 소리 + 사이트 알림창. 관리자 모드면 직전에 읽은 파티창 인원으로 참여 캐릭터 자동 변경(정확 일치만).
 //  2) 파티창(오른쪽): 파티원 이름. "모집 상세 정보" 글자 위치로 영역을 자동으로 찾는다.
-//  3) 레이드 안 왼쪽 위 "골드 보상 설정": 골드 알림 자동 닫기 + 일정표 밖 레이드면 내 캐릭터 완료 체크(실제로 들어간 게 확인될 때).
+//  3) 레이드 안 왼쪽 위: "골드 보상 설정"으로 골드 알림 자동 닫기, 마지막 관문 뒤 "나가기" 버튼으로 레이드 끝 판정
+//     (일정표 밖이면 내 캐릭터 완료 체크, 일정표 레이드면 관리자 모드에서 [완료 처리] 누른 것처럼 처리).
 //  4) [ESC 읽기] 버튼(수동): 게임 메뉴 레이드 목록으로 캐릭터 현황 완료 체크를 맞춘다("참여 완료" 체크, "참여 가능"이면 개별 체크 해제).
 //  ESC 자동 요청은 2026-11-20에 뺐다(입장 창이 떠 있으면 ESC를 못 눌러 파티창 단계에서 미리 물어야 했고 대부분 필요 없었음).
 (function () {
@@ -16,7 +17,7 @@
   const PARTY_EVERY = 3;              // 파티창은 3박자마다
   const PARTY_RELOCATE_MIN_MS = 15000; // 파티창 다시 찾기 최소 간격(화면 전체 읽기는 1~3초 걸림)
   const PARTY_FRESH_MS = 3 * 60 * 1000;
-  const CLEAR_WATCH_MS = 5 * 60 * 1000; // 입장 창 뒤 레이드 안 화면을 기다리는 시간(파티원 수락 대기 포함)
+  const END_WATCH_MS = 90 * 60 * 1000; // 입장 창 뒤 레이드 끝("나가기")을 기다리는 최대 시간
   const PARTY_REGION_KEY = 'loa_share_party_region';
   // 입장 창은 항상 가운데라 화면 비율로 충분하다(1337~1919px 창모드 스샷 4장 기준 + 여유).
   const DIALOG_REGION = { x: 0.385, y: 0.27, w: 0.23, h: 0.46 };
@@ -34,7 +35,7 @@
   let partyRegion = loadPartyRegion(), partyMiss = 0, lastLocateAt = 0;
   let lastParty = null;                // { at, items, names }
   let dialogOpen = false;
-  let clearWatch = null;               // { charName, famKey, until } 일정표 밖 레이드 완료 체크 대기
+  let endWatch = null;                 // { famKey, diffKey, charName, wild, until } 레이드 끝("나가기") 대기
   const ESC_WAIT_MS = 45000;           // [ESC 읽기] 누른 뒤 게임 메뉴를 기다리는 시간
   let escRequest = null;               // { until }
   const logs = [];
@@ -65,7 +66,7 @@
     if (tickWorker) tickWorker.terminate();
     tickWorker = null;
     if (stream) stream.getTracks().forEach(t => t.stop());
-    stream = null; video = null; clearWatch = null; escRequest = null; dialogOpen = false;
+    stream = null; video = null; endWatch = null; escRequest = null; dialogOpen = false;
     setHeaderActive(false);
     const bar = document.getElementById('raidShareBar');
     if (bar) bar.remove();
@@ -106,7 +107,11 @@
     const dialog = parseDialog(dialogText);
     if (dialog && !dialogOpen) await onEntryDialog(dialog);
     dialogOpen = !!dialog;
-    if (!dialog && (goldWatch || clearWatch)) { await checkHud(f); return; }
+    // 레이드 끝 감시는 길어서(입장 창에서 거절했을 수도 있음) 레이드 안 화면이 안 보이면 파티창 읽기도 계속한다.
+    if (!dialog && (goldWatch || endWatch)) {
+      const inRaid = await checkHud(f);
+      if (inRaid || goldWatch) return;
+    }
     if (!dialog && tickNo % PARTY_EVERY === 0) await readParty(f);
   }
 
@@ -202,9 +207,11 @@
   async function onEntryDialog(d) {
     const raidLabel = `${d.raidName || '?'} [${d.diffText || '?'}]`;
     log(`입장 창: ${raidLabel}, 남은 골드 ${d.left === null ? '?' : d.left + '회'}`);
-    if (isAdminModeActive()) await applyPartyToRoster(d.famKey);
+    // 관리자 모드로 화면 공유 중이면 입장 창마다 관리자 유휴 시간(1시간)을 갱신한다 - 레이드가 길거나 이어져도 안 풀리게.
+    if (isAdminModeActive()) { markAdminAction(); await applyPartyToRoster(d.famKey); }
     const charName = d.famKey ? findMyChar(d.famKey) : null;
-    if (charName) watchClear(charName, d.famKey);
+    endWatch = null;
+    if (charName) startEndWatch(d, charName);
     if (d.left === 0) { setStatus(`${raidLabel} - 골드 횟수 소진`); return; }
     if (!d.famKey) { setStatus(`${raidLabel} - 골드 판단 대상 레이드 아님`); return; }
     if (!charName) { setStatus(`${raidLabel} - 내 캐릭터를 못 찾음(상단 강조에서 본인 선택)`); return; }
@@ -240,37 +247,118 @@
     goldWatch = { kind, head, until: Date.now() + GOLD_WATCH_MS, seenHud: false, misses: 0, realerted: false };
   }
 
-  // 레이드 안 화면을 한 번 읽어 두 감시(골드 알림 / 일정표 밖 완료 체크)에 같이 쓴다.
+  // 레이드 안 왼쪽 위를 한 번 읽어 두 감시(골드 알림 / 레이드 끝)에 같이 쓴다. 레이드 안 화면(골드 줄이나 레이드 이름)이 보이면 true.
   async function checkHud(f) {
-    const hud = await readGoldHud(f);
-    if (clearWatch) await checkClearWatch(hud);
-    if (goldWatch) checkGoldSetting(hud);
+    const hud = await readRegion(f, RAID_HUD_REGION, true);
+    const lines = (hud.data && hud.data.lines) || [];
+    const gold = goldFromHud(f, hud);
+    if (goldWatch) checkGoldSetting(gold);
+    const titleKey = lines.map(l => gameRaidKey(l.text)).find(Boolean) || null;
+    if (endWatch) await checkEnd(f, lines, titleKey);
+    return !!gold || !!titleKey;
   }
 
-  // ─── 일정표 밖 레이드 자동 완료 체크 ────────────────────────
-  // 입장 창이 뜬 뒤 레이드 안 왼쪽 위 "골드 보상 설정"이 보이면(= 실제로 들어감) 캐릭터 현황의 개별 완료로 체크한다.
-  // 입장 창에서 거절하면 이 화면이 안 나오니 체크도 안 된다. 이미 체크됐거나 일정표/진행중 레이드에 들어 있으면
-  // (그 레이드의 완료 처리로 체크된다) 하지 않는다. 저장 규칙은 캐릭터 현황에서 직접 누를 때(toggleWildClear)와 같다.
-  function watchClear(charName, famKey) {
-    clearWatch = null;
-    if (getCharRaidStatus(charName, famKey)) return;
-    if (isRaidCheckLocked(charName, famKey) || scheduledPendingRow(charName, famKey)) return;
-    if (inProgressTargets().some(t => t.famKey === famKey && t.slots.some(s => s.name === charName))) return;
+  // 레이드 이름 아래 버튼만(중단하기/재시작/던전 진행/나가기). 큰 화면에서 막 클리어한 직후의 회색 "나가기"는
+  // 왼쪽 위 전체를 읽을 때 뭉개지고 이 부분만 읽으면 잡힌다(1919x1079 스샷 실측).
+  const RAID_BUTTON_REGION = { x: 0.035, y: 0.157, w: 0.09, h: 0.03 };
+  function hasExitText(text) { return /가기/.test((text || '').replace(/\s/g, '')); }
+
+  function raidShort(k) { return RAID_SHORT_NAME[k] || k; }
+
+  // ─── 레이드 끝 감시 ──────────────────────────────────────
+  // 마지막 관문을 깨면 왼쪽 위 버튼이 "나가기"로 바뀌고 이때 보상도 들어온다(중단하기/재시작/던전 진행에는 "가기"가 없음).
+  // 바로 뒤 컷신(길이는 로딩·자동 스킵에 따라 사람마다 다름) 동안은 안 보이다가 다시 보이고, 컷신 전에도 4초쯤 보여
+  // 2초 박자로 1~2번은 잡힌다(2026-11-21 벨가 나메 종료 영상 실측, "낙가기/내가기"로도 읽혀 "가기"만 본다).
+  // 위 레이드 이름도 입장 창과 같은 계열일 때만 인정한다. 입장 창에서 시작해 나가기를 보거나, 다음 입장 창이 뜨거나,
+  // 1시간 반이 지나면 끝낸다. 중간 관문만 깨고 나가면 버튼이 "던전 진행"이라 끝으로 안 본다.
+  function startEndWatch(d, charName) {
+    endWatch = { famKey: d.famKey, diffKey: d.diffKey, charName, wild: isWildTarget(charName, d.famKey), until: Date.now() + END_WATCH_MS };
+  }
+
+  async function checkEnd(f, lines, titleKey) {
+    if (Date.now() > endWatch.until) { log(`레이드 끝 감시 그만: ${endWatch.charName} ${raidShort(endWatch.famKey)} - 시간 지남`); endWatch = null; return; }
+    if (titleKey !== endWatch.famKey) return;
+    if (!lines.some(l => hasExitText(l.text)) && !hasExitText(await readRegion(f, RAID_BUTTON_REGION))) return;
+    if (!endWatch) return; // 버튼을 읽는 사이 다음 입장 창 등으로 감시가 바뀌었으면 그만
+    const w = endWatch;
+    endWatch = null;
+    log(`레이드 끝(나가기): ${w.charName} ${raidShort(w.famKey)}`);
+    if (w.wild && isWildTarget(w.charName, w.famKey)) await finishWild(w);
+    // 완료 확인창은 사람이 고를 때까지 기다리므로 박자를 막지 않게 기다리지 않는다
+    else finishScheduled(w).catch(e => log('완료 처리 오류: ' + (e && e.message ? e.message : e)));
+  }
+
+  // 일정표 밖 레이드 = 이미 체크됐거나, 잠겼거나, 일정표(남은 칸)/진행중 레이드에 들어 있으면 아님(그 레이드 완료 처리로 체크된다).
+  function isWildTarget(charName, famKey) {
+    if (getCharRaidStatus(charName, famKey)) return false;
+    if (isRaidCheckLocked(charName, famKey) || scheduledPendingRow(charName, famKey)) return false;
+    if (inProgressTargets().some(t => t.famKey === famKey && t.slots.some(s => s.name === charName))) return false;
     const c = characterPoolData.find(x => x.name === charName);
-    if (!c || c.level < getRaidMinLevel(famKey)) return;
-    clearWatch = { charName, famKey, until: Date.now() + CLEAR_WATCH_MS };
+    return !!(c && c.level >= getRaidMinLevel(famKey));
   }
 
-  async function checkClearWatch(hud) {
-    const { charName, famKey } = clearWatch;
-    const name = RAID_SHORT_NAME[famKey] || famKey;
-    if (Date.now() > clearWatch.until) { clearWatch = null; log(`완료 체크 안 함: ${charName} ${name} - 레이드 안 화면을 못 봄`); return; }
-    if (!hud) return;
-    clearWatch = null;
-    if (getCharRaidStatus(charName, famKey)) return;
-    if (!await setManualClear(charName, famKey, true)) return;
-    log(`완료 체크: ${charName} ${name} (일정표 밖 레이드)`);
-    if (!goldWatch) setStatus(`✓ ${charName} ${name} 완료 체크함 (안 갔으면 캐릭터 현황에서 해제)`);
+  // 일정표 밖: 캐릭터 현황 개별 완료로 체크(캐릭터 현황에서 직접 누를 때와 같은 저장).
+  async function finishWild(w) {
+    const name = raidShort(w.famKey);
+    beep();
+    if (!await setManualClear(w.charName, w.famKey, true)) return;
+    log(`완료 체크: ${w.charName} ${name} (일정표 밖 레이드)`);
+    setStatus(`✓ ${w.charName} ${name} 완료 체크함 (안 갔으면 캐릭터 현황에서 해제)`);
+  }
+
+  // 일정표 레이드(관리자 모드만): 내가 든 진행중 레이드(사람당 하나뿐)가 이 레이드면 [완료 처리]를 누른 것처럼 한다.
+  //  - 같은 조에 다음 레이드가 있으면 "완료 처리 / 다음 레이드 진행" 확인창만 띄운다(고르는 건 사람).
+  //  - 다음 레이드가 없으면 확인창 없이 바로 완료 처리한다.
+  // 관리자 모드가 아니면 아무것도 안 한다(공유하는 사람마다 안내가 뜨면 헷갈림 - 2026-11-22 사용자 결정, [기록]에만 남김).
+  // 누른 시점에 Raid_Status를 다시 받아 이미 완료/취소됐으면 아무것도 안 한다.
+  async function finishScheduled(w) {
+    const name = raidShort(w.famKey);
+    if (!isAdminModeActive()) { log(`레이드 끝: ${w.charName} ${name} - 관리자 모드가 아니라 그대로 둠`); return; }
+    markAdminAction();
+    const t = inProgressTargets().find(x => x.famKey === w.famKey && x.slots.some(s => (s.user || '').startsWith(selectedUser)));
+    if (!t) { log(`레이드 끝: ${w.charName} ${name} - 내가 든 진행중 레이드가 없음`); return; }
+    const head = t.block.title;
+    const blockDiff = normalizeDiff(t.rawRaidTitle);
+    if (w.diffKey && blockDiff && blockDiff !== w.diffKey) {
+      log(`완료 처리 안 함: 진행중 레이드(${head})와 난이도가 다름`);
+      setStatus(`${w.charName} ${name} 레이드 끝 - 진행중 레이드(${head})와 난이도가 달라 그대로 둠`, 'warn');
+      return;
+    }
+    await refreshSheets(['Raid_Status'], true);
+    const fresh = getRaidStatusFor(t.sheetId, t.blockIndex, t.rawRaidTitle);
+    if (!fresh || fresh.status !== '진행중') {
+      const why = fresh && fresh.status === '완료' ? '이미 완료됨' : '진행중 아님';
+      log(`완료 처리 안 함: ${head} - ${why}`);
+      setStatus(`${head} 끝 - ${why}`);
+      return;
+    }
+    const nextBlock = (sheetsDataStore[t.sheetId] && sheetsDataStore[t.sheetId].blocks[t.blockIndex + 1]) || null;
+    const nextInfo = nextBlock ? getRaidStatusFor(t.sheetId, t.blockIndex + 1, nextBlock.rawTitle) : null;
+    const hasNext = !!nextBlock && !(nextInfo && nextInfo.status === '완료');
+    notify('info');
+    if (hasNext) {
+      log(`완료 처리 창 띄움: ${head} (다음 레이드 있음)`);
+      setStatus(`✓ ${head} 끝 - 완료 처리 / 다음 레이드 진행을 골라 주세요`);
+      // 진행중 창을 열고 그 [완료 처리]를 누른 것과 똑같이(같은 확인창, 취소하면 진행중 창이 남는다).
+      openRaidProgressModal(t.sheetId, t.blockIndex, t.rawRaidTitle, head);
+      await completeRaidBlock();
+      return;
+    }
+    if (isRaidProgressModalOpen()) closeRaidProgressModal();
+    showSavingOverlay('레이드 완료 처리 중...');
+    try {
+      await doCompleteRaidBlock(t.sheetId, t.blockIndex, t.rawRaidTitle);
+    } finally {
+      hideSavingOverlay();
+    }
+    const done = getRaidStatusFor(t.sheetId, t.blockIndex, t.rawRaidTitle);
+    if (done && done.status === '완료') {
+      log(`자동 완료 처리: ${head} (다음 레이드 없음)`);
+      setStatus(`✓ ${head} 완료 처리함 (다음 레이드 없음)`);
+    } else {
+      log(`자동 완료 처리 실패: ${head}`);
+      setStatus(`${head} 완료 처리 실패 - 직접 [완료 처리]를 눌러 주세요`, 'warn');
+    }
   }
 
   // 캐릭터 현황 개별 완료 체크(on=true)/해제(false) - 캐릭터 현황에서 칸을 누를 때와 같은 저장(toggleWildClear는 뒤집기라
@@ -314,13 +402,13 @@
   }
 
   // "골드 보상 설정" 줄이 없으면 null(레이드 밖이거나 시작함), 있으면 { state: 'off' | 'on' | null(아이콘 판별 못 함) }.
-  // 줄만 보여도 "레이드 안에 들어옴"은 확실하다(켜짐 금화 아이콘은 아직 실측 전이라 state가 null일 수 있음).
-  async function readGoldHud(f) {
-    const hud = await readRegion(f, RAID_HUD_REGION, true);
-    const line = (hud.data.lines || []).find(l => /골드\s*보상/.test(l.text));
+  // 켜짐(금화) 아이콘은 2026-11-21 1919x1079 벨가 나메 스샷으로 'on' 판별 확인.
+  async function readGoldHud(f) { return goldFromHud(f, await readRegion(f, RAID_HUD_REGION, true)); }
+
+  function goldFromHud(f, hud) {
+    const line = ((hud.data && hud.data.lines) || []).find(l => /골드\s*보상/.test(l.text));
     const b = line && phraseBox(line, '골드보상');
-    if (!b) return null;
-    return { state: goldIconState(f, hud, b) };
+    return b ? { state: goldIconState(f, hud, b) } : null;
   }
 
   async function readGoldSetting(f) { const h = await readGoldHud(f); return h ? h.state : null; }
@@ -776,6 +864,6 @@
     testSound: kind => notify(kind === 'warn' ? 'warn' : 'info'),
     requestEsc,
     // 시험용(스샷 캔버스를 바로 넣어 보기)
-    _test: { applyPartyToRoster, resolveAmbiguousByRoster, getLogs: () => logs.slice(), processFrame, readGoldSetting, readGoldHud, checkHud, watchClear, setClearWatch: w => { clearWatch = w; }, get clearWatch() { return clearWatch; }, setGoldWatch: w => { goldWatch = w; }, get goldWatch() { return goldWatch; }, parseDialog, judgeGold, locateParty, readParty, setLastParty: p => { lastParty = p; }, get lastParty() { return lastParty; }, get partyRegion() { return partyRegion; }, scanEsc, setManualClear, setEscRequest: r => { escRequest = r; }, get escRequest() { return escRequest; } }
+    _test: { applyPartyToRoster, resolveAmbiguousByRoster, getLogs: () => logs.slice(), processFrame, readGoldSetting, readGoldHud, checkHud, startEndWatch, isWildTarget, setEndWatch: w => { endWatch = w; }, get endWatch() { return endWatch; }, setGoldWatch: w => { goldWatch = w; }, get goldWatch() { return goldWatch; }, parseDialog, judgeGold, locateParty, readParty, setLastParty: p => { lastParty = p; }, get lastParty() { return lastParty; }, get partyRegion() { return partyRegion; }, scanEsc, setManualClear, setEscRequest: r => { escRequest = r; }, get escRequest() { return escRequest; } }
   };
 })();
