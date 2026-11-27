@@ -4,7 +4,7 @@
 //
 // 하는 일(게임 창을 공유받아 2초마다 일부만 읽는다. 화면은 이 PC 안에서만 처리하고 어디에도 보내지 않음):
 //  1) 입장 창(가운데): 레이드/난이도/남은 골드 횟수를 읽어 내 캐릭터가 여기서 골드를 받아도 되는지 판단,
-//     받지 말아야 하면 "삐" 소리 + 사이트 알림창. 관리자 모드면 직전에 읽은 파티창 인원으로 참여 캐릭터 자동 변경(정확 일치만).
+//     받지 말아야 하면 "삐삐" 소리 + 사이트 알림창, 괜찮으면 읽었다는 표시로 "삐" 한 번(2026-11-27). 관리자 모드면 직전에 읽은 파티창 인원으로 참여 캐릭터 자동 변경(정확 일치만).
 //  2) 파티창(오른쪽): 파티원 이름. "모집 상세 정보" 글자 위치로 영역을 자동으로 찾는다.
 //  3) 레이드 안 왼쪽 위: "골드 보상 설정"으로 골드 알림 자동 닫기, 마지막 관문 뒤 "나가기" 버튼으로 레이드 끝 판정
 //     (일정표 밖이면 내 캐릭터 완료 체크, 일정표 레이드면 관리자 모드에서 [완료 처리] 누른 것처럼 처리).
@@ -242,13 +242,25 @@
   }
 
   // 입장 창 판단(골드 + 레이드 끝 감시). 입장 창에서 바로, 또는 입장 뒤 ESC로 캐릭터 이름을 읽은 다음에 부른다.
+  // 입장 창을 읽었다는 표시로 알림창 없는 결과(골드 받기/소진/대상 아님 등)에도 "삐" 한 번(주의 알림은 "삐삐" 두 번).
+  // 같은 입장 창이 다시 잡혀도(싱글 모드에서 레이드 고르기, 창 닫았다 열기, 글자 인식 깜빡임) 2분 안에는 다시 안 울린다.
+  const ENTRY_BEEP_GAP_MS = 2 * 60 * 1000;
+  let lastEntryBeep = null;           // { key, at }
+  function entryBeep(d, charName) {
+    const key = [d.famKey, d.diffKey, d.left, charName].join('|');
+    if (lastEntryBeep && lastEntryBeep.key === key && Date.now() - lastEntryBeep.at < ENTRY_BEEP_GAP_MS) return;
+    lastEntryBeep = { key, at: Date.now() };
+    beep(1);
+  }
+
   function judgeEntry(d, charName) {
     const raidLabel = entryLabel(d);
     if (charName) startEndWatch(d, charName);
-    if (d.left === 0) { setStatus(`${raidLabel} - 골드 횟수 소진`); return; }
-    if (!d.famKey) { setStatus(`${raidLabel} - 골드 판단 대상 레이드 아님`); return; }
-    if (!charName) { setStatus(`${raidLabel} - 내 캐릭터를 못 찾음(상단 강조에서 본인 선택)`); return; }
+    if (d.left === 0) { setStatus(`${raidLabel} - 골드 횟수 소진`); entryBeep(d, charName); return; }
+    if (!d.famKey) { setStatus(`${raidLabel} - 골드 판단 대상 레이드 아님`); entryBeep(d, charName); return; }
+    if (!charName) { setStatus(`${raidLabel} - 내 캐릭터를 못 찾음(상단 강조에서 본인 선택)`); entryBeep(d, charName); return; }
     const j = judgeGold(charName, d.famKey, d.diffKey, d.left);
+    if (j.verdict !== 'skip' && j.verdict !== 'unsure') entryBeep(d, charName);
     const head = `${charName} · ${raidLabel}`;
     if (j.verdict === 'skip') {
       setStatus(`⚠ ${head}: 골드 받지 마세요 - ${j.why}`, 'warn');
@@ -907,10 +919,10 @@
   }
   // 평소 알림은 시험 페이지에서 들어 본 그 소리 그대로(880Hz, 일정한 크기 0.18초) - 소리가 줄어드는 처리를 넣었더니
   // 너무 작게 들린다고 해서 되돌림(v2.19.13). 한 번은 놓치기 쉬워 두 번 울린다(v2.19.14).
-  function beep() {
+  function beep(times = 2) {
     try {
       const ctx = getAudio(), t0 = ctx.currentTime;
-      for (let i = 0; i < 2; i++) {
+      for (let i = 0; i < times; i++) {
         const t = t0 + i * 0.28;
         const o = ctx.createOscillator(), g = ctx.createGain();
         o.frequency.value = 880; g.gain.value = 0.15;
