@@ -4,7 +4,7 @@
 //
 // 하는 일(게임 창을 공유받아 2초마다 일부만 읽는다. 화면은 이 PC 안에서만 처리하고 어디에도 보내지 않음):
 //  1) 입장 창(가운데): 레이드/난이도/남은 골드 횟수를 읽어 내 캐릭터가 여기서 골드를 받아도 되는지 판단,
-//     받지 말아야 하면 "삐삐" 소리 + 사이트 알림창, 괜찮으면 읽었다는 표시로 "삐" 한 번(2026-11-27). 관리자 모드면 직전에 읽은 파티창 인원으로 참여 캐릭터 자동 변경(정확 일치만).
+//     받지 말아야 하면 "삐삐" 소리 + 사이트 알림창, 괜찮으면(골드 받기/소진) 읽었다는 표시로 "삐" 한 번 - 다른 소리가 났으면 생략(2026-11-27). 관리자 모드면 직전에 읽은 파티창 인원으로 참여 캐릭터 자동 변경(정확 일치만).
 //  2) 파티창(오른쪽): 파티원 이름. "모집 상세 정보" 글자 위치로 영역을 자동으로 찾는다.
 //  3) 레이드 안 왼쪽 위: "골드 보상 설정"으로 골드 알림 자동 닫기, 마지막 관문 뒤 "나가기" 버튼으로 레이드 끝 판정
 //     (일정표 밖이면 내 캐릭터 완료 체크, 일정표 레이드면 관리자 모드에서 [완료 처리] 누른 것처럼 처리).
@@ -52,6 +52,8 @@
     await video.play();
     stream.getVideoTracks()[0].addEventListener('ended', () => stop());
     frame = document.createElement('canvas');
+    if (recOn()) recPrune();
+    renderRecBtn();
     renderBar();
     setHeaderActive(true);
     setStatus('인식 데이터 준비 중...');
@@ -106,7 +108,7 @@
     if (escRequest && !escRequest.entry) { await scanEsc(f); return; } // [ESC 읽기] 버튼 - 게임 메뉴만 본다
     const dialogText = await readRegion(f, DIALOG_REGION);
     const dialog = parseDialog(dialogText);
-    if (dialog && !dialogOpen) await onEntryDialog(dialog);
+    if (dialog && !dialogOpen) await onEntryDialog(dialog, f);
     dialogOpen = !!dialog;
     // 입장 창에서 내 캐릭터를 못 찾았으면 입장 뒤 게임 메뉴(ESC)에서 이름을 읽는다(입장 창이 닫힌 뒤에만)
     if (!dialog && escRequest) { await scanEsc(f); return; }
@@ -209,8 +211,10 @@
 
   function entryLabel(d) { return `${d.raidName || '?'} [${d.diffText || '?'}]`; }
 
-  async function onEntryDialog(d) {
+  async function onEntryDialog(d, f) {
     const raidLabel = entryLabel(d);
+    // 관리자 기록: 입장 창 화면 + 직전 파티창 화면들(인원을 잘못 읽었을 때 원인 확인용)
+    if (f && recOn()) rec('entry', { dialog: d, img: shot(f, FULL_REGION, 1200), party: partyShots.slice() });
     log(`입장 창: ${raidLabel}, 남은 골드 ${d.left === null ? '?' : d.left + '회'}`);
     // 관리자 모드로 화면 공유 중이면 입장 창마다 관리자 유휴 시간(1시간)을 갱신한다 - 레이드가 길거나 이어져도 안 풀리게.
     if (isAdminModeActive()) { markAdminAction(); await applyPartyToRoster(d.famKey); }
@@ -242,11 +246,13 @@
   }
 
   // 입장 창 판단(골드 + 레이드 끝 감시). 입장 창에서 바로, 또는 입장 뒤 ESC로 캐릭터 이름을 읽은 다음에 부른다.
-  // 입장 창을 읽었다는 표시로 알림창 없는 결과(골드 받기/소진/대상 아님 등)에도 "삐" 한 번(주의 알림은 "삐삐" 두 번).
+  // 입장 창을 제대로 읽었다는 표시로 성공(골드 받기, 골드 소진)일 때만 "삐" 한 번(주의 알림은 "삐삐" 두 번).
+  // 이 입장 창에서 이미 다른 소리(인원 확인/자동 변경 "삐삐" 등)가 났으면 안 울린다 - "삐삐"가 들리면 "삐"는 필요 없음(2026-11-27 사용자).
   // 같은 입장 창이 다시 잡혀도(싱글 모드에서 레이드 고르기, 창 닫았다 열기, 글자 인식 깜빡임) 2분 안에는 다시 안 울린다.
   const ENTRY_BEEP_GAP_MS = 2 * 60 * 1000;
   let lastEntryBeep = null;           // { key, at }
   function entryBeep(d, charName) {
+    if (Date.now() - lastBeepAt < 5000) return;
     const key = [d.famKey, d.diffKey, d.left, charName].join('|');
     if (lastEntryBeep && lastEntryBeep.key === key && Date.now() - lastEntryBeep.at < ENTRY_BEEP_GAP_MS) return;
     lastEntryBeep = { key, at: Date.now() };
@@ -257,10 +263,10 @@
     const raidLabel = entryLabel(d);
     if (charName) startEndWatch(d, charName);
     if (d.left === 0) { setStatus(`${raidLabel} - 골드 횟수 소진`); entryBeep(d, charName); return; }
-    if (!d.famKey) { setStatus(`${raidLabel} - 골드 판단 대상 레이드 아님`); entryBeep(d, charName); return; }
-    if (!charName) { setStatus(`${raidLabel} - 내 캐릭터를 못 찾음(상단 강조에서 본인 선택)`); entryBeep(d, charName); return; }
+    if (!d.famKey) { setStatus(`${raidLabel} - 골드 판단 대상 레이드 아님`); return; }
+    if (!charName) { setStatus(`${raidLabel} - 내 캐릭터를 못 찾음(상단 강조에서 본인 선택)`); return; }
     const j = judgeGold(charName, d.famKey, d.diffKey, d.left);
-    if (j.verdict !== 'skip' && j.verdict !== 'unsure') entryBeep(d, charName);
+    if (j.verdict === 'take') entryBeep(d, charName);
     const head = `${charName} · ${raidLabel}`;
     if (j.verdict === 'skip') {
       setStatus(`⚠ ${head}: 골드 받지 마세요 - ${j.why}`, 'warn');
@@ -640,6 +646,15 @@
     const items = matchScreenOcrTokens(tokens, rosterNames);
     if (!items.length) return;
     resolveAmbiguousByRoster(items, rosterNames);
+    if (recOn()) {
+      partyShots.push({
+        t: new Date().toLocaleTimeString('ko-KR', { hour12: false }),
+        text,
+        items: items.map(it => `${it.text} → ${it.choice === null ? '?' : it.choice === SCREEN_OCR_SKIP ? '(제외)' : it.candidates[it.choice]}`),
+        img: shot(f, partyRegion, 600)
+      });
+      if (partyShots.length > PARTY_SHOTS_MAX) partyShots.shift();
+    }
     const names = items.filter(it => it.choice !== null && it.choice !== SCREEN_OCR_SKIP).map(it => it.candidates[it.choice]);
     lastParty = { at: Date.now(), items, names };
   }
@@ -832,6 +847,7 @@
     const entry = escRequest && escRequest.entry;
     escRequest = null;
     const charName = me.name;
+    if (recOn()) rec('esc', { charName, done, open: openOnly, img: shot(f, FULL_REGION, 1200) });
     const short = k => RAID_SHORT_NAME[k] || k;
     const changed = [], locked = [];
     for (const key of done) {
@@ -852,6 +868,99 @@
     setStatus(`ESC 확인: ${charName} - ${changed.length ? changed.join(', ') : '바꿀 것 없음'}`);
     notify('info');
   }
+
+  // ─── 관리자 기록(점검용) ───────────────────────────────────
+  // 관리자 모드로 공유하는 동안만 이 브라우저(IndexedDB)에 기록을 쌓고, [화면 공유] 옆 [기록 저장]으로 파일 하나(JSON)로 받는다
+  // (2026-11-28 사용자 요청 - 매번 Claude가 감시를 심는 대신 하루 끝에 파일을 읽음). 관리자 모드가 아니면 아무것도 안 쌓는다.
+  // 쌓는 것: 공유 기록 줄, 상태 줄, 알림(소리), 입장 창 화면(축소) + 직전 파티창 화면 6장과 읽은 글자, ESC를 읽은 화면.
+  // 화면은 이 PC 안에만 저장된다(다운로드도 이 PC). 2일 지난 기록은 공유를 시작할 때 지운다.
+  const REC_DB = 'loa_share_rec', REC_STORE = 'rec', REC_KEEP_MS = 2 * 24 * 60 * 60 * 1000;
+  const FULL_REGION = { x: 0, y: 0, w: 1, h: 1 };
+  const PARTY_SHOTS_MAX = 6;
+  const partyShots = [];               // 최근 파티창 읽기 { t, text, items, img }
+  let recDbP = null;
+
+  function recOn() { return typeof isAdminModeActive === 'function' && isAdminModeActive(); }
+
+  function recDb() {
+    if (!recDbP) recDbP = new Promise((res, rej) => {
+      const r = indexedDB.open(REC_DB, 1);
+      r.onupgradeneeded = () => r.result.createObjectStore(REC_STORE, { autoIncrement: true });
+      r.onsuccess = () => res(r.result);
+      r.onerror = () => rej(r.error);
+    });
+    return recDbP;
+  }
+
+  function rec(type, data) {
+    if (!recOn()) return;
+    const item = { at: Date.now(), t: new Date().toLocaleString('ko-KR', { hour12: false }), type, ...data };
+    recDb().then(db => { db.transaction(REC_STORE, 'readwrite').objectStore(REC_STORE).add(item); }).catch(() => {});
+  }
+
+  // 프레임의 비율 영역을 폭 maxW 이하로 줄인 JPEG(data URL)
+  function shot(f, r, maxW) {
+    try {
+      const sx = f.width * r.x, sy = f.height * r.y, sw = f.width * r.w, sh = f.height * r.h;
+      const s = Math.min(1, maxW / sw);
+      const c = document.createElement('canvas');
+      c.width = Math.round(sw * s); c.height = Math.round(sh * s);
+      c.getContext('2d').drawImage(f, sx, sy, sw, sh, 0, 0, c.width, c.height);
+      return c.toDataURL('image/jpeg', 0.7);
+    } catch (e) { return null; }
+  }
+
+  async function recPrune() {
+    try {
+      const db = await recDb();
+      const store = db.transaction(REC_STORE, 'readwrite').objectStore(REC_STORE);
+      const cut = Date.now() - REC_KEEP_MS;
+      store.openCursor().onsuccess = e => {
+        const cur = e.target.result;
+        if (!cur) return;
+        if (cur.value.at < cut) { cur.delete(); cur.continue(); }
+      };
+    } catch (e) {}
+  }
+
+  async function downloadRec() {
+    let items = [];
+    try {
+      const db = await recDb();
+      items = await new Promise((res, rej) => {
+        const q = db.transaction(REC_STORE).objectStore(REC_STORE).getAll();
+        q.onsuccess = () => res(q.result); q.onerror = () => rej(q.error);
+      });
+    } catch (e) { customAlert('기록을 읽지 못했습니다: ' + (e && e.message ? e.message : e)); return; }
+    if (!items.length) { customAlert('저장된 기록이 없습니다.\n관리자 모드로 화면 공유를 하는 동안만 기록이 쌓입니다.', '기록 저장'); return; }
+    const d = new Date(), p = n => String(n).padStart(2, '0');
+    const stamp = `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}`;
+    const blob = new Blob([JSON.stringify({ savedAt: d.toLocaleString('ko-KR', { hour12: false }), count: items.length, items })], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `raid-share-rec-${stamp}.json`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+  }
+
+  // [화면 공유] 버튼 옆 [기록 저장] - 관리자 모드일 때만 보인다(이 파일은 처음 [화면 공유]를 누를 때 불러오므로 그 뒤부터).
+  function renderRecBtn() {
+    const btn = document.getElementById('raidShareRecBtn');
+    if (!recOn()) { if (btn) btn.remove(); return; }
+    const share = document.getElementById('raidShareBtn');
+    if (btn || !share) return;
+    const b = document.createElement('button');
+    b.id = 'raidShareRecBtn';
+    b.type = 'button';
+    b.className = 'flex items-center gap-1 h-8 bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white border border-gray-700 text-xs font-semibold px-2.5 rounded-lg transition';
+    b.title = '관리자 모드로 화면 공유한 기록(최근 2일, 화면 캡처 포함)을 파일 하나로 받습니다';
+    b.textContent = '기록 저장';
+    b.onclick = () => downloadRec();
+    share.after(b);
+  }
+  // 공유를 다시 시작하면 이 파일을 새로 불러오므로 앞 타이머는 끈다
+  clearInterval(window.__raidShareRecTimer);
+  window.__raidShareRecTimer = setInterval(renderRecBtn, 3000);
 
   // ─── 화면 표시 / 소리 ─────────────────────────────────────
   function renderBar() {
@@ -877,12 +986,14 @@
   function setStatus(text, tone) {
     const el = document.getElementById('raidShareStatus');
     if (!el) return;
+    if (el.textContent !== text) rec('status', { text });
     el.textContent = text;
     el.className = `flex-1 break-keep ${tone === 'warn' ? 'text-amber-300' : 'text-gray-300'}`;
   }
 
   function log(msg) {
     const t = new Date().toLocaleTimeString('ko-KR', { hour12: false });
+    rec('log', { msg });
     logs.unshift(`[${t}] ${msg}`);
     if (logs.length > 40) logs.pop();
     const el = document.getElementById('raidShareLog');
@@ -908,6 +1019,7 @@
   // 골드 받지 말아야 할 때만 알림창을 빨간 테두리로 띄운다(음성은 어색하다고 해서 뺌, v2.19.16).
   function notify(kind, message, title) {
     beep();
+    rec('alert', { kind, title: title || '', msg: message || '(소리만)' });
     if (message) customAlert(message, title, kind === 'warn' ? 'danger' : kind === 'caution' ? 'caution' : undefined);
   }
 
@@ -919,7 +1031,9 @@
   }
   // 평소 알림은 시험 페이지에서 들어 본 그 소리 그대로(880Hz, 일정한 크기 0.18초) - 소리가 줄어드는 처리를 넣었더니
   // 너무 작게 들린다고 해서 되돌림(v2.19.13). 한 번은 놓치기 쉬워 두 번 울린다(v2.19.14).
+  let lastBeepAt = 0;
   function beep(times = 2) {
+    lastBeepAt = Date.now();
     try {
       const ctx = getAudio(), t0 = ctx.currentTime;
       for (let i = 0; i < times; i++) {
@@ -935,7 +1049,7 @@
   window.RaidShare = {
     start, stop, isActive, toggleLog,
     testSound: kind => notify(kind === 'warn' ? 'warn' : 'info'),
-    requestEsc,
+    requestEsc, downloadRec,
     // 시험용(스샷 캔버스를 바로 넣어 보기)
     _test: { onEntryDialog, applyPartyToRoster, resolveAmbiguousByRoster, getLogs: () => logs.slice(), processFrame, readGoldSetting, readGoldHud, checkHud, startEndWatch, isWildTarget, setEndWatch: w => { endWatch = w; }, get endWatch() { return endWatch; }, setGoldWatch: w => { goldWatch = w; }, get goldWatch() { return goldWatch; }, parseDialog, judgeGold, locateParty, readParty, setLastParty: p => { lastParty = p; }, get lastParty() { return lastParty; }, get partyRegion() { return partyRegion; }, scanEsc, setManualClear, setEscRequest: r => { escRequest = r; }, get escRequest() { return escRequest; } }
   };
