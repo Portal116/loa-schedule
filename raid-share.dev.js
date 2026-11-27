@@ -36,7 +36,7 @@
   let frame = null;                    // 재사용 캔버스(매 박자 전체 프레임)
   let partyRegion = loadPartyRegion(), partyMiss = 0, lastLocateAt = 0;
   let lastParty = null;                // { at, items, names }
-  let dialogOpen = false;
+  let dialogOpen = false, dialogClosedAt = 0;
   let endWatch = null;                 // { famKey, diffKey, charName, wild, until } 레이드 끝("나가기") 대기
   const ESC_WAIT_MS = 45000;           // [ESC 읽기] 누른 뒤 게임 메뉴를 기다리는 시간
   const ENTRY_ESC_WAIT_MS = 3 * 60 * 1000; // 입장 창에서 내 캐릭터를 못 찾았을 때 입장 뒤 ESC를 기다리는 시간
@@ -109,6 +109,7 @@
     const dialogText = await readRegion(f, DIALOG_REGION);
     const dialog = parseDialog(dialogText);
     if (dialog && !dialogOpen) await onEntryDialog(dialog, f);
+    if (!dialog && dialogOpen) dialogClosedAt = Date.now();
     dialogOpen = !!dialog;
     // 입장 창에서 내 캐릭터를 못 찾았으면 입장 뒤 게임 메뉴(ESC)에서 이름을 읽는다(입장 창이 닫힌 뒤에만)
     if (!dialog && escRequest) { await scanEsc(f); return; }
@@ -213,6 +214,7 @@
 
   async function onEntryDialog(d, f) {
     const raidLabel = entryLabel(d);
+    entrySoundFrom = Date.now();
     // 관리자 기록: 입장 창 화면 + 직전 파티창 화면들(인원을 잘못 읽었을 때 원인 확인용)
     if (f && recOn()) rec('entry', { dialog: d, img: shot(f, FULL_REGION, 1200), party: partyShots.slice() });
     log(`입장 창: ${raidLabel}, 남은 골드 ${d.left === null ? '?' : d.left + '회'}`);
@@ -248,14 +250,16 @@
   // 입장 창 판단(골드 + 레이드 끝 감시). 입장 창에서 바로, 또는 입장 뒤 ESC로 캐릭터 이름을 읽은 다음에 부른다.
   // 입장 창을 제대로 읽었다는 표시로 성공(골드 받기, 골드 소진)일 때만 "삐" 한 번(주의 알림은 "삐삐" 두 번).
   // 이 입장 창에서 이미 다른 소리(인원 확인/자동 변경 "삐삐" 등)가 났으면 안 울린다 - "삐삐"가 들리면 "삐"는 필요 없음(2026-11-27 사용자).
-  // 같은 입장 창이 다시 잡혀도(싱글 모드에서 레이드 고르기, 창 닫았다 열기, 글자 인식 깜빡임) 2분 안에는 다시 안 울린다.
-  const ENTRY_BEEP_GAP_MS = 2 * 60 * 1000;
-  let lastEntryBeep = null;           // { key, at }
+  // 글자 인식이 한두 박자 빠졌다 다시 잡힌 같은 입장 창(닫힌 지 7초 안)만 다시 안 울린다. 누가 거절해서 다시 신청한 입장 창은
+  // 닫혀 있던 시간이 그보다 길어 다시 울린다(처음엔 2분 막았는데 재신청 때 안 울리면 인식했는지 모름 - 2026-11-28 사용자).
+  const ENTRY_FLICKER_MS = 7000;
+  let entrySoundFrom = 0;             // 이번 입장 창(또는 ESC로 이어 판단) 시작 시각 - 이 뒤에 난 소리가 있으면 "삐" 생략
+  let lastEntryBeepKey = null;
   function entryBeep(d, charName) {
-    if (Date.now() - lastBeepAt < 5000) return;
+    if (lastBeepAt >= entrySoundFrom) return;
     const key = [d.famKey, d.diffKey, d.left, charName].join('|');
-    if (lastEntryBeep && lastEntryBeep.key === key && Date.now() - lastEntryBeep.at < ENTRY_BEEP_GAP_MS) return;
-    lastEntryBeep = { key, at: Date.now() };
+    if (key === lastEntryBeepKey && Date.now() - dialogClosedAt < ENTRY_FLICKER_MS) return;
+    lastEntryBeepKey = key;
     beep(1);
   }
 
@@ -864,7 +868,7 @@
       : '레이드 목록 없음(게임 메뉴 목록에 레이드를 넣어 두면 읽을 수 있음)';
     log(`ESC 읽음: ${charName} - ${seen}${changed.length ? ' → ' + changed.join(', ') : ''}${locked.length ? ` (일정표 편성이라 그대로: ${locked.join(', ')})` : ''}`);
     // 입장 창 뒤라면 방금 맞춘 완료 체크까지 반영해서 그 입장 창 판단을 이어서 한다(상태 바/알림은 판단 쪽이 띄움)
-    if (entry) { closeGoldAlert([ESC_ALERT_TITLE]); judgeEntry(entry, charName); return; }
+    if (entry) { closeGoldAlert([ESC_ALERT_TITLE]); entrySoundFrom = Date.now(); judgeEntry(entry, charName); return; }
     setStatus(`ESC 확인: ${charName} - ${changed.length ? changed.join(', ') : '바꿀 것 없음'}`);
     notify('info');
   }
