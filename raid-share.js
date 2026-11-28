@@ -665,11 +665,15 @@
 
   // OCR이 한 글자 틀려("믕"→"몽") 비슷한 후보가 여럿이면 정해지지 않는다. 그 레이드의 참여 캐릭터/일정표 편성 안에 있는
   // 후보가 딱 하나뿐일 때만 그쪽으로 확정한다(둘 이상이거나 하나도 없으면 그대로 두고 사람이 고른다).
+  // 읽은 글자와 가장 가까운 후보들 중에서만 고른다 - "무한대로귀용"(실제 귀욤)이 더 먼 "무한대로장마"로, "무한대로낮질"(실제 낫질)이
+  // "무한대로도륙"으로 바뀐 일(2026-11-28 기록)처럼 앞 4글자만 같은 다른 캐릭터로 정하지 않게.
   function resolveAmbiguousByRoster(items, rosterNames) {
     const roster = new Set(rosterNames);
     items.forEach(it => {
       if (it.choice !== null) return;
-      const hits = it.candidates.map((n, i) => ({ n, i })).filter(x => roster.has(x.n));
+      const ds = it.candidates.map(n => screenOcrEditDistance(n, it.text));
+      const best = Math.min(...ds);
+      const hits = it.candidates.map((n, i) => ({ n, i })).filter(x => roster.has(x.n) && ds[x.i] === best);
       if (hits.length === 1) it.choice = hits[0].i;
     });
   }
